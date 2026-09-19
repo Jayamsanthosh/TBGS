@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as LucideIcons from "lucide-react";
 import { AlertCircle, RefreshCw, Search, X, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { API_URL } from "@/lib/config";
@@ -659,7 +659,6 @@ export default function InsightsTab() {
     setPage(1);
     setRows([]);
     setTotal(0);
-    loadRecords(card, "ALL", "", "", "", 1);
   };
 
   const applyFilter = (st: string, q: string, fd: string, td: string, pg: number) => {
@@ -667,6 +666,22 @@ export default function InsightsTab() {
     setPage(pg);
     loadRecords(selectedCard, st, q, fd, td, pg);
   };
+
+  const prevCardRef = useRef<InsightCard | null>(null);
+
+  useEffect(() => {
+    if (!selectedCard) return;
+    const prev = prevCardRef.current;
+    prevCardRef.current = selectedCard;
+    if (prev !== selectedCard) {
+      loadRecords(selectedCard, status, search, fromDate, toDate, 1);
+      return;
+    }
+    const t = setTimeout(() => {
+      loadRecords(selectedCard, status, search, fromDate, toDate, 1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [selectedCard, status, search, fromDate, toDate, loadRecords]);
 
   const groups = useMemo(() => {
     const order = ["attention", "workforce", "fleet", "contracts", "hrpayroll", "registry", "travel"];
@@ -696,7 +711,6 @@ export default function InsightsTab() {
   const handlePageSizeChange = (val: string) => {
     const ps = Number(val) || 10;
     setPageSize(ps);
-    if (selectedCard) loadRecords(selectedCard, status, search, fromDate, toDate, 1);
   };
 
   return (
@@ -834,7 +848,7 @@ export default function InsightsTab() {
                 <div className="flex gap-2">
                   <select
                     value={status}
-                    onChange={(e) => applyFilter(e.target.value, search, fromDate, toDate, 1)}
+                    onChange={(e) => setStatus(e.target.value)}
                     className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     {statusOptions.map((s) => (

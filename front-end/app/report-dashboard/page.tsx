@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Search, Download, X, FileText, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronDown, Braces } from "lucide-react";
+import { AlertCircle, Search, Download, X, FileText, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { API_URL } from "@/lib/config";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { Button } from "@/components/ui/button";
@@ -10,23 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface ReportType {
   value: string;
   label: string;
-}
-
-interface ReportParameter {
-  name: string;
-  dataType: string;
-  maxLength: number | null;
-  mode: string;
-  filter: string;
-  sample: string;
-}
-
-interface ReportParametersInfo {
-  reportName: string;
-  procedureName: string;
-  qualifiedName: string | null;
-  procedureFound: boolean;
-  parameters: ReportParameter[];
 }
 
 interface FilterOption {
@@ -242,6 +225,7 @@ export default function ReportDashboardPage() {
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const didFocusOnce = useRef(false);
+  const suppressSuggestionFocusRef = useRef(false);
 
   const [reportTypes, setReportTypes] = useState<ReportType[]>([]);
   const [selectedType, setSelectedType] = useState("");
@@ -251,10 +235,6 @@ export default function ReportDashboardPage() {
   const [searchText, setSearchText] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-
-  const [paramsInfo, setParamsInfo] = useState<ReportParametersInfo | null>(null);
-  const [loadingParams, setLoadingParams] = useState(false);
-  const [paramsError, setParamsError] = useState<string | null>(null);
 
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [company, setCompany] = useState("");
@@ -419,37 +399,17 @@ export default function ReportDashboardPage() {
     [selectedType, fetchReport, pageSize]
   );
 
-  const fetchParameters = useCallback(async (reportType: string) => {
-    if (!reportType) {
-      setParamsInfo(null);
-      return;
-    }
-    setLoadingParams(true);
-    setParamsError(null);
-    try {
-      const res = await fetch(`${API_URL}/report-dashboard/parameters?requestType=${encodeURIComponent(reportType)}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch report parameters");
-      const data = await res.json();
-      setParamsInfo(data?.data ?? null);
-    } catch (err) {
-      setParamsInfo(null);
-      setParamsError(err instanceof Error ? err.message : "Failed to fetch report parameters");
-    } finally {
-      setLoadingParams(false);
-    }
-  }, []);
-
   const handleReportChange = useCallback(
     (value: string) => {
       setSelectedType(value);
-      if (value) sessionStorage.setItem(REPORT_TYPE_STORAGE_KEY, value);
-      else sessionStorage.removeItem(REPORT_TYPE_STORAGE_KEY);
-      setParamsInfo(null);
       if (value) {
-        fetchParameters(value);
+        sessionStorage.setItem(REPORT_TYPE_STORAGE_KEY, value);
+        setShowFilters(true);
+      } else {
+        sessionStorage.removeItem(REPORT_TYPE_STORAGE_KEY);
       }
     },
-    [fetchParameters]
+    []
   );
 
   useEffect(() => {
@@ -458,13 +418,9 @@ export default function ReportDashboardPage() {
       .then((d) => {
         if (!Array.isArray(d) || d.length === 0) return;
         setReportTypes(d);
-        const stored = sessionStorage.getItem(REPORT_TYPE_STORAGE_KEY);
-        const storedValid = !!stored && d.some((t) => t.value === stored);
-        const fallback = storedValid ? (stored as string) : d[0]?.value;
-        if (fallback) handleReportChange(fallback);
       })
       .catch(() => {});
-  }, [handleReportChange]);
+  }, []);
 
   useEffect(() => {
     if (!selectedType) return;
@@ -524,8 +480,6 @@ export default function ReportDashboardPage() {
     setPage(1);
     setSearched(false);
     setError(null);
-    setParamsInfo(null);
-    setParamsError(null);
   };
 
   const exportCSV = async () => {
@@ -561,6 +515,7 @@ export default function ReportDashboardPage() {
     setSearchText(emp || ref);
     setShowSuggestions(false);
     setActiveIndex(-1);
+    suppressSuggestionFocusRef.current = true;
     inputRef.current?.focus();
   };
 
@@ -634,18 +589,6 @@ export default function ReportDashboardPage() {
               options={reportTypes.map((t) => ({ value: t.value, label: t.label }))}
               placeholder="Select Report Name..."
             />
-            {selectedType && !loadingParams && !paramsError && paramsInfo && (
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                {paramsInfo.parameters.length} parameter{paramsInfo.parameters.length === 1 ? "" : "s"} will be passed to{" "}
-                <span className="font-medium text-foreground">{paramsInfo.procedureName}</span>
-              </p>
-            )}
-            {loadingParams && (
-              <p className="mt-1.5 text-[11px] text-muted-foreground">Loading parameters...</p>
-            )}
-            {paramsError && (
-              <p className="mt-1.5 text-[11px] text-destructive">{paramsError}</p>
-            )}
           </div>
           {showFilters && (
             <>
@@ -695,7 +638,7 @@ export default function ReportDashboardPage() {
                 value={company}
                 onChange={(v) => { setCompany(v); setCamp(""); setStore(""); }}
                 options={companyOptions}
-                placeholder="Select Company..."
+                placeholder="All Company"
               />
             </div>
             <div>
@@ -704,7 +647,7 @@ export default function ReportDashboardPage() {
                 value={camp}
                 onChange={(v) => { setCamp(v); setStore(""); }}
                 options={campOptions}
-                placeholder="Select Camp..."
+                placeholder="All Camp"
               />
             </div>
             <div>
@@ -713,7 +656,7 @@ export default function ReportDashboardPage() {
                 value={store}
                 onChange={setStore}
                 options={storeOptions}
-                placeholder="Select Store..."
+                placeholder="All Store"
               />
             </div>
             <div>
@@ -722,7 +665,7 @@ export default function ReportDashboardPage() {
                 value={department}
                 onChange={setDepartment}
                 options={departmentOptions}
-                placeholder="Select Department..."
+                placeholder="All Department"
               />
             </div>
           </div>
@@ -736,7 +679,7 @@ export default function ReportDashboardPage() {
               placeholder="Type employee ID, ref no, name, company, store, camp..."
               value={searchText}
               onChange={(e) => { setSearchText(e.target.value); setActiveIndex(-1); setShowSuggestions(true); }}
-              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+              onFocus={() => { if (suppressSuggestionFocusRef.current) { suppressSuggestionFocusRef.current = false; return; } if (suggestions.length > 0) setShowSuggestions(true); }}
               onKeyDown={handleSearchKeyDown}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
@@ -800,67 +743,6 @@ export default function ReportDashboardPage() {
           )}
         </div>
       </div>
-
-      {selectedType && paramsInfo && (
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Braces className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-semibold text-foreground">Parameters To Pass</h2>
-            </div>
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {paramsInfo.parameters.length} parameter{paramsInfo.parameters.length === 1 ? "" : "s"}
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Stored Procedure: <span className="font-medium text-foreground">{paramsInfo.qualifiedName ?? paramsInfo.procedureName}</span>
-            {!paramsInfo.procedureFound && (
-              <span className="ml-2 text-destructive">(not found in database)</span>
-            )}
-          </p>
-          {paramsInfo.parameters.length === 0 ? (
-            <p className="mt-3 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-              This stored procedure declares no input parameters, so it is executed without arguments.
-            </p>
-          ) : (
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-3 py-2 font-semibold">Parameter</th>
-                    <th className="px-3 py-2 font-semibold">Data Type</th>
-                    <th className="px-3 py-2 font-semibold">Mode</th>
-                    <th className="px-3 py-2 font-semibold">Bound To</th>
-                    <th className="px-3 py-2 font-semibold">Sent Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paramsInfo.parameters.map((p) => (
-                    <tr key={p.name} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2">
-                        <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-semibold text-primary">@{p.name}</code>
-                      </td>
-                      <td className="px-3 py-2 text-xs text-foreground">
-                        {p.dataType}
-                        {p.maxLength != null && p.maxLength > 0 ? `(${p.maxLength})` : ""}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                          {p.mode}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-xs text-foreground">{p.filter}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {p.filter.startsWith("Auto default") ? `default (${p.sample || "-"})` : "from dashboard filter"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
 
       {searched && !loading && (
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
