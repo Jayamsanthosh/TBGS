@@ -1,0 +1,4 @@
+id,name,slug,description,image,display_order,status
+550e8400-e29b-41d4-a716-446655440000,Electronics,electronics,High-end electronic gadgets and devices,https://example.com/images/elec.jpg,1,true
+550e8400-e29b-41d4-a716-446655440001,Home & Kitchen,home-kitchen,Essential items for your living space,https://example.com/images/home.jpg,2,true
+550e8400-e29b-41d4-a716-446655440002,Fitness,fitness,Exercise gear and supplements,https://example.com/images/fit.jpg,3,true
