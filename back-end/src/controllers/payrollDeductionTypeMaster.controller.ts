@@ -1,0 +1,122 @@
+import { Request, Response } from "express";
+import { identityFrom } from "../utils/identity";
+import {
+  getAllPayrollDeductionTypeMasterService,
+  getPayrollDeductionTypeMasterByIdService,
+  savePayrollDeductionTypeMasterService,
+  updatePayrollDeductionTypeMasterService,
+  deletePayrollDeductionTypeMasterService,
+  PayrollDeductionTypeMasterData,
+} from "../services/payrollDeductionTypeMaster.services";
+
+export const getAllPayrollDeductionTypeMaster = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const status = req.query.status as string | undefined;
+    const deductionTypes = await getAllPayrollDeductionTypeMasterService(status || undefined);
+    res.json({ success: true, count: deductionTypes.length, data: deductionTypes });
+  } catch (error: any) {
+    console.error("GetAllPayrollDeductionTypeMaster error:", error);
+    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};
+
+export const getPayrollDeductionTypeMasterById = async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ success: false, message: "Deduction Type ID is required" });
+    return;
+  }
+
+  try {
+    const deductionType = await getPayrollDeductionTypeMasterByIdService(parseInt(id as string, 10));
+
+    if (!deductionType) {
+      res.status(404).json({ success: false, message: "Deduction type not found" });
+      return;
+    }
+
+    res.json({ success: true, data: deductionType });
+  } catch (error: any) {
+    console.error("GetPayrollDeductionTypeMasterById error:", error);
+    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};
+
+const VALID_STATUSES = ["AC", "IA"];
+
+export const savePayrollDeductionTypeMaster = async (req: Request, res: Response): Promise<void> => {
+  const data: PayrollDeductionTypeMasterData = req.body;
+
+  if (!data.SALARY_DEDUCTION_TYPE?.trim()) {
+    res.status(400).json({ success: false, message: "Salary/Deduction type is required" });
+    return;
+  }
+
+  if (!data.DEDUCTION_TYPE_NAME?.trim()) {
+    res.status(400).json({ success: false, message: "Deduction type name is required" });
+    return;
+  }
+
+  if (data.STATUS_MASTER && !VALID_STATUSES.includes(data.STATUS_MASTER)) {
+    res.status(400).json({ success: false, message: "Status must be AC or IA" });
+    return;
+  }
+
+  try {
+    const result = await savePayrollDeductionTypeMasterService(data);
+    res.json({
+      success: true,
+      message: result.message || "Data saved successfully",
+      DEDUCTION_TYPE_ID: result.DEDUCTION_TYPE_ID,
+    });
+  } catch (error: any) {
+    console.error("SavePayrollDeductionTypeMaster error:", error);
+    res.status(400).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};
+
+export const updatePayrollDeductionTypeMaster = async (req: Request, res: Response): Promise<void> => {
+  const data: PayrollDeductionTypeMasterData = req.body;
+  const { id } = req.params;
+
+  if (data.STATUS_MASTER && !VALID_STATUSES.includes(data.STATUS_MASTER)) {
+    res.status(400).json({ success: false, message: "Status must be AC or IA" });
+    return;
+  }
+
+  try {
+    if (!data.DEDUCTION_TYPE_ID && id) {
+      data.DEDUCTION_TYPE_ID = parseInt(id as string, 10);
+    }
+
+    const result = await updatePayrollDeductionTypeMasterService(data);
+    res.json({ success: true, message: result.message || "Record updated successfully" });
+  } catch (error: any) {
+    console.error("UpdatePayrollDeductionTypeMaster error:", error);
+    res.status(400).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};
+
+export const deletePayrollDeductionTypeMaster = async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { USER, ROLE, MAC_ADDRESS } = identityFrom(req);
+
+  if (!id) {
+    res.status(400).json({ success: false, message: "Deduction Type ID is required" });
+    return;
+  }
+
+  try {
+    const result = await deletePayrollDeductionTypeMasterService(
+      parseInt(id as string, 10),
+      USER as string,
+      ROLE as string,
+      MAC_ADDRESS as string
+    );
+    res.json({ success: true, message: result.message || "Record deleted successfully" });
+  } catch (error: any) {
+    console.error("DeletePayrollDeductionTypeMaster error:", error);
+    res.status(400).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};

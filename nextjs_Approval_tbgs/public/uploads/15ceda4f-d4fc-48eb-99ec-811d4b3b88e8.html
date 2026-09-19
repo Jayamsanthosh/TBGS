@@ -1,0 +1,199 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Invoice PO/2024/001</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #f1f5f9; padding: 0; color: #1e293b; }
+    .page { max-width: 800px; margin: 0 auto; background: #fff;
+            border-radius: 12px; overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.10); }
+
+    /* Header band */
+    .header { background: linear-gradient(135deg,#4f46e5 0%,#6366f1 100%);
+               padding: 28px 32px; display: flex; justify-content: space-between;
+               align-items: flex-start; }
+    .header-left h1 { color:#fff; font-size:22px; font-weight:800; letter-spacing:-0.5px; }
+    .header-left p  { color:#c7d2fe; font-size:12px; margin-top:4px; }
+    .header-meta { color:#c7d2fe; font-size:11px; line-height:1.7; text-align:right; }
+    .header-meta strong { color:#fff; }
+
+    /* QR block */
+    .qr-box { background:rgba(255,255,255,0.15); border-radius:10px;
+               padding:10px; text-align:center; margin-left:16px; min-width:140px; flex-shrink:0; }
+    .qr-box img { border-radius:6px; display:block; width:110px; height:110px; }
+    .qr-label  { color:#e0e7ff; font-size:10px; margin-top:6px; }
+
+    /* Info grid */
+    .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:0;
+                  border-bottom:1px solid #e2e8f0; }
+    .info-card { padding:20px 28px; border-right:1px solid #e2e8f0; }
+    .info-card:last-child { border-right:none; }
+    .info-card h3 { font-size:10px; font-weight:800; color:#94a3b8;
+                     text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+    .info-card p  { font-size:13px; color:#334155; line-height:1.6; }
+    .info-card .id-badge { display:inline-block; background:#ede9fe; color:#5b21b6;
+                            font-size:10px; font-weight:700; padding:2px 8px;
+                            border-radius:20px; margin-top:4px; }
+
+    /* Tables */
+    .section { padding:20px 28px; }
+    .section h2 { font-size:13px; font-weight:800; color:#4f46e5;
+                   text-transform:uppercase; letter-spacing:0.8px; margin-bottom:12px;
+                   padding-bottom:8px; border-bottom:2px solid #ede9fe; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    thead th { background:#f0f0f8; padding:9px 10px; text-align:left;
+                font-size:10px; font-weight:800; color:#6366f1;
+                text-transform:uppercase; letter-spacing:0.6px; }
+    thead th:not(:first-child) { border-left:1px solid #e2e8f0; }
+    tbody tr { border-top:1px solid #f1f5f9; }
+    tbody td { border-left:1px solid #f1f5f9; vertical-align:middle; }
+    tbody td:first-child { border-left:none; }
+
+    /* Totals */
+    .totals { padding:0 28px 24px; }
+    .totals-box { margin-left:auto; width:280px;
+                   border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+    .totals-row { display:flex; justify-content:space-between; align-items:center;
+                   padding:9px 16px; border-bottom:1px solid #f1f5f9; }
+    .totals-row:last-child { border-bottom:none; background:linear-gradient(135deg,#4f46e5,#6366f1);
+                               border-radius:0 0 10px 10px; }
+    .totals-row:last-child .t-label { color:#c7d2fe; font-size:12px; font-weight:700; }
+    .totals-row:last-child .t-value { color:#fff; font-size:15px; font-weight:800; }
+    .t-label { font-size:11px; color:#64748b; font-weight:600; }
+    .t-value { font-size:12px; color:#1e293b; font-weight:700; font-variant-numeric:tabular-nums; }
+
+    /* Footer */
+    .footer { background:#f8fafc; padding:16px 28px;
+               border-top:1px solid #e2e8f0;
+               display:flex; justify-content:space-between; align-items:center; }
+    .footer p { font-size:10px; color:#94a3b8; }
+    .stamp { border:2px solid #10b981; color:#10b981; font-size:10px;
+              font-weight:800; padding:3px 10px; border-radius:4px;
+              text-transform:uppercase; letter-spacing:1px; }
+    @media print { body { background:white; } .page { box-shadow:none; border-radius:0; } }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <h1>PURCHASE INVOICE</h1>
+      <p>Official Purchase Order Document</p>
+      <div style="margin-top:14px;" class="header-meta">
+        <div><strong>PO Ref:</strong> PO/2024/001</div>
+        <div><strong>PO Date:</strong> 2024-01-15</div>
+        <div><strong>Generated:</strong> 2/27/2026, 4:53:08 PM</div>
+        <div><strong>Currency:</strong> USD</div>
+      </div>
+    </div>
+    <div class="qr-box">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=approvalapp%3A%2F%2Fqrscan%3Fid%3DPO%252F2024%252F001" alt="QR Code" />
+      <div class="qr-label">Scan to verify</div>
+    </div>
+  </div>
+
+  <!-- Supplier / Company -->
+  <div class="info-grid">
+    <div class="info-card">
+      <h3>Supplier</h3>
+      <p style="font-weight:700;font-size:14px">Addamo Marina Hardware</p>
+      <p>Plot 78, Mombasa Road, Industrial Area, Nairobi</p>
+      <span class="id-badge">501</span>
+    </div>
+    <div class="info-card">
+      <h3>Company &amp; Store</h3>
+      <p style="font-weight:700;font-size:14px">Tanzania Breweries Limited</p>
+      <p>Main Production Store - DSM</p>
+      <span class="id-badge">101</span>
+    </div>
+  </div>
+
+  <!-- Line Items -->
+  <div class="section">
+    <h2>Line Items</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:36px;text-align:center">#</th>
+          <th>Product</th>
+          <th>Specification</th>
+          <th style="text-align:right">Qty</th>
+          <th style="text-align:right">Unit Price</th>
+          <th style="text-align:right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+                    <tr style="background:#f8fafc">
+                        <td style="padding:8px 10px;text-align:center;color:#64748b;font-size:12px">1</td>
+                        <td style="padding:8px 10px;font-weight:600;font-size:12px;color:#1e293b">Mild Steel Round Bar 25mm</td>
+                        <td style="padding:8px 10px;font-size:12px;color:#475569">25mm diameter, 6m length, hot rolled</td>
+                        <td style="padding:8px 10px;text-align:right;font-size:12px;color:#1e293b">50.00</td>
+                        <td style="padding:8px 10px;text-align:right;font-size:12px;color:#1e293b">250.00</td>
+                        <td style="padding:8px 10px;text-align:right;font-weight:700;font-size:12px;color:#0f172a">12,250.00</td>
+                    </tr>
+                    <tr style="background:#ffffff">
+                        <td style="padding:8px 10px;text-align:center;color:#64748b;font-size:12px">2</td>
+                        <td style="padding:8px 10px;font-weight:600;font-size:12px;color:#1e293b">Red Silicon Sealant B50</td>
+                        <td style="padding:8px 10px;font-size:12px;color:#475569">High temperature resistant, 310ml cartridge</td>
+                        <td style="padding:8px 10px;text-align:right;font-size:12px;color:#1e293b">120.00</td>
+                        <td style="padding:8px 10px;text-align:right;font-size:12px;color:#1e293b">15.00</td>
+                        <td style="padding:8px 10px;text-align:right;font-weight:700;font-size:12px;color:#0f172a">1,800.00</td>
+                    </tr></tbody>
+    </table>
+  </div>
+
+  <!-- Additional Costs -->
+  <div class="section">
+    <h2>Additional Costs</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Cost Type</th>
+          <th style="text-align:right">Amount</th>
+          <th style="text-align:right">VAT</th>
+        </tr>
+      </thead>
+      <tbody>
+                    <tr style="background:#fafafa">
+                        <td style="padding:7px 10px;font-size:12px;color:#475569">FREIGHT CHARGES</td>
+                        <td style="padding:7px 10px;text-align:right;font-size:12px;color:#1e293b;font-weight:600">1,500.00</td>
+                        <td style="padding:7px 10px;text-align:right;font-size:12px;color:#64748b">0.00</td>
+                    </tr>
+                    <tr style="background:#ffffff">
+                        <td style="padding:7px 10px;font-size:12px;color:#475569">INSURANCE</td>
+                        <td style="padding:7px 10px;text-align:right;font-size:12px;color:#1e293b;font-weight:600">500.00</td>
+                        <td style="padding:7px 10px;text-align:right;font-size:12px;color:#64748b">0.00</td>
+                    </tr>
+                    <tr style="background:#fafafa">
+                        <td style="padding:7px 10px;font-size:12px;color:#475569">HANDLING CHARGES</td>
+                        <td style="padding:7px 10px;text-align:right;font-size:12px;color:#1e293b;font-weight:600">500.00</td>
+                        <td style="padding:7px 10px;text-align:right;font-size:12px;color:#64748b">0.00</td>
+                    </tr></tbody>
+    </table>
+  </div>
+
+  <!-- Totals -->
+  <div class="totals">
+    <div class="totals-box">
+      <div class="totals-row"><span class="t-label">Subtotal</span><span class="t-value">14,050.00 USD</span></div>
+      <div class="totals-row"><span class="t-label">Additional Costs</span><span class="t-value">2,500.00 USD</span></div>
+      <div class="totals-row"><span class="t-label">VAT</span><span class="t-value">5,250.00 USD</span></div>
+      <div class="totals-row"><span class="t-label">GRAND TOTAL</span><span class="t-value">57,750.00 USD</span></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p>This is a system generated document &bull; ApprovalApp &bull; 2026</p>
+    <div class="stamp">Official</div>
+  </div>
+</div>
+</body>
+</html>

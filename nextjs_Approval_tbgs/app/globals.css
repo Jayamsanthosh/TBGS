@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+@import "tailwindcss";
+
+
+:root {
+  --primary-purple: #31238E;
+  --secondary-purple: #8E78FF;
+}
+
+body {
+  font-family: 'Poppins', 'Inter', 'Roboto', sans-serif;
+  overflow-x: hidden;
+  background-color: #f8fafc;
+}
+
+
+/* Premium Custom Scrollbar */
+.custom-scrollbar {
+  scrollbar-gutter: stable;
+}
+
+/* Webkit (Chrome, Edge, Safari) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px; /* Ultra thin */
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1); /* Almost invisible */
+  border-radius: 9999px;
+  transition: background-color 0.3s ease;
+}
+
+/* Show scrollbar on hover */
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+
+.custom-scrollbar:hover {
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+/* Content Area Scrollbar (Ultra Thin for Main Content) */
+.content-scrollbar {
+  scrollbar-gutter: stable;
+}
+
+.content-scrollbar::-webkit-scrollbar {
+  width: 4px; /* Ultra thin */
+  height: 4px;
+}
+
+.content-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.content-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(79, 70, 229, 0.05); /* Extremely subtle indigo */
+  border-radius: 9999px;
+  transition: background-color 0.3s ease;
+}
+
+.content-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(79, 70, 229, 0.2);
+}
+
+.content-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(79, 70, 229, 0.4);
+}
+
+/* Firefox */
+.content-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79, 70, 229, 0.1) transparent;
+}
+
+/* Global Smooth Scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.2s ease-out forwards;
+}
+
+@keyframes swing {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(15deg); }
+  40% { transform: rotate(-10deg); }
+  60% { transform: rotate(5deg); }
+  80% { transform: rotate(-5deg); }
+}
+
+.animate-swing {
+  animation: swing 2s ease-in-out infinite;
+  transform-origin: top center;
+}
