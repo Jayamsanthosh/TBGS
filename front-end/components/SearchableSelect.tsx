@@ -14,9 +14,10 @@ interface SearchableSelectProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  searchable?: boolean;
 }
 
-export function SearchableSelect({ value, onChange, options, placeholder, disabled, className }: SearchableSelectProps) {
+export function SearchableSelect({ value, onChange, options, placeholder, disabled, className, searchable = true }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
 
   const selected = options.find((o) => String(o.value) === String(value ?? ""));
@@ -46,7 +47,7 @@ export function SearchableSelect({ value, onChange, options, placeholder, disabl
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <Command>
-          <CommandInput placeholder={`Search ${placeholder || "..."}`} className="h-9" />
+          {searchable && <CommandInput placeholder={`Search ${placeholder || "..."}`} className="h-9" />}
           <CommandList>
             <CommandEmpty>No options found.</CommandEmpty>
             <CommandGroup>

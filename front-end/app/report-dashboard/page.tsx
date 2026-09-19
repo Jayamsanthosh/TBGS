@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Search, Download, X, FileText, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { AlertCircle, Search, Download, X, FileText, SlidersHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
 import { API_URL } from "@/lib/config";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { Button } from "@/components/ui/button";
@@ -612,20 +612,19 @@ export default function ReportDashboardPage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Status</label>
-                <div className="relative">
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full cursor-pointer appearance-none rounded-lg border border-border bg-card px-3 py-2 pr-9 text-sm text-foreground shadow-sm transition-all focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 hover:border-primary/40"
-                  >
-                    <option value="ALL">All Statuses</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Hold">Hold</option>
-                    <option value="Rejected">Rejected</option>
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                </div>
+                <SearchableSelect
+                  value={status}
+                  onChange={setStatus}
+                  searchable={false}
+                  options={[
+                    { value: "ALL", label: "All Statuses" },
+                    { value: "Pending", label: "Pending" },
+                    { value: "Approved", label: "Approved" },
+                    { value: "Hold", label: "Hold" },
+                    { value: "Rejected", label: "Rejected" },
+                  ]}
+                  placeholder="All Statuses"
+                />
               </div>
             </>
           )}

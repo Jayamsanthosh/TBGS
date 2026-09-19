@@ -187,7 +187,7 @@ export const saveAttendanceDetailsService = async (data: AttendanceDetailsData) 
       .input("FINAL_RESPONSE_STATUS", sql.VarChar(50), data.FINAL_RESPONSE_STATUS || null)
       .input("FINAL_RESPONSE_REMARKS", sql.VarChar(50), data.FINAL_RESPONSE_REMARKS || null)
       .input("REMARKS", sql.VarChar(1000), data.REMARKS || null)
-      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
+      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || "AC")
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
       .execute("VPayEntries.SAVE_ATTENDANCE_DETAILS");
@@ -249,7 +249,7 @@ export const updateAttendanceDetailsService = async (data: AttendanceDetailsData
       .input("FINAL_RESPONSE_STATUS", sql.VarChar(50), data.FINAL_RESPONSE_STATUS ?? null)
       .input("FINAL_RESPONSE_REMARKS", sql.VarChar(50), data.FINAL_RESPONSE_REMARKS ?? null)
       .input("REMARKS", sql.VarChar(1000), data.REMARKS ?? null)
-      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
+      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? "AC")
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
       .execute("VPayEntries.UPDATE_ATTENDANCE_DETAILS");

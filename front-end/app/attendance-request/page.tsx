@@ -9,6 +9,7 @@ import {
   updateAttendanceRequest,
   deleteAttendanceRequest,
   clearAttendanceRequestError,
+  getPendingConflictRef,
   AttendanceRequestGridData,
 } from "@/lib/attendanceRequestSlice";
 import { useApiQuery } from "@/lib/reduxQuery";
@@ -41,6 +42,8 @@ export default function AttendanceRequestPage() {
   const { items, loading, error } = useAppSelector((s) => s.attendanceRequest);
   const { toast } = useToast();
   const [currentStatus, setCurrentStatus] = useState<string>("");
+  const [pendingRefNo, setPendingRefNo] = useState<string | null>(null);
+  const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
 
   const { user } = useAppSelector((state) => state.auth);
   
@@ -360,7 +363,18 @@ export default function AttendanceRequestPage() {
 
   const columns = useMemo(() => [
     { key: "SNO", label: "ID" },
-    { key: "ATT_REQUEST_REF_NO", label: "Ref No" },
+    {
+      key: "ATT_REQUEST_REF_NO",
+      label: "Ref No",
+      render: (val: unknown, item: Record<string, unknown>) => (
+        <span className="flex items-center gap-1.5 flex-wrap">
+          <span>{val != null && val !== "" ? String(val) : "-"}</span>
+          {pendingRefNo && String(item?.ATT_REQUEST_REF_NO ?? "").toLowerCase() === pendingRefNo.toLowerCase() && (
+            <Badge variant="outline" className="bg-warning/10 text-warning border-warning/40 px-1.5 py-0 text-[9px] uppercase font-bold">Pending</Badge>
+          )}
+        </span>
+      ),
+    },
     { key: "MONTH_ENTERED", label: "Month" },
     { key: "YEAR_ENTERED", label: "Year" },
     { key: "EMP_NAME", label: "Employee" },
@@ -376,7 +390,7 @@ export default function AttendanceRequestPage() {
       label: "Status",
       render: (val: any) => statusBadge(val),
     },
-  ], []);
+  ], [pendingRefNo]);
 
   const enrichedData = useMemo(() => {
     if (!Array.isArray(items)) return [];
@@ -442,13 +456,43 @@ export default function AttendanceRequestPage() {
         const v = payload[k];
         if (v === "" || v === undefined || v === null) delete payload[k];
       });
-      const res = await dispatch(addAttendanceRequest(payload as AttendanceRequestGridData)).unwrap();
-      dispatch(fetchAttendanceRequests(currentStatus));
-      return res;
+      try {
+        const res = await dispatch(addAttendanceRequest(payload as AttendanceRequestGridData)).unwrap();
+        dispatch(fetchAttendanceRequests(currentStatus));
+        return res;
+      } catch (raw) {
+        const msg = typeof raw === "string"
+          ? raw
+          : (typeof raw === "object" && raw !== null && "message" in raw ? String((raw as { message: unknown }).message) : "");
+        const conflict = getPendingConflictRef(msg);
+        if (conflict) {
+          try {
+            const inGrid = (Array.isArray(enrichedData) ? enrichedData : []).find(
+              (r) => String(r.ATT_REQUEST_REF_NO).toLowerCase() === conflict.refNo.toLowerCase()
+            );
+            let match = inGrid;
+            if (!match) {
+              const listRes = await fetch(`${API_URL}/attendance-request?status=`);
+              const listJson = await listRes.json().catch(() => null);
+              match = (listJson?.data || []).find(
+                (r: AttendanceRequestGridData) => String(r.ATT_REQUEST_REF_NO).toLowerCase() === conflict.refNo.toLowerCase()
+              );
+            }
+            if (match) {
+              setPendingRefNo(conflict.refNo);
+              setPendingRequestId(String(match.SNO ?? match.id));
+              if (!inGrid) setCurrentStatus("");
+            }
+          } catch { /* highlighting the existing request is non-critical */ }
+        }
+        throw raw;
+      }
     },
     update: async (item: AttendanceRequestGridData) => {
       const res = await dispatch(updateAttendanceRequest(item)).unwrap();
       dispatch(fetchAttendanceRequests(currentStatus));
+      setPendingRefNo(null);
+      setPendingRequestId(null);
       return res;
     },
     remove: async (id: string) => {
@@ -485,6 +529,7 @@ export default function AttendanceRequestPage() {
       ]}
       onStatusFilterChange={handleStatusFilterChange}
       enableViewDetails
+      highlightId={pendingRequestId}
       onBeforeEdit={async (item) => {
         const id = Number(item.SNO ?? item.id);
         if (!id) return undefined;

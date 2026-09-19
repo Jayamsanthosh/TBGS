@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Plus, Search, Pencil, Trash2, Download, FileSpreadsheet, FileText, X, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -91,6 +91,7 @@ interface MasterPageProps {
   onPrint?: (item: any) => void;
   onBeforeEdit?: (item: Record<string, any>) => Promise<Record<string, any> | undefined>;
   onViewData?: (item: Record<string, any>) => Promise<Record<string, any> | undefined>;
+  highlightId?: string | number | null;
   hideAllStatusFilter?: boolean;
   statusOptions?: { label: string; value: string }[];
   onStatusFilterChange?: (value: string) => void;
@@ -119,7 +120,7 @@ const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
 import { useMasterData } from "@/hooks/useMasterData";
 
-export default function MasterCrudPage({ title, description, idPrefix, domain, fields, initialData, columns, customAddUrl, customEditUrl, customStoreOverrides, onPrint, onBeforeEdit, onViewData, statusOptions, onStatusFilterChange, onSaveValidate, enableViewDetails, lockedStatuses = ["CL", "CA"], hideLockedModifyActions, rowActions, enableDateRangeFilter, onDateRangeFilterChange }: MasterPageProps) {
+export default function MasterCrudPage({ title, description, idPrefix, domain, fields, initialData, columns, customAddUrl, customEditUrl, customStoreOverrides, onPrint, onBeforeEdit, onViewData, highlightId, statusOptions, onStatusFilterChange, onSaveValidate, enableViewDetails, lockedStatuses = ["CL", "CA"], hideLockedModifyActions, rowActions, enableDateRangeFilter, onDateRangeFilterChange }: MasterPageProps) {
   const router = useRouter();
   const overrides = customStoreOverrides || {};
   const masterData = overrides.data
@@ -149,6 +150,9 @@ export default function MasterCrudPage({ title, description, idPrefix, domain, f
     const pruned = new Set(Array.from(selectedIds).filter((id) => existing.has(id)));
     if (pruned.size !== selectedIds.size) setSelectedIds(pruned);
   }, [data]);
+
+  const isHighlighted = (item: Record<string, unknown>): boolean =>
+    highlightId !== undefined && highlightId !== null && highlightId !== "" && String(item.id) === String(highlightId);
 
   const isLockedStatus = (item: Record<string, any>): boolean => {
     const s = String(item.STATUS_MASTER || item.status || "").toUpperCase();
@@ -238,6 +242,45 @@ export default function MasterCrudPage({ title, description, idPrefix, domain, f
     const start = (currentPage - 1) * effectivePageSize;
     return filtered.slice(start, start + effectivePageSize);
   }, [filtered, currentPage, effectivePageSize]);
+
+  // When a highlight target is set, clear local filters so the row is not hidden.
+  useEffect(() => {
+    if (highlightId === undefined || highlightId === null || highlightId === "") return;
+    const frame = requestAnimationFrame(() => {
+      setSearch("");
+      setStatusFilter("");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [highlightId]);
+
+  // Jump to the page containing the highlighted row if pagination is active.
+  useEffect(() => {
+    if (highlightId === undefined || highlightId === null || highlightId === "") return;
+    const target = String(highlightId);
+    const idx = filtered.findIndex((i) => String(i.id) === target);
+    if (idx >= 0 && effectivePageSize !== "ALL") {
+      const frame = requestAnimationFrame(() => {
+        setCurrentPage(Math.floor(idx / (effectivePageSize as number)) + 1);
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [filtered, highlightId, effectivePageSize]);
+
+  // Scroll the highlighted row into view once it is rendered (scrolls once per target).
+  const scrolledHighlightRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (highlightId === undefined || highlightId === null || highlightId === "") return;
+    const target = String(highlightId);
+    if (scrolledHighlightRef.current === target) return;
+    const frame = requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-row-id="${target}"]`);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        scrolledHighlightRef.current = target;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [paginated, highlightId, data]);
 
   // Bulk Selection Handlers
   const toggleSelectAll = () => {
@@ -663,7 +706,7 @@ export default function MasterCrudPage({ title, description, idPrefix, domain, f
                 {paginated.map((item: Record<string, any>, idx: number) => {
                     const isLocked = isLockedStatus(item);
                     return (
-                    <tr key={item.id || `row-${idx}`} className={`border-b hover:bg-muted/30 transition-colors ${selectedIds.has(item.id) ? 'bg-primary/5 border-primary/20' : ''}`}>
+                    <tr key={item.id || `row-${idx}`} data-row-id={item.id != null ? String(item.id) : undefined} className={`border-b hover:bg-muted/30 transition-colors ${selectedIds.has(item.id) ? 'bg-primary/5 border-primary/20' : ''} ${isHighlighted(item) ? 'bg-amber-100/70 ring-1 ring-amber-400/60' : ''}`}>
                     <td className="p-3 w-10">
                       <input
                         type="checkbox"
