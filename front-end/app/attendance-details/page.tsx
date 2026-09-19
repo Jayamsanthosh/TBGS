@@ -38,6 +38,37 @@ const statusBadge = (val: any) => {
   );
 };
 
+const responseStatusBadge = (val: unknown) => {
+  const sv = String(val || "").trim().toLowerCase();
+  const isPending = sv === "" || sv === "pending";
+  const isApproved = sv === "approved" || sv === "approval";
+  const isRejected = sv === "rejected" || sv === "reject";
+  const isHold = sv === "hold";
+  const colorClass = isPending
+    ? "bg-warning/10 text-warning border-warning/40"
+    : isApproved
+      ? "bg-green-500/10 text-green-600 border-green-200"
+      : isRejected
+        ? "bg-red-500/10 text-red-600 border-red-200"
+        : isHold
+          ? "bg-info/10 text-info border-info/200"
+          : "bg-gray-500/10 text-gray-600 border-gray-200";
+  const label = isPending
+    ? "Pending"
+    : isApproved
+      ? "Approved"
+      : isRejected
+        ? "Rejected"
+        : sv
+          ? sv.toUpperCase()
+          : "Pending";
+  return (
+    <Badge variant="outline" className={`${colorClass} px-2 py-0.5 text-[10px] uppercase font-bold`}>
+      {label}
+    </Badge>
+  );
+};
+
 const toOptions = (rows: any[], idKey: string, nameKey: string) =>
   Array.isArray(rows)
     ? rows
@@ -349,12 +380,12 @@ export default function AttendanceDetailsPage() {
     {
       key: "SECTION_HEAD_RESPONSE_STATUS",
       label: "Section Head",
-      render: (val: any) => val || "-",
+      render: (val: unknown, item: any) => responseStatusBadge(String(val ?? item.SECTION_HEAD_RESPONSE_STATUS ?? "")),
     },
     {
       key: "FINAL_RESPONSE_STATUS",
       label: "Final",
-      render: (val: any) => val || "-",
+      render: (val: any) => responseStatusBadge(val),
     },
     {
       key: "STATUS_MASTER",
@@ -447,6 +478,14 @@ export default function AttendanceDetailsPage() {
           NO_OF_DAYS: toNum(req.NO_OF_DAYS),
           BALANCE_LEAVE: toNum(req.BALANCE_LEAVE),
           REASON: req.REASON ?? "",
+          SECTION_HEAD_RESPONSE_PERSON_EMP_ID: toStr(req.SECTION_HEAD_RESPONSE_PERSON_EMP_ID),
+          SECTION_HEAD_RESPONSE_DATE: fmtDate(req.SECTION_HEAD_RESPONSE_DATE),
+          SECTION_HEAD_RESPONSE_STATUS: req.SECTION_HEAD_RESPONSE_STATUS ?? "",
+          SECTION_HEAD_RESPONSE_REMARKS: req.SECTION_HEAD_RESPONSE_REMARKS ?? "",
+          FINAL_RESPONSE_PERSON: req.FINAL_RESPONSE_PERSON ?? "",
+          FINAL_RESPONSE_DATE: fmtDate(req.FINAL_RESPONSE_DATE),
+          FINAL_RESPONSE_STATUS: req.FINAL_RESPONSE_STATUS ?? "",
+          FINAL_RESPONSE_REMARKS: req.FINAL_RESPONSE_REMARKS ?? "",
         });
       } else {
         setForm({ ...form, ATT_REQUEST_REF_NO: value });
@@ -531,7 +570,7 @@ export default function AttendanceDetailsPage() {
     data: enrichedData,
     isLoading: loading,
     add: async (item: AttendanceDetailsGridData) => {
-      const res = await dispatch(addAttendanceDetail(cleanPayload(item))).unwrap();
+      const res = await dispatch(addAttendanceDetail({ ...cleanPayload(item), STATUS_MASTER: "AC" })).unwrap();
       dispatch(fetchAttendanceDetails({ status: currentStatus || "ALL", fromDate, toDate }));
       return res;
     },

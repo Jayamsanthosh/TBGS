@@ -92,6 +92,13 @@ export const getAttendanceRequestById = createAsyncThunk(
   }
 );
 
+export function getPendingConflictRef(message: string): { refNo: string; userName: string } | null {
+  if (typeof message !== "string") return null;
+  const m = message.match(/A pending request already exists \(Ref:\s*([^)]*?)\s+for\s+([^)]+)\)/i);
+  if (m) return { refNo: m[1].trim(), userName: m[2].trim() };
+  return null;
+}
+
 function parsePendingRequestError(raw: string): string {
   const refMatch = raw.match(/Ref Nos\s*\[\s*\(\s*([^)]+)\s*\)\s*=>\s*([^)\]]+)\s*\]/i);
   if (refMatch) {
