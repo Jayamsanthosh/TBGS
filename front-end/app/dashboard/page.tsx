@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as LucideIcons from "lucide-react";
 import { AlertCircle, RefreshCw, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { API_URL } from "@/lib/config";
@@ -136,7 +136,6 @@ export default function DashboardPage() {
     setRows([]);
     setColumns([]);
     setTotal(0);
-    fetchRecords(card, "ALL", "", "", "", 1, pageSize);
   };
 
   const applyFilter = () => {
@@ -144,12 +143,27 @@ export default function DashboardPage() {
     fetchRecords(selectedCard, status, search, fromDate, toDate, 1, pageSize);
   };
 
+  const prevCardRef = useRef<DashboardCard | null>(null);
+
+  useEffect(() => {
+    if (!selectedCard) return;
+    const prev = prevCardRef.current;
+    prevCardRef.current = selectedCard;
+    if (prev !== selectedCard) {
+      fetchRecords(selectedCard, status, search, fromDate, toDate, 1, pageSize);
+      return;
+    }
+    const t = setTimeout(() => {
+      fetchRecords(selectedCard, status, search, fromDate, toDate, 1, pageSize);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [selectedCard, status, search, fromDate, toDate, pageSize, fetchRecords]);
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const handlePageSizeChange = (val: string) => {
     const ps = Number(val) || 10;
     setPageSize(ps);
-    if (selectedCard) fetchRecords(selectedCard, status, search, fromDate, toDate, 1, ps);
   };
 
   const displayColumns = useMemo(() => {
