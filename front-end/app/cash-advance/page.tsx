@@ -161,24 +161,32 @@ export default function CashAdvancePage() {
       ),
     },
     {
-      key: "CASH_ADV_REQUEST_REF_NO",
-      label: "Cash Advance Ref No",
-      type: "select",
-      required: true,
-      dependsOn: "EMP_ID",
-      placeholder: "Select request ref no",
-      options: (form: Record<string, any>) =>
-        (Array.isArray(requests) ? requests : [])
-          .filter((r: any) => String(r.EMP_ID) === String(form.EMP_ID) && r.CASH_ADV_REQUEST_REF_NO)
-          .map((r: any) => ({ value: String(r.CASH_ADV_REQUEST_REF_NO), label: String(r.CASH_ADV_REQUEST_REF_NO) })),
-    },
-    {
       key: "SALARY_DEDUCTION_TYPE",
       label: "Salary Deduction Type",
       type: "select",
       required: true,
+      dependsOn: "EMP_ID",
       options: SALARY_DEDUCTION_TYPE.map((s) => ({ value: s, label: s })),
       placeholder: "Select salary deduction type",
+    },
+    {
+      key: "CASH_ADV_REQUEST_REF_NO",
+      label: "Cash Advance Ref No",
+      type: "select",
+      required: true,
+      dependsOn: "SALARY_DEDUCTION_TYPE",
+      placeholder: "Select request ref no",
+      options: (form: Record<string, any>) =>
+        (Array.isArray(requests) ? requests : [])
+          .filter(
+            (r: any) =>
+              String(r.EMP_ID) === String(form.EMP_ID) &&
+              String(r.SALARY_DEDUCTION_TYPE ?? "").toUpperCase() ===
+                String(form.SALARY_DEDUCTION_TYPE ?? "").toUpperCase() &&
+              r.CASH_ADV_REQUEST_REF_NO &&
+              String(r.STATUS_MASTER ?? "").toUpperCase() === "CL"
+          )
+          .map((r: any) => ({ value: String(r.CASH_ADV_REQUEST_REF_NO), label: String(r.CASH_ADV_REQUEST_REF_NO) })),
     },
     { key: "ADVANCE_TYPE", label: "Advance Type", type: "text", disabled: true, defaultValue: "Cash Advance", maxLength: 50 },
       { key: "FIRST_NAME", label: "First Name", type: "text", disabled: true, maxLength: 50 },

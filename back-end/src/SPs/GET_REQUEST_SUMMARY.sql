@@ -80,7 +80,7 @@ BEGIN
                 THEN 1 ELSE 0
             END) AS RejectedCount
     FROM [VRequest].[TBL_CASH_ADVANCE_REQUEST]
-    WHERE STATUS_MASTER = 'AC'
+    WHERE STATUS_MASTER = 'CL'
 
     UNION ALL
 

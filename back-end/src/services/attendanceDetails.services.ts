@@ -88,7 +88,7 @@ export const getAllAttendanceDetailsService = async (
 
   try {
     if (status === "ALL") {
-      const statuses = ["AC", "IN"];
+      const statuses = ["AC", "IN", "CL", "CA"];
       let allRows: any[] = [];
       for (const s of statuses) {
         const result = await pool
