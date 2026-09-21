@@ -521,7 +521,10 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                 const s = str.toUpperCase();
                 if (s === 'APPROVAL' || s === 'APPROVED') return 'APPROVED';
                 if (s === 'REJECT' || s === 'REJECTED') return 'REJECTED';
-                if (s === 'CL' || s === 'CLOSED') return 'CLOSED';
+                if (s === 'CLOSED') return 'CLOSED';
+                // 'CL' for cash advance means SUBMITTED (enters the workflow),
+                // not a terminal state - leave it alone so the response cascade
+                // below decides PENDING/APPROVED/etc.
                 return s;
             };
 

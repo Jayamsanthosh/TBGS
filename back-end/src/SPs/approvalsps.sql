@@ -169,7 +169,7 @@ BEGIN
     END
     ELSE IF @RequestType = 'Cash Advance Request'
     BEGIN
-        SELECT * FROM [VRequest].[TBL_CASH_ADVANCE_REQUEST] WHERE STATUS_MASTER = 'AC'
+        SELECT * FROM [VRequest].[TBL_CASH_ADVANCE_REQUEST] WHERE STATUS_MASTER = 'CL'
     END
     ELSE
     BEGIN
