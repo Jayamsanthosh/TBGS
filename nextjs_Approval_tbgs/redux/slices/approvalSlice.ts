@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from '@/lib/axios';
+import { apiUrl } from '@/lib/config';
 
 interface ApprovalState {
     records: any[];
@@ -21,7 +22,7 @@ export const fetchApprovalRecords = createAsyncThunk(
     'approval/fetchRecords',
     async (approvalType: string, { rejectWithValue }) => {
         try {
-            const response = await axios.get(`/api/approvals/${approvalType}`);
+            const response = await axios.get(apiUrl(`/approvals/${approvalType}`));
             return response.data;
         } catch (error: any) {
             return rejectWithValue(error.response?.data?.message || 'Failed to fetch records');
@@ -33,7 +34,7 @@ export const fetchApprovalDetail = createAsyncThunk(
     'approval/fetchDetail',
     async ({ type, id }: { type: string, id: string }, { rejectWithValue }) => {
         try {
-            const response = await axios.get(`/api/approvals/${type}/${id}`);
+            const response = await axios.get(apiUrl(`/approvals/${type}/${id}`));
             return response.data;
         } catch (error: any) {
             return rejectWithValue(error.response?.data?.message || 'Failed to fetch detail');
@@ -45,7 +46,7 @@ export const fetchConversation = createAsyncThunk(
     'approval/fetchConversation',
     async (poRefNo: string, { rejectWithValue }) => {
         try {
-            const response = await axios.get(`/api/approvals/conversation?poRefNo=${poRefNo}`);
+            const response = await axios.get(apiUrl(`/approvals/conversation?poRefNo=${poRefNo}`));
             return response.data;
         } catch (error: any) {
             return rejectWithValue(error.response?.data?.message || 'Failed to fetch conversation');
@@ -57,7 +58,7 @@ export const updateApprovalStatus = createAsyncThunk(
     'approval/updateStatus',
     async (payload: any, { rejectWithValue }) => {
         try {
-            const response = await axios.post('/api/approvals/status', payload);
+            const response = await axios.post(apiUrl('/approvals/status'), payload);
             return response.data;
         } catch (error: any) {
             return rejectWithValue(error.response?.data?.message || 'Failed to update status');
@@ -69,7 +70,7 @@ export const updateApprovalStatusByType = createAsyncThunk(
     'approval/updateStatusByType',
     async ({ type, ids, status, remarks }: { type: string, ids: number[], status: string, remarks: string }, { rejectWithValue }) => {
         try {
-            const response = await axios.patch(`/api/approvals/${type}`, { ids, status, remarks });
+            const response = await axios.patch(apiUrl(`/approvals/${type}`), { ids, status, remarks });
             return response.data;
         } catch (error: any) {
             return rejectWithValue(error.response?.data?.message || 'Failed to update status');

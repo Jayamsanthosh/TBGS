@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-import { API_URL } from "./config";
+import { API_URL, BASE_PATH } from "./config";
+import { isTokenExpired } from "./auth";
 
 export interface UserCompanyInfo {
   companyId: number;
@@ -79,6 +80,44 @@ export const loginUser = createAsyncThunk<
   return data as LoginApiResponse;
 });
 
+/**
+ * Logout thunk.
+ *
+ * The `logoutUser` reducer below is intentionally pure. All side effects
+ * (the server logout call and the redirect) live here instead, so that
+ * dispatching logout can never re-trigger the API/observer loop that used
+ * to keep the app firing `/auth/logout` + `/auth/permissions` forever.
+ *
+ * It also only calls the server when a session actually existed: POST
+ * /auth/logout is itself authenticated, so calling it with a dead session
+ * only produces a 401 (which the fetch interceptor would otherwise treat
+ * as "session expired" again).
+ */
+export const logoutUserThunk = createAsyncThunk<void, void>(
+  "auth/logoutUserThunk",
+  async (_, { dispatch }) => {
+    const hadSession =
+      typeof window !== "undefined" &&
+      Boolean(localStorage.getItem("accessToken") || localStorage.getItem("refreshToken"));
+
+    dispatch(logoutUser());
+
+    if (hadSession && typeof window !== "undefined") {
+      // `keepalive` lets the request finish even though we navigate away.
+      fetch(`${API_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        keepalive: true,
+      }).catch(() => {});
+    }
+
+    if (typeof window !== "undefined") {
+      // Hard redirect guarantees a clean state and stops any in-flight loop.
+      window.location.replace(`${BASE_PATH}/login`);
+    }
+  }
+);
+
 function normalizeUser(serverUser: Record<string, unknown>): UserData {
   const loginName = String(serverUser.loginName ?? serverUser.LOGIN_NAME ?? "");
   const companies = Array.isArray(serverUser.companies)
@@ -110,6 +149,7 @@ function clearPersistedAuth() {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("user");
+  localStorage.removeItem("permissions");
 }
 
 const authSlice = createSlice({
@@ -123,25 +163,24 @@ const authSlice = createSlice({
       state.loading = false;
       state.error = null;
       clearPersistedAuth();
-      // Fire-and-forget: clears the httpOnly access_token/refresh_token
-      // cookies server-side. Local UI state above is already cleared,
-      // so we don't block on the network response.
-      fetch(`${API_URL}/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {});
-      window.dispatchEvent(new Event("user-data-updated"));
     },
     hydrateFromStorage(state) {
       const accessToken = localStorage.getItem("accessToken");
       const refreshToken = localStorage.getItem("refreshToken");
       const userJson = localStorage.getItem("user");
-      if (accessToken && refreshToken && userJson) {
+      // Never restore an expired/garbage token as a live session - otherwise
+      // the UI reports "authenticated" while every API call 401s.
+      if (accessToken && refreshToken && userJson && !isTokenExpired(accessToken)) {
         try {
-          state.user = JSON.parse(userJson);
+          state.user = normalizeUser(JSON.parse(userJson));
           state.accessToken = accessToken;
           state.refreshToken = refreshToken;
+          return;
         } catch {
-          clearPersistedAuth();
+          // fall through to clear below
         }
       }
+      clearPersistedAuth();
     },
     clearAuthError(state) {
       state.error = null;
