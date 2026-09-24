@@ -22,23 +22,31 @@ import {
   validatePositiveNumber,
 } from "@/lib/validation";
 
-const statusBadge = (val: any) => {
+const approvalBadge = (val: any) => {
   const sv = String(val || "").toLowerCase();
-  const isActive = sv === "active" || sv === "ac";
-  const isInactive = sv === "inactive" || sv === "in";
-  const isClosed = sv === "closed" || sv === "cl";
-  const colorClass = isActive
+  const isApproved = sv === "approved" || sv === "approval";
+  const isRejected = sv === "rejected" || sv === "reject";
+  const isHold = sv === "hold";
+  const colorClass = isApproved
     ? "bg-green-500/10 text-green-600 border-green-200"
-    : isInactive
+    : isRejected
       ? "bg-red-500/10 text-red-600 border-red-200"
-      : isClosed
-        ? "bg-blue-500/10 text-blue-600 border-blue-200"
+      : isHold
+        ? "bg-yellow-500/10 text-yellow-600 border-yellow-200"
         : "bg-gray-500/10 text-gray-600 border-gray-200";
   return (
     <Badge variant="outline" className={`${colorClass} px-2 py-0.5 text-[10px] uppercase font-bold`}>
-      {isActive ? "Active" : isInactive ? "Inactive" : isClosed ? "Closed" : val}
+      {isApproved ? "Approved" : isRejected ? "Rejected" : isHold ? "Hold" : "Pending"}
     </Badge>
   );
+};
+
+const approvalState = (u: any) => {
+  const st = [u.FINAL_RESPONSE_STATUS, u.RESPONSE_2_STATUS, u.RESPONSE_1_STATUS, u.SECTION_HEAD_RESPONSE_STATUS]
+    .find((x) => x && String(x).trim() !== "");
+  const rm = [u.FINAL_RESPONSE_REMARKS, u.RESPONSE_2_REMARKS, u.RESPONSE_1_REMARKS, u.SECTION_HEAD_RESPONSE_REMARKS]
+    .find((x) => x && String(x).trim() !== "");
+  return { approvalStatus: st ? String(st) : "Pending", approvalRemark: rm ? String(rm) : "" };
 };
 
 const toId = (key: string) => (arr: any[], id: any) =>
@@ -95,6 +103,13 @@ export default function ArrearEntriesPage() {
   const { data: employees } = useApiQuery("arr-entry-employees", async () => {
     const res = await fetch(`${API_URL}/employee-database?status=AC`);
     if (!res.ok) throw new Error("Failed to fetch employees");
+    const json = await res.json();
+    return json.data || [];
+  });
+
+  const { data: arrearsRequests } = useApiQuery("arr-entry-requests", async () => {
+    const res = await fetch(`${API_URL}/arrears-request`);
+    if (!res.ok) throw new Error("Failed to fetch arrear requests");
     const json = await res.json();
     return json.data || [];
   });
@@ -299,6 +314,15 @@ export default function ArrearEntriesPage() {
         />
       )
     },
+    {
+      key: "ARREAR_REQUEST_REF_NO",
+      label: "Arrear Request Ref No",
+      type: "select",
+      required: true,
+      dependsOn: "EMP_ID",
+      options: [],
+      placeholder: "Select request ref no",
+    },
     { key: "FIRST_NAME", label: "First Name", type: "text", disabled: true },
     { key: "MIDDLE_NAME", label: "Middle Name", type: "text", disabled: true },
     { key: "LAST_NAME", label: "Last Name", type: "text", disabled: true },
@@ -323,6 +347,13 @@ export default function ArrearEntriesPage() {
     return baseFields.map((f) => {
       switch (f.key) {
         case "COMPANY_ID": return { ...f, options: selectOptions("COMPANY_ID", companies, "COMPANY_NAME") };
+        case "ARREAR_REQUEST_REF_NO": return {
+          ...f,
+          options: (form: Record<string, any>) =>
+            (Array.isArray(arrearsRequests) ? arrearsRequests : [])
+              .filter((r: any) => String(r.EMP_ID) === String(form.EMP_ID) && r.ARREAR_REQUEST_REF_NO && String(r.STATUS_MASTER ?? "AC") === "AC")
+              .map((r: any) => ({ value: String(r.ARREAR_REQUEST_REF_NO), label: String(r.ARREAR_REQUEST_REF_NO) })),
+        };
         case "DEPARTMENT_ID": return { ...f, dependsOn: "COMPANY_ID", options: filteredOptions("DEPARTMENT_ID", departments, "DEPARTMENT_NAME", (form) => cascadeMaps.companyDept.get(String(form.COMPANY_ID ?? ""))) };
         case "DESIGNATION_ID": return { ...f, dependsOn: "DEPARTMENT_ID", options: filteredOptions("DESIGNATION_ID", designations, "DESIGNATION_NAME", (form) => cascadeMaps.companyDeptDesig.get(`${String(form.COMPANY_ID ?? "")}#${String(form.DEPARTMENT_ID ?? "")}`)) };
         case "DEPARTMENT_GROUP_ID": return { ...f, options: selectOptions("DEPARTMENT_GROUP_ID", departmentGroups, "DEPARTMENT_GROUP_NAME") };
@@ -334,9 +365,42 @@ export default function ArrearEntriesPage() {
         default: return f;
       }
     });
-  }, [companies, departments, designations, departmentGroups, designationGroups, camps, stores, employmentTypes, currencies, cascadeMaps]);
+  }, [companies, departments, designations, departmentGroups, designationGroups, camps, stores, employmentTypes, currencies, cascadeMaps, arrearsRequests]);
 
   const handleFieldChange = useCallback((key: string, value: any, setForm: any, form: Record<string, any>): boolean => {
+    if (key === "ARREAR_REQUEST_REF_NO") {
+      const req = (Array.isArray(arrearsRequests) ? arrearsRequests : []).find(
+        (r: any) => String(r.ARREAR_REQUEST_REF_NO) === String(value)
+      );
+      if (req) {
+        const toStr = (v: any) => (v == null || v === "" ? "" : String(v));
+        const toNum = (v: any) => (v == null || v === "" ? "" : Number(v));
+        setForm((prev: any) => ({
+          ...prev,
+          ARREAR_REQUEST_REF_NO: value,
+          MONTH_ENTERED: req.MONTH_ENTERED ?? "",
+          YEAR_ENTERED: toStr(req.YEAR_ENTERED),
+          EMP_ID: toStr(req.EMP_ID),
+          FIRST_NAME: req.FIRST_NAME ?? "",
+          MIDDLE_NAME: req.MIDDLE_NAME ?? "",
+          LAST_NAME: req.LAST_NAME ?? "",
+          COMPANY_ID: toStr(req.COMPANY_ID),
+          DEPARTMENT_ID: toStr(req.DEPARTMENT_ID),
+          DESIGNATION_ID: toStr(req.DESIGNATION_ID),
+          DEPARTMENT_GROUP_ID: toStr(req.DEPARTMENT_GROUP_ID),
+          DESIGNATION_GROUP_ID: toStr(req.DESIGNATION_GROUP_ID),
+          CAMP_ID: toStr(req.CAMP_ID),
+          STORE_ID: toStr(req.STORE_ID),
+          EMPLOYMENT_TYPE_ID: toStr(req.EMPLOYMENT_TYPE_ID),
+          CURRENCY_ID: toStr(req.CURRENCY_ID),
+          ARREAR_AMOUNT: toNum(req.REQUEST_AMOUNT),
+          REASON: req.REASON ?? "",
+        }));
+      } else {
+        setForm((prev: any) => ({ ...prev, ARREAR_REQUEST_REF_NO: value }));
+      }
+      return true;
+    }
     if (key === "EMP_ID") {
       const empGrid = (Array.isArray(filteredEmployees) ? filteredEmployees.find((e: any) => String(e.EMP_ID) === String(value)) : undefined);
       if (empGrid && empGrid.SNO) {
@@ -370,7 +434,7 @@ export default function ArrearEntriesPage() {
     }
 
     return false;
-  }, [filteredEmployees]);
+  }, [filteredEmployees, arrearsRequests]);
 
   const columns = useMemo(() => [
     { key: "SNO", label: "ID" },
@@ -384,9 +448,14 @@ export default function ArrearEntriesPage() {
     { key: "ARREAR_AMOUNT", label: "Arrear Amt", render: (val: any) => numFmt(val) },
     { key: "REASON", label: "Reason" },
     {
-      key: "STATUS_MASTER",
+      key: "approvalStatus",
       label: "Status",
-      render: (val: any) => statusBadge(val),
+      render: (val: any) => approvalBadge(val),
+    },
+    {
+      key: "approvalRemark",
+      label: "Remark",
+      render: (val: any) => (val ? String(val) : ""),
     },
     {
       key: "SUBMISSION_STATUS",
@@ -413,6 +482,7 @@ export default function ArrearEntriesPage() {
       const emp = toId("EMP_ID")(employees, u.EMP_ID);
       return {
         ...u,
+        ...approvalState(u),
         id: u.SNO,
         SNO: u.SNO,
         EMP_NAME: empName(emp) || (u.EMP_ID ? `#${u.EMP_ID}` : ""),

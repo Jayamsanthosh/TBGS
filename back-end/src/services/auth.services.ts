@@ -88,8 +88,12 @@ export interface UserCompanyInfo {
  * Resolves the company(ies) a login is mapped to via
  * TBL_USER_TO_STORE_MAPPING, joined to company master.
  * Used to embed the logged-in user's company context into the JWT.
+ * If no active mapping is found for the exact LOGIN_ID, falls back to
+ * matching the mapping by LOGIN_NAME (via TBL_USER_INFO_HDR) so a
+ * mapping saved against a different row id for the same login still
+ * resolves.
  */
-export const getUserCompanyInfo = async (loginId: number): Promise<UserCompanyInfo[]> => {
+export const getUserCompanyInfo = async (loginId: number, loginName?: string): Promise<UserCompanyInfo[]> => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -110,7 +114,32 @@ export const getUserCompanyInfo = async (loginId: number): Promise<UserCompanyIn
       ORDER BY C.COMPANY_ID
     `);
 
-  return result.recordset || [];
+  if (result.recordset.length > 0 || !loginName) {
+    return result.recordset || [];
+  }
+
+  // Fallback: the mapping may have been saved against a different row id
+  // that shares the same login name.
+  const fallback = await pool
+    .request()
+    .input("LOGIN_NAME", sql.VarChar(50), loginName)
+    .query(`
+      SELECT DISTINCT
+        C.COMPANY_ID,
+        C.COMPANY_NAME,
+        C.SHORT_CODE,
+        C.YEAR_CODE
+      FROM VMaster.TBL_USER_TO_STORE_MAPPING M
+      INNER JOIN VMaster.TBL_USER_INFO_HDR U ON U.LOGIN_ID = M.LOGIN_ID
+      INNER JOIN VMaster.TBL_COMPANY_MASTER C ON C.COMPANY_ID = M.COMPANY_ID
+      WHERE LOWER(LTRIM(RTRIM(U.LOGIN_NAME))) = LOWER(LTRIM(RTRIM(@LOGIN_NAME)))
+        AND UPPER(M.STATUS_MASTER) IN ('AC', 'ACTIVE')
+        AND UPPER(U.STATUS_MASTER) IN ('AC', 'ACTIVE')
+        AND UPPER(C.STATUS_MASTER) IN ('AC', 'ACTIVE')
+      ORDER BY C.COMPANY_ID
+    `);
+
+  return fallback.recordset || [];
 };
 
 /** Company IDs the given login is mapped to (used to scope screen lists for non-admins). */

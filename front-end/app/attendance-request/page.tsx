@@ -18,21 +18,31 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { EmployeeCombobox } from "@/components/EmployeeCombobox";
 
-const statusBadge = (val: any) => {
-  const sv = String(val || "").toLowerCase();
-  const isActive = sv === "active" || sv === "ac";
-  const isInactive = sv === "inactive" || sv === "in";
-  const colorClass = isActive
-    ? "bg-green-500/10 text-green-600 border-green-200"
-    : isInactive
-      ? "bg-red-500/10 text-red-600 border-red-200"
-      : "bg-blue-500/10 text-blue-600 border-blue-200";
+const responseStatusBadge = (val: unknown) => {
+  const sv = String(val || "").trim().toLowerCase();
+  const isPending = sv === "" || sv === "pending" || sv === "ac";
+  const isApproved = sv === "approved" || sv === "approval";
+  const isRejected = sv === "rejected" || sv === "reject";
+  const isHold = sv === "hold";
+  const colorClass = isPending
+    ? "bg-warning/10 text-warning border-warning/40"
+    : isApproved
+      ? "bg-green-500/10 text-green-600 border-green-200"
+      : isRejected
+        ? "bg-red-500/10 text-red-600 border-red-200"
+        : isHold
+          ? "bg-info/10 text-info border-info/200"
+          : "bg-gray-500/10 text-gray-600 border-gray-200";
+  const label = isPending ? "Pending" : isApproved ? "Approved" : isRejected ? "Rejected" : sv ? sv.toUpperCase() : "Pending";
   return (
     <Badge variant="outline" className={`${colorClass} px-2 py-0.5 text-[10px] uppercase font-bold`}>
-      {isActive ? "Active" : isInactive ? "Inactive" : val}
+      {label}
     </Badge>
   );
 };
+
+const deriveApprovalStatus = (item?: Record<string, unknown>) =>
+  item?.FINAL_RESPONSE_STATUS || item?.RESPONSE_2_STATUS || item?.RESPONSE_1_STATUS || item?.SECTION_HEAD_RESPONSE_STATUS || "";
 
 const toId = (key: string) => (arr: any[], id: any) =>
   (Array.isArray(arr) ? arr.find((x: any) => Number(x[key]) === Number(id)) : undefined) || undefined;
@@ -383,12 +393,20 @@ export default function AttendanceRequestPage() {
     { key: "DESIGNATION_NAME", label: "Designation" },
     { key: "ATTENDANCE_TYPE_NAME", label: "Attendance Type" },
     { key: "NO_OF_DAYS", label: "No of Days" },
-    { key: "SECTION_HEAD_RESPONSE_STATUS", label: "Section Head", render: (val: any) => val || "-" },
-    { key: "REMARKS", label: "Remarks" },
+    { key: "SECTION_HEAD_RESPONSE_STATUS", label: "Section Head", render: (val: unknown, item?: Record<string, unknown>) =>
+      responseStatusBadge(String(val ?? item?.SECTION_HEAD_RESPONSE_STATUS ?? "")),
+    },
+    { key: "FINAL_RESPONSE_STATUS", label: "Final", render: (val: unknown) => responseStatusBadge(val) },
+    {
+      key: "REMARKS",
+      label: "Remarks",
+      render: (_val: unknown, item?: Record<string, unknown>) =>
+        (item?.SECTION_HEAD_RESPONSE_REMARKS || item?.RESPONSE_1_REMARKS || item?.RESPONSE_2_REMARKS || item?.FINAL_RESPONSE_REMARKS || item?.REMARKS || "-") as string,
+    },
     {
       key: "STATUS_MASTER",
       label: "Status",
-      render: (val: any) => statusBadge(val),
+      render: (_val: any, item: any) => responseStatusBadge(deriveApprovalStatus(item)),
     },
   ], [pendingRefNo]);
 

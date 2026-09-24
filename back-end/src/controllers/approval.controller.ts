@@ -51,6 +51,30 @@ const CARD_DEFAULTS: Record<string, CardDefaults> = {
     backgroundColor: "sky",
     approvalType: "Overtime Request",
   },
+  "Bonus Request": {
+    sno: 5,
+    routeSlug: "bonus",
+    iconKey: "Gift",
+    permissionColumn: "bonus",
+    backgroundColor: "fuchsia",
+    approvalType: "Bonus Request",
+  },
+  "Leave Encashment Request": {
+    sno: 6,
+    routeSlug: "leave-encashment",
+    iconKey: "CalendarClock",
+    permissionColumn: "leaveEncashment",
+    backgroundColor: "teal",
+    approvalType: "Leave Encashment Request",
+  },
+  "Promotion Demotion Transfer Request": {
+    sno: 7,
+    routeSlug: "promotion-demotion-transfer",
+    iconKey: "ArrowRightLeft",
+    permissionColumn: "promotionDemotionTransfer",
+    backgroundColor: "rose",
+    approvalType: "Promotion Demotion Transfer Request",
+  },
 };
 
 const getCurrentUser = (req: Request): string => {

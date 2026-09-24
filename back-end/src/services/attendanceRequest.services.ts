@@ -50,6 +50,39 @@ const normalizeRow = (r: any) => ({
   STATUS_MASTER: r.STATUS_MASTER ?? r.STATUS ?? null,
 });
 
+const mergeApprovalStatuses = async (rows: any[]) => {
+  const pool = getPool();
+  const snos = rows.map((r) => Number(r.SNO)).filter((n) => Number.isFinite(n) && n > 0);
+  if (!pool || snos.length === 0) return rows;
+  const result = await pool
+    .request()
+    .query(
+      `SELECT SNO, RESPONSE_1_STATUS, RESPONSE_1_REMARKS, RESPONSE_1_EMP_ID, RESPONSE_1_DATE,
+              RESPONSE_2_STATUS, RESPONSE_2_REMARKS, RESPONSE_2_EMP_ID, RESPONSE_2_DATE,
+              FINAL_RESPONSE_STATUS, FINAL_RESPONSE_REMARKS, FINAL_RESPONSE_DATE, FINAL_RESPONSE_PERSON
+       FROM [VRequest].[TBL_ATTENDANCE_REQUEST] WHERE SNO IN (${snos.join(",")})`
+    );
+  const map = new Map(result.recordset.map((r: any) => [Number(r.SNO), r]));
+  return rows.map((r) => {
+    const m = map.get(Number(r.SNO)) || {};
+    return {
+      ...r,
+      RESPONSE_1_STATUS: m.RESPONSE_1_STATUS ?? r.RESPONSE_1_STATUS ?? null,
+      RESPONSE_1_REMARKS: m.RESPONSE_1_REMARKS ?? r.RESPONSE_1_REMARKS ?? null,
+      RESPONSE_1_EMP_ID: m.RESPONSE_1_EMP_ID ?? r.RESPONSE_1_EMP_ID ?? null,
+      RESPONSE_1_DATE: m.RESPONSE_1_DATE ?? r.RESPONSE_1_DATE ?? null,
+      RESPONSE_2_STATUS: m.RESPONSE_2_STATUS ?? r.RESPONSE_2_STATUS ?? null,
+      RESPONSE_2_REMARKS: m.RESPONSE_2_REMARKS ?? r.RESPONSE_2_REMARKS ?? null,
+      RESPONSE_2_EMP_ID: m.RESPONSE_2_EMP_ID ?? r.RESPONSE_2_EMP_ID ?? null,
+      RESPONSE_2_DATE: m.RESPONSE_2_DATE ?? r.RESPONSE_2_DATE ?? null,
+      FINAL_RESPONSE_STATUS: m.FINAL_RESPONSE_STATUS ?? r.FINAL_RESPONSE_STATUS ?? null,
+      FINAL_RESPONSE_REMARKS: m.FINAL_RESPONSE_REMARKS ?? r.FINAL_RESPONSE_REMARKS ?? null,
+      FINAL_RESPONSE_DATE: m.FINAL_RESPONSE_DATE ?? r.FINAL_RESPONSE_DATE ?? null,
+      FINAL_RESPONSE_PERSON: m.FINAL_RESPONSE_PERSON ?? r.FINAL_RESPONSE_PERSON ?? null,
+    };
+  });
+};
+
 const parseResult = (row: any) => {
   if (!row) return { status: "", message: "", data: undefined as any };
   const arr: any[] = Array.isArray(row[""]) ? row[""] : [];
@@ -140,6 +173,7 @@ export const getAllAttendanceRequestService = async (status = "ALL", allowedComp
       const allowed = new Set(allowedCompanyIds.map(Number));
       allRows = allRows.filter((r) => allowed.has(Number(r.COMPANY_ID)));
     }
+    allRows = await mergeApprovalStatuses(allRows);
     return allRows.map((r) => normalizeRow({ ...r, id: r.SNO }));
   } catch (error) {
     console.error("SHOW_ATTENDANCE_REQUEST SP error:", error);

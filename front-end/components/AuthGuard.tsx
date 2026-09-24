@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermission } from "@/hooks/usePermission";
-import { isMenuOpened, ALWAYS_OPEN, getLandingPath } from "@/lib/navigationOrigin";
+import { markMenuOpened, getLandingPath } from "@/lib/navigationOrigin";
 
 const PUBLIC_PATHS = ["/login", "/unauthorized", "/403"];
 
@@ -52,14 +52,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (isAuthenticated && !isPublic && pathname !== "/") {
-      const isAlwaysOpen = ALWAYS_OPEN.some((p) => (p === "/" ? pathname === "/" : pathname === p || pathname.startsWith(`${p}/`)));
-      const fallback = landing && landing !== pathname ? landing : "/unauthorized";
-      if (!isAlwaysOpen && !isMenuOpened(pathname)) {
-        router.replace(fallback);
-      }
+    // Keep the sidebar's active section expanded for permitted screens.
+    if (isAuthenticated && !isPublic && pathname !== "/" && allowed) {
+      markMenuOpened(pathname);
     }
-  }, [isLoading, isAuthenticated, isPublic, pathname, allowed, landing, permissions, router]);
+  }, [isLoading, isAuthenticated, isPublic, pathname, allowed, landing, router]);
 
   if (isLoading && !isPublic) {
     return (

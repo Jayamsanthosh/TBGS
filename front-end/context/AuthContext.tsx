@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
 import { installAuthFetchInterceptor, resetAuthExpiredFlag } from "@/lib/httpInterceptor";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { hydrateFromStorage, loginUser, logoutUserThunk, type UserData } from "@/lib/authSlice";
+import { hydrateFromStorage, loginUser, logoutUser, updateUserCompany, type UserData, type UserCompanyInfo } from "@/lib/authSlice";
 
 export interface AuthUser {
   id: number | string;
@@ -74,17 +74,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     installAuthFetchInterceptor();
   }, []);
 
-  const fetchPermissions = useCallback(async (token: string): Promise<Permission[]> => {
+  // Restore the session from localStorage (Redux authSlice) - the same
+  // approach as the TBGS Approval app. No httpOnly cookie required.
+  useEffect(() => {
+    dispatch(hydrateFromStorage());
+  }, [dispatch]);
+
+  const fetchPermissions = useCallback(async (): Promise<{ permissions: Permission[]; companies: UserCompanyInfo[] }> => {
     try {
-      const res = await fetch(`${API_URL}/auth/permissions`, {
-        credentials: "include",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return [];
+      const res = await fetch(`${API_URL}/auth/permissions`, { credentials: "include" });
+      if (!res.ok) return { permissions: [], companies: [] };
       const json = await res.json();
-      return json?.data ?? [];
+      const permissions: Permission[] = Array.isArray(json?.data) ? json.data : [];
+      const companies: UserCompanyInfo[] = Array.isArray(json?.companies) ? json.companies : [];
+      return { permissions, companies };
     } catch {
-      return [];
+      return { permissions: [], companies: [] };
     }
   }, []);
 
@@ -106,11 +111,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setIsLoading(true);
     try {
-      applyPermissions(await fetchPermissions(token));
+      const { permissions, companies } = await fetchPermissions();
+      setPermissions(permissions);
+      if (companies.length > 0) dispatch(updateUserCompany(companies));
     } finally {
       setIsLoading(false);
     }
-  }, [applyPermissions, fetchPermissions]);
+  }, [fetchPermissions, dispatch]);
 
   // Restore the session from localStorage, then load the role's permissions
   // exactly once. If there is no valid session we resolve immediately.
@@ -120,24 +127,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch(hydrateFromStorage());
       await new Promise((r) => setTimeout(r, 0));
       if (cancelled) return;
-
-      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
-      if (!token) {
-        setPermissions([]);
-        setIsLoading(false);
-        return;
-      }
-
-      const perms = await fetchPermissions(token);
-      if (cancelled) return;
-      applyPermissions(perms);
+      const { permissions, companies } = await fetchPermissions();
+      setPermissions(permissions);
+      if (companies.length > 0) dispatch(updateUserCompany(companies));
       setIsLoading(false);
     };
     init();
     return () => {
       cancelled = true;
     };
-  }, [dispatch, fetchPermissions, applyPermissions]);
+  }, [fetchPermissions, dispatch]);
 
   // `user-data-updated` is emitted ONLY on a successful login now (logout no
   // longer emits it), so reacting to it just loads permissions after login -
@@ -153,15 +152,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Thunk clears local state + cookies then hard-redirects to /login.
       dispatch(logoutUserThunk());
     };
-    const onForbidden = () => router.replace("/unauthorized");
 
     window.addEventListener("user-data-updated", onUserDataUpdated);
     window.addEventListener("auth-session-expired", onSessionExpired);
-    window.addEventListener("auth-forbidden", onForbidden);
     return () => {
       window.removeEventListener("user-data-updated", onUserDataUpdated);
       window.removeEventListener("auth-session-expired", onSessionExpired);
-      window.removeEventListener("auth-forbidden", onForbidden);
     };
   }, [dispatch, refreshPermissions, router]);
 

@@ -42,7 +42,7 @@ export const login = async (req: Request, res: Response) => {
       return;
     }
 
-    const companies = (await getUserCompanyInfo(user.LOGIN_ID)).map((c) => ({
+    const companies = (await getUserCompanyInfo(user.LOGIN_ID, user.LOGIN_NAME)).map((c) => ({
       companyId: c.COMPANY_ID,
       companyName: c.COMPANY_NAME,
       shortCode: c.SHORT_CODE,
@@ -125,6 +125,13 @@ export const getPermissions = async (req: Request, res: Response) => {
 
   try {
     const permissions = await getPermissionsByRoleId(req.user.roleId);
+    const companies = (await getUserCompanyInfo(Number(req.user.sub), req.user.loginName)).map((c) => ({
+      companyId: c.COMPANY_ID,
+      companyName: c.COMPANY_NAME,
+      shortCode: c.SHORT_CODE,
+      yearCode: c.YEAR_CODE,
+    }));
+
     res.json({
       success: true,
       data: permissions.map((p) => ({
@@ -134,6 +141,7 @@ export const getPermissions = async (req: Request, res: Response) => {
         linkLocation: p.LINK_LOCATION,
         redirectionType: p.REDIRECTION_TYPE,
       })),
+      companies,
     });
   } catch (error) {
     console.error("getPermissions error:", error);
