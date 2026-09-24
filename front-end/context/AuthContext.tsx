@@ -6,13 +6,14 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
-import { installAuthFetchInterceptor } from "@/lib/httpInterceptor";
+import { installAuthFetchInterceptor, resetAuthExpiredFlag } from "@/lib/httpInterceptor";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { hydrateFromStorage, loginUser, logoutUser, type UserData } from "@/lib/authSlice";
+import { hydrateFromStorage, loginUser, logoutUserThunk, type UserData } from "@/lib/authSlice";
 
 export interface AuthUser {
   id: number | string;
@@ -65,20 +66,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const authState = useAppSelector((s) => s.auth);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Ensures a dead session only triggers ONE logout/redirect, even if many
+  // requests 401 at the same time.
+  const sessionExpiredHandled = useRef(false);
 
   useEffect(() => {
     installAuthFetchInterceptor();
   }, []);
 
-  // Restore the session from localStorage (Redux authSlice) - the same
-  // approach as the TBGS Approval app. No httpOnly cookie required.
-  useEffect(() => {
-    dispatch(hydrateFromStorage());
-  }, [dispatch]);
-
-  const fetchPermissions = useCallback(async (): Promise<Permission[]> => {
+  const fetchPermissions = useCallback(async (token: string): Promise<Permission[]> => {
     try {
-      const res = await fetch(`${API_URL}/auth/permissions`, { credentials: "include" });
+      const res = await fetch(`${API_URL}/auth/permissions`, {
+        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) return [];
       const json = await res.json();
       return json?.data ?? [];
@@ -87,49 +88,78 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const applyPermissions = useCallback((perms: Permission[]) => {
+    setPermissions(perms);
+    try {
+      localStorage.setItem("permissions", JSON.stringify(perms));
+    } catch {}
+  }, []);
+
   const refreshPermissions = useCallback(async () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+    if (!token) {
+      // No session -> nothing to load. Resolve immediately so the guard can
+      // redirect instead of spinning on a doomed API call.
+      setPermissions([]);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
-      const perms = await fetchPermissions();
-      setPermissions(perms);
+      applyPermissions(await fetchPermissions(token));
     } finally {
       setIsLoading(false);
     }
-  }, [fetchPermissions]);
+  }, [applyPermissions, fetchPermissions]);
 
-  // Wait for the localStorage hydration to settle, then load permissions
-  // for whatever user (if any) the session restored.
+  // Restore the session from localStorage, then load the role's permissions
+  // exactly once. If there is no valid session we resolve immediately.
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
+      dispatch(hydrateFromStorage());
       await new Promise((r) => setTimeout(r, 0));
       if (cancelled) return;
-      setPermissions(await fetchPermissions());
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+      if (!token) {
+        setPermissions([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const perms = await fetchPermissions(token);
+      if (cancelled) return;
+      applyPermissions(perms);
       setIsLoading(false);
     };
     init();
     return () => {
       cancelled = true;
     };
-  }, [fetchPermissions]);
+  }, [dispatch, fetchPermissions, applyPermissions]);
 
-  // React to Redux login/logout events, and to the fetch interceptor
-  // telling us the session died mid-way through.
+  // `user-data-updated` is emitted ONLY on a successful login now (logout no
+  // longer emits it), so reacting to it just loads permissions after login -
+  // it can no longer feed a logout loop. refreshPermissions is also a no-op
+  // when there is no token.
   useEffect(() => {
-    const refresh = () => {
+    const onUserDataUpdated = () => {
       refreshPermissions();
     };
     const onSessionExpired = () => {
-      dispatch(logoutUser());
-      router.push("/login");
+      if (sessionExpiredHandled.current) return;
+      sessionExpiredHandled.current = true;
+      // Thunk clears local state + cookies then hard-redirects to /login.
+      dispatch(logoutUserThunk());
     };
-    const onForbidden = () => router.push("/unauthorized");
+    const onForbidden = () => router.replace("/unauthorized");
 
-    window.addEventListener("user-data-updated", refresh);
+    window.addEventListener("user-data-updated", onUserDataUpdated);
     window.addEventListener("auth-session-expired", onSessionExpired);
     window.addEventListener("auth-forbidden", onForbidden);
     return () => {
-      window.removeEventListener("user-data-updated", refresh);
+      window.removeEventListener("user-data-updated", onUserDataUpdated);
       window.removeEventListener("auth-session-expired", onSessionExpired);
       window.removeEventListener("auth-forbidden", onForbidden);
     };
@@ -145,6 +175,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await dispatch(loginUser({ LOGIN_NAME: loginName, PASSWORD: password }));
 
       if (loginUser.fulfilled.match(result)) {
+        resetAuthExpiredFlag();
+        sessionExpiredHandled.current = false;
         await refreshPermissions();
         return { success: true };
       }
@@ -155,9 +187,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    dispatch(logoutUser());
-    router.push("/login");
-  }, [dispatch, router]);
+    await dispatch(logoutUserThunk());
+  }, [dispatch]);
 
   const hasPermission = useCallback(
     (pathname: string) => {

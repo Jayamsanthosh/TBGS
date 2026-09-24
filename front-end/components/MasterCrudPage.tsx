@@ -28,6 +28,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { formatDate } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
+import { asset } from "@/lib/config";
 
 const DATE_KEY_RE = /(DATE|_FROM|_TO|_UPTO|EXPIRY|BIRTH|JOINING|ISSUE|VALID|HOLIDAY|APPROVAL|AMENDMENT|PURCHASE)/i;
 const DATE_VALUE_RE = /^(\d{4})-(\d{2})-(\d{2})|^(\d{2})[-/](\d{2})[-/](\d{4})|^(\d{2})-[A-Za-z]{3}-\d{4}/;
@@ -516,7 +517,7 @@ export default function MasterCrudPage({ title, description, idPrefix, domain, f
     // Handle logo with proper aspect ratio (placed on the left)
     try {
       const logoImg = new Image();
-      logoImg.src = "/assets/logo.png";
+      logoImg.src = asset("/assets/logo.png");
       await new Promise((resolve) => {
         logoImg.onload = resolve;
         logoImg.onerror = resolve; // Continue even if logo fails

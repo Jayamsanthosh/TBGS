@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from '@/lib/axios';
+import { apiUrl } from '@/lib/config';
 
 interface DashboardState {
     counts: Record<string, number>;
@@ -23,7 +24,7 @@ export const fetchApprovalCounts = createAsyncThunk(
     'dashboard/fetchCounts',
     async (_, { rejectWithValue }) => {
         try {
-            const response = await axios.get('/api/dashboard/counts');
+            const response = await axios.get(apiUrl('/dashboard/counts'));
             return response.data;
         } catch (error: any) {
             return rejectWithValue(error.response?.data?.message || 'Failed to fetch counts');
@@ -35,7 +36,7 @@ export const fetchDashboardCards = createAsyncThunk(
     'dashboard/fetchCards',
     async (_, { rejectWithValue }) => {
         try {
-            const response = await axios.get('/api/dashboard/cards');
+            const response = await axios.get(apiUrl('/dashboard/cards'));
             return response.data;
         } catch (error: any) {
             return rejectWithValue(error.response?.data?.message || 'Failed to fetch cards');

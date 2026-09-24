@@ -14,6 +14,7 @@ import {
 import Pagination from "./Pagination";
 import axios from "axios";
 import toast from "react-hot-toast";
+import { apiUrl } from "@/lib/config";
 
 export interface Column {
     key: string;
@@ -257,7 +258,7 @@ const DataTable: React.FC<DataTableProps> = ({
                 }
 
                 const response = await axios.get(
-                    apiEndpoint || `/api/approvals/${finalApprovalCode}`,
+                    apiEndpoint || apiUrl(`/approvals/${finalApprovalCode}`),
                     {
                         headers: { Authorization: `Bearer ${token}` },
                         params

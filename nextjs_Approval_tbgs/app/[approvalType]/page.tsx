@@ -25,6 +25,7 @@ import DashboardCard from "../components/DashboardCard";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchApprovalRecords, updateApprovalStatusByType } from "@/redux/slices/approvalSlice";
 import { fetchDashboardCards } from "@/redux/slices/dashboardSlice";
+import { apiUrl, asset } from "@/lib/config";
 
 interface ApprovalDetailsPageProps {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -89,7 +90,7 @@ function getTableColumns(
                         title="Generate PDF"
                     >
                         <Image
-                            src="/pdf_icon.png"
+                            src={asset("/pdf_icon.png")}
                             alt="PDF"
                             width={16}
                             height={16}
@@ -300,7 +301,7 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
     const handleViewDocument = React.useCallback(async (row: any) => {
         setIsLoading(true);
         try {
-            const res = await fetch(`/api/approvals/${approvalType}/${row.sno || row.id}`);
+            const res = await fetch(apiUrl(`/approvals/${approvalType}/${row.sno || row.id}`));
             if (!res.ok) throw new Error('Failed to fetch document');
             const detail = await res.json();
             const matchingFiles: any[] = detail?.files || [];
@@ -334,7 +335,7 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
         setIsLoading(true);
         try {
             // ── Fetch live data from API ──────────────────────────────────────
-            const res = await fetch(`/api/approvals/${approvalType}/${row.sno || row.id}`);
+            const res = await fetch(apiUrl(`/approvals/${approvalType}/${row.sno || row.id}`));
             if (!res.ok) throw new Error('API fetch failed');
             const detail = await res.json();
 
@@ -408,9 +409,24 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
             });
             doc.addImage(qrImg, 'PNG', right - 25, 8, 25, 25);
 
+            // ── Company logo (top-left) ───────────────────────────────────────
+            try {
+                const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+                    const img = new window.Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = () => reject(new Error('Logo Load Failed'));
+                    img.src = asset('/tbgs-logo.jpg');
+                });
+                const logoWidth = 24;
+                const logoHeight = (logoImg.naturalHeight * logoWidth) / logoImg.naturalWidth || 12;
+                doc.addImage(logoImg, 'JPEG', margin, 8, logoWidth, logoHeight);
+            } catch (e) {
+                console.warn('Logo failed to load', e);
+            }
+
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(16);
-            doc.text(invoiceTitle.toUpperCase(), margin, 14);
+            doc.text(invoiceTitle.toUpperCase(), margin + 28, 16);
 
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(9);
