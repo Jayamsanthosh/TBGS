@@ -15,12 +15,16 @@ import { API_URL } from "./config";
  * than touch every single slice file, we patch `window.fetch` ONCE,
  * here, so every existing call automatically:
  *   1. sends the auth cookie when talking to our own API, and
- *   2. gets redirected to /login or /unauthorized on 401 / 403,
- *      even if the calling code never checks the response status.
+ *   2. reacts to 401 (session died) by asking the app to log in again.
  *
- * This is what makes requirement "browser devtools should not bypass
- * permissions" hold even for code that predates this RBAC pass: the
- * enforcement lives at the network layer, not in each component.
+ * NOTE ON 403s:
+ * Permission enforcement lives in the BACKEND (RBAC middleware returns
+ * 403 for any call the role is not mapped to), and in AuthGuard at the
+ * route level. A 403 on a single data resource therefore must NOT
+ * bounce the entire app to /unauthorized - a page can legitimately
+ * call a mix of endpoints, and one denied sub-resource would otherwise
+ * lock a fully authorised user out of their screen. We log the denied
+ * request instead so the specific endpoint can be audited.
  * ---------------------------------------------------------------------
  */
 let installed = false;
@@ -47,17 +51,18 @@ export function installAuthFetchInterceptor() {
 
     const response = await originalFetch(input, finalInit);
 
-    if (isApiCall && (response.status === 401 || response.status === 403)) {
+    if (isApiCall && response.status === 401) {
       const path = window.location.pathname;
-      const alreadyOnAuthPages = path === "/login" || path === "/unauthorized";
+      const alreadyOnLogin = path === "/login" || path === "/unauthorized";
 
-      if (!alreadyOnAuthPages) {
-        if (response.status === 401) {
-          window.dispatchEvent(new Event("auth-session-expired"));
-        } else {
-          window.dispatchEvent(new Event("auth-forbidden"));
-        }
+      if (!alreadyOnLogin) {
+        window.dispatchEvent(new Event("auth-session-expired"));
       }
+    } else if (isApiCall && response.status === 403) {
+      // Denied by backend RBAC. Do NOT navigate away - the page shows
+      // its own error/empty state, and AuthGuard already enforces
+      // route-level access. Log it for auditing.
+      console.warn(`[auth-interceptor] 403 Forbidden on ${url}`);
     }
 
     return response;

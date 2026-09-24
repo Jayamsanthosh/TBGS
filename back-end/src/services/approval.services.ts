@@ -15,6 +15,12 @@ export const REQUEST_TYPE_MAP: Record<string, string> = {
   "arrears-request": "Arrears Request",
   overtime: "Overtime Request",
   "overtime-request": "Overtime Request",
+  bonus: "Bonus Request",
+  "bonus-request": "Bonus Request",
+  "leave-encashment": "Leave Encashment Request",
+  "leave-encashment-request": "Leave Encashment Request",
+  "promotion-demotion-transfer": "Promotion Demotion Transfer Request",
+  "promotion-demotion-transfer-request": "Promotion Demotion Transfer Request",
 };
 
 /** Request type -> table. All tables share the same approval-status columns. */
@@ -23,6 +29,9 @@ const REQUEST_TABLE_MAP: Record<string, string> = {
   "Cash Advance Request": "TBL_CASH_ADVANCE_REQUEST",
   "Arrears Request": "TBL_ARREARS_REQUEST",
   "Overtime Request": "TBL_OVERTIME_REQUEST",
+  "Bonus Request": "TBL_BONUS_REQUEST",
+  "Leave Encashment Request": "TBL_LEAVE_ENCASHMENT_REQUEST",
+  "Promotion Demotion Transfer Request": "TBL_PROMOTION_DEMOTION_TRANSFER_REQUEST",
 };
 
 /**
@@ -60,7 +69,8 @@ export const validateActionableRequests = async (
     const sno = Number(row.SNO);
     seen.add(sno);
     // STATUS_MASTER lifecycle truth: terminal rows can never be actioned.
-    const smTerminal = ["APPROVED", "REJECTED", "CL", "CLOSED"].includes(String(row.sm || ""));
+    // 'CL' (submitted) is NOT terminal — it must remain approvable.
+    const smTerminal = ["APPROVED", "REJECTED", "CLOSED"].includes(String(row.sm || ""));
     const sh = norm(row.sh), r1 = norm(row.r1), r2 = norm(row.r2), fin = norm(row.fin);
     // A HELD level is re-actionable at the same level (mirrors UPDATE_REQUEST_STATUS).
     const actionable =
@@ -278,6 +288,9 @@ export const getRequestDetailService = async (
       row.CASH_ADV_REQUEST_REF_NO ||
       row.ARREAR_REQUEST_REF_NO ||
       row.OT_REQUEST_REF_NO ||
+      row.BONUS_REQUEST_REF_NO ||
+      row.LEAVE_ENCASHMENT_REQUEST_REF_NO ||
+      row.TRANSFER_REQUEST_REF_NO ||
       null,
     requestedBy: row.requestedBy || row.FIRST_NAME || row.EMP_ID || null,
     requestedDate: row.CREATED_DATE ?? null,

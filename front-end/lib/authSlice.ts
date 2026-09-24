@@ -143,6 +143,19 @@ const authSlice = createSlice({
         }
       }
     },
+    updateUserCompany(state, action: PayloadAction<UserCompanyInfo[]>) {
+      if (!state.user) return;
+      const companies = Array.isArray(action.payload) ? action.payload : [];
+      if (companies.length === 0) return;
+      state.user = {
+        ...state.user,
+        companies,
+        companyName: companies[0]?.companyName ?? state.user.companyName ?? "",
+      };
+      try {
+        localStorage.setItem("user", JSON.stringify(state.user));
+      } catch {}
+    },
     clearAuthError(state) {
       state.error = null;
     },
@@ -171,5 +184,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logoutUser, hydrateFromStorage, clearAuthError } = authSlice.actions;
+export const { logoutUser, hydrateFromStorage, clearAuthError, updateUserCompany } = authSlice.actions;
 export default authSlice.reducer;

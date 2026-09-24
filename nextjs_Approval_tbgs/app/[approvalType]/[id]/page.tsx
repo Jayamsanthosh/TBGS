@@ -110,7 +110,7 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
             {
                 title: "Attendance Details",
                 items: [
-                    { label: "Attendance Type ID", value: rowData?.attendanceTypeId?.toString() || "N/A" },
+                    { label: "Attendance Type", value: rowData?.attendanceTypeName || rowData?.attendanceTypeId?.toString() || "N/A" },
                     { label: "Date From", value: rowData?.dateFrom || "N/A" },
                     { label: "Date To", value: rowData?.dateTo || "N/A" },
                     { label: "No. of Days", value: rowData?.noOfDays?.toString() || "N/A" },

@@ -100,33 +100,31 @@ const SCALE_TO_ALLOW: Record<string, string> = {
   TOTAL: "NEW_GROSS_AMOUNT",
 };
 
-const statusBadge = (val: any) => {
+const approvalBadge = (val: any) => {
   const sv = String(val || "").toLowerCase();
-  const isActive = sv === "active" || sv === "ac";
-  const isInactive = sv === "inactive" || sv === "in";
-  const isSubmitted = sv === "cl" || sv === "submitted" || sv === "closed";
-  const isPending = sv === "pen" || sv === "pending";
-  const isRejected = sv === "rej" || sv === "rejected";
-  const isCancelled = sv === "ca" || sv === "cancelled" || sv === "canceled";
-  const colorClass = isActive
+  const isApproved = sv === "approved" || sv === "approval";
+  const isRejected = sv === "rejected" || sv === "reject";
+  const isHold = sv === "hold";
+  const colorClass = isApproved
     ? "bg-green-500/10 text-green-600 border-green-200"
-    : isInactive
+    : isRejected
       ? "bg-red-500/10 text-red-600 border-red-200"
-      : isSubmitted
-        ? "bg-blue-500/10 text-blue-600 border-blue-200"
-        : isPending
-          ? "bg-yellow-500/10 text-yellow-600 border-yellow-200"
-          : isRejected
-            ? "bg-orange-500/10 text-orange-600 border-orange-200"
-            : isCancelled
-              ? "bg-red-500/10 text-red-600 border-red-200"
-              : "bg-muted/40 text-muted-foreground border-border";
-  const label = isActive ? "Active" : isInactive ? "Inactive" : isSubmitted ? "Submitted" : isPending ? "Pending" : isRejected ? "Rejected" : isCancelled ? "Cancelled" : val;
+      : isHold
+        ? "bg-yellow-500/10 text-yellow-600 border-yellow-200"
+        : "bg-gray-500/10 text-gray-600 border-gray-200";
   return (
     <Badge variant="outline" className={`${colorClass} px-2 py-0.5 text-[10px] uppercase font-bold`}>
-      {label}
+      {isApproved ? "Approved" : isRejected ? "Rejected" : isHold ? "Hold" : "Pending"}
     </Badge>
   );
+};
+
+const approvalState = (u: any) => {
+  const st = [u.FINAL_RESPONSE_STATUS, u.RESPONSE_2_STATUS, u.RESPONSE_1_STATUS, u.SECTION_HEAD_RESPONSE_STATUS]
+    .find((x) => x && String(x).trim() !== "");
+  const rm = [u.FINAL_RESPONSE_REMARKS, u.RESPONSE_2_REMARKS, u.RESPONSE_1_REMARKS, u.SECTION_HEAD_RESPONSE_REMARKS]
+    .find((x) => x && String(x).trim() !== "");
+  return { approvalStatus: st ? String(st) : "Pending", approvalRemark: rm ? String(rm) : "" };
 };
 
 const toId = (key: string) => (arr: any[], id: any) =>
@@ -836,11 +834,11 @@ export default function PromotionDemotionTransferEntriesPage() {
       label: "Manager Recommended",
       render: (val: any) => (String(val || "").toUpperCase() === "Y" ? "Yes" : String(val || "").toUpperCase() === "N" ? "No" : (val ?? "")),
     },
-    { key: "REMARKS", label: "Remarks" },
+    { key: "approvalRemark", label: "Remark" },
     {
-      key: "STATUS_MASTER",
+      key: "approvalStatus",
       label: "Status",
-      render: (val: any) => statusBadge(val),
+      render: (val: any) => approvalBadge(val),
     },
     {
       key: "SUBMISSION_STATUS",
@@ -867,6 +865,7 @@ export default function PromotionDemotionTransferEntriesPage() {
       const emp = toId("EMP_ID")(employees, u.EMP_ID);
       return {
         ...u,
+        ...approvalState(u),
         id: u.SNO,
         SNO: u.SNO,
         STATUS_MASTER: u.STATUS_MASTER ?? "AC",

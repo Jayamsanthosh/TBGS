@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { useCallback, useEffect, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "./hooks";
+import { logoutUser, loginUser } from "./authSlice";
 
 // --- Slice ---
 
@@ -60,6 +61,12 @@ const apiSlice = createSlice({
           loading: false,
           error: action.error.message || "Unknown error",
         };
+      })
+      .addCase(logoutUser, (state) => {
+        state.cache = {};
+      })
+      .addCase(loginUser.fulfilled, (state) => {
+        state.cache = {};
       });
   },
 });

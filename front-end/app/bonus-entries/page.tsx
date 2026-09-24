@@ -24,23 +24,31 @@ import {
   validateMaxAmount,
 } from "@/lib/validation";
 
-const statusBadge = (val: any) => {
+const approvalBadge = (val: any) => {
   const sv = String(val || "").toLowerCase();
-  const isActive = sv === "active" || sv === "ac";
-  const isInactive = sv === "inactive" || sv === "in";
-  const isClosed = sv === "closed" || sv === "cl";
-  const colorClass = isActive
+  const isApproved = sv === "approved" || sv === "approval";
+  const isRejected = sv === "rejected" || sv === "reject";
+  const isHold = sv === "hold";
+  const colorClass = isApproved
     ? "bg-green-500/10 text-green-600 border-green-200"
-    : isInactive
+    : isRejected
       ? "bg-red-500/10 text-red-600 border-red-200"
-      : isClosed
-        ? "bg-blue-500/10 text-blue-600 border-blue-200"
+      : isHold
+        ? "bg-yellow-500/10 text-yellow-600 border-yellow-200"
         : "bg-gray-500/10 text-gray-600 border-gray-200";
   return (
     <Badge variant="outline" className={`${colorClass} px-2 py-0.5 text-[10px] uppercase font-bold`}>
-      {isActive ? "Active" : isInactive ? "Inactive" : isClosed ? "Submitted" : val}
+      {isApproved ? "Approved" : isRejected ? "Rejected" : isHold ? "Hold" : "Pending"}
     </Badge>
   );
+};
+
+const approvalState = (u: any) => {
+  const st = [u.FINAL_RESPONSE_STATUS, u.RESPONSE_2_STATUS, u.RESPONSE_1_STATUS, u.SECTION_HEAD_RESPONSE_STATUS]
+    .find((x) => x && String(x).trim() !== "");
+  const rm = [u.FINAL_RESPONSE_REMARKS, u.RESPONSE_2_REMARKS, u.RESPONSE_1_REMARKS, u.SECTION_HEAD_RESPONSE_REMARKS]
+    .find((x) => x && String(x).trim() !== "");
+  return { approvalStatus: st ? String(st) : "Pending", approvalRemark: rm ? String(rm) : "" };
 };
 
 const paidBadge = (val: any) => {
@@ -528,11 +536,11 @@ export default function BonusEntriesPage() {
     { key: "PAYMENT_MODE_NAME", label: "Payment Mode" },
     { key: "BANK_NAME", label: "Bank" },
     { key: "PAID_STATUS", label: "Paid Status", render: (val: any) => paidBadge(val) },
-    { key: "REMARKS", label: "Remarks" },
+    { key: "approvalRemark", label: "Remark" },
     {
-      key: "STATUS_MASTER",
+      key: "approvalStatus",
       label: "Status",
-      render: (val: any) => statusBadge(val),
+      render: (val: any) => approvalBadge(val),
     },
     {
       key: "SUBMISSION_STATUS",
@@ -559,6 +567,7 @@ export default function BonusEntriesPage() {
       const emp = toId("EMP_ID")(employees, u.EMP_ID);
       return {
         ...u,
+        ...approvalState(u),
         id: u.SNO,
         SNO: u.SNO,
         EMP_NAME: empName(emp) || (u.EMP_ID ? `#${u.EMP_ID}` : ""),

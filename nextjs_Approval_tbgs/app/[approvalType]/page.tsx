@@ -11,14 +11,11 @@ import {
     XCircle,
     RefreshCw,
     Settings,
-    FileText,
-    MessageSquareMore,
     ArrowLeft,
     Layers
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
-import ExpandableText from "../components/ExpandableText";
 
 import PdfViewerModal from "../components/ApprovalDetails/PdfViewerModal";
 import DashboardCard from "../components/DashboardCard";
@@ -41,10 +38,8 @@ type PendingStatusUpdate = {
 function getTableColumns(
     approvalType: string,
     onViewDetails: (row: any) => void,
-    onViewDocument: (row: any) => void,
     onGenerateInvoicePdf: (row: any) => void | Promise<void>,
-    onViewConversation: (row: any) => void
-): Column[] {
+): { columns: Column[]; middleCols: Column[] } {
     const nType = (approvalType || '').toLowerCase();
     const isPO = nType === 'purchase-order';
     const isWO = nType === 'work-order';
@@ -53,7 +48,41 @@ function getTableColumns(
 
     const refLabel = isPO ? 'PO NO' : isWO ? 'WO NO' : isPA ? 'PA NO' : isSR ? 'SR NO' : 'REF NO';
 
-    return [
+    // ── Shared helpers for the request-type columns ───────────────────
+    const fmtMoney = (v: any) => (v == null || v === '' ? '-' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    const fmtDate = (v: any) => {
+        if (v == null || v === '') return '-';
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? String(v).slice(0, 10) : d.toLocaleDateString();
+    };
+    const nm = (v: any) => (v == null || v === '' ? '-' : String(v));
+
+    const empIdCol: Column = {
+        key: 'empId',
+        label: 'Emp ID',
+        responsiveClass: 'hidden lg:table-cell',
+        render: (id: any) => <span className="text-slate-600 font-medium">{(id == null || id === '') ? '-' : `EMP ${id}`}</span>
+    };
+    const designationCol: Column = {
+        key: 'designationId',
+        label: 'Designation',
+        responsiveClass: 'hidden xl:table-cell',
+        render: (id: any, row: any) => <span className="text-slate-600 font-medium">{row.designationName || id || '-'}</span>
+    };
+    const pendingDaysCol: Column = {
+        key: 'pendingDays', label: 'No of Days', render: (_: any, row: any) => {
+            const days = row.noOfDays || row.NO_OF_DAYS || 0;
+            return (
+                <div className="flex justify-center">
+                    <div className="w-7 h-7 bg-amber-100 text-amber-700 flex items-center justify-center rounded font-bold transition-transform hover:scale-110">
+                        {days}
+                    </div>
+                </div>
+            );
+        }
+    };
+
+    const baseCols: Column[] = [
         {
             key: 'action',
             label: 'Action',
@@ -72,17 +101,6 @@ function getTableColumns(
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            onViewDocument(row);
-                        }}
-                        className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all border border-emerald-200 shrink-0"
-                        title="View Document"
-                    >
-                        <FileText size={16} strokeWidth={2.5} />
-                    </button>
-
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
                             onGenerateInvoicePdf(row);
                         }}
                         className="flex items-center justify-center w-8 h-8 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all border border-rose-200 shrink-0"
@@ -95,17 +113,6 @@ function getTableColumns(
                             height={16}
                             className="block w-4 h-4 object-contain"
                         />
-                    </button>
-
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onViewConversation(row);
-                        }}
-                        className="flex items-center justify-center w-8 h-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-all border border-transparent hover:border-amber-100 shrink-0"
-                        title="Conversation"
-                    >
-                        <MessageSquareMore size={16} strokeWidth={2.5} />
                     </button>
 
                     <button
@@ -148,40 +155,132 @@ function getTableColumns(
                 </div>
             )
         },
-        {
-            key: 'pendingDays', label: 'No of Days', render: (_: any, row: any) => {
-                const days = row.noOfDays || row.NO_OF_DAYS || 0;
-                return (
-                    <div className="flex justify-center">
-                        <div className="w-7 h-7 bg-amber-100 text-amber-700 flex items-center justify-center rounded font-bold transition-transform hover:scale-110">
-                            {days}
-                        </div>
-                    </div>
-                );
-            }
-        },
-        {
-            key: 'finalResponseStatus',
-            label: 'Status',
-            render: (val: string, row: any) => {
-                // Fallback to statusEntry for admin-created requests
-                const status = val || row?.statusEntry || 'PENDING';
-                const colors: Record<string, string> = {
-                    'APPROVED': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-                    'REJECTED': 'bg-rose-100 text-rose-700 border-rose-200',
-                    'PENDING': 'bg-amber-100 text-amber-700 border-amber-200',
-                    'HOLD': 'bg-indigo-100 text-indigo-700 border-indigo-200',
-                    'CLOSED': 'bg-slate-200 text-slate-600 border-slate-300',
-                };
-
-                return (
-                    <span className={`px-2.5 py-1 text-[10px] font-black uppercase rounded-lg border shadow-sm ${colors[status] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                        {status}
-                    </span>
-                );
-            }
-        }
     ];
+
+    // ── Per-request-type important columns ─────────────────────────────
+    let middleCols: Column[] = [];
+
+    if (nType === 'attendance') {
+        middleCols = [
+            empIdCol,
+            designationCol,
+            {
+                key: 'attendanceTypeId',
+                label: 'Attendance Type',
+                render: (id: any, row: any) => <span className="text-slate-700 font-medium">{nm(row.attendanceTypeName || id)}</span>
+            },
+            { key: 'dateFrom', label: 'Date From', render: (v: any) => <span className="text-slate-600">{fmtDate(v)}</span> },
+            { key: 'dateTo', label: 'Date To', render: (v: any) => <span className="text-slate-600">{fmtDate(v)}</span> },
+            pendingDaysCol,
+        ];
+    } else if (nType === 'cash-advance') {
+        middleCols = [
+            empIdCol,
+            designationCol,
+            { key: 'amount', label: 'Request Amount', headerAlign: 'right', render: (v: any) => <span className="text-slate-700 font-semibold inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'salaryDeductionType', label: 'Salary Deduction', render: (v: any) => <span className="text-slate-700">{nm(v)}</span> },
+            { key: 'eligibleAmount', label: 'Eligible Amt', headerAlign: 'right', render: (v: any) => <span className="text-slate-600 inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'netPay', label: 'Net Pay', headerAlign: 'right', render: (v: any) => <span className="text-slate-700 font-medium inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'deductionFromDate', label: 'Deduct From', render: (v: any) => <span className="text-slate-600 whitespace-nowrap">{fmtDate(v)}</span> },
+            { key: 'deductionToDate', label: 'Deduct To', render: (v: any) => <span className="text-slate-600 whitespace-nowrap">{fmtDate(v)}</span> },
+            { key: 'noOfMonths', label: 'No of Months', headerAlign: 'center', render: (v: any) => <span className="text-slate-700">{nm(v)}</span> },
+            { key: 'monthlyDeduction', label: 'Monthly Deduction', headerAlign: 'right', render: (v: any) => <span className="text-slate-700 font-medium inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'paymentModeId', label: 'Payment Mode', render: (_: any, row: any) => <span className="text-slate-700">{nm(row.paymentModeName)}</span> },
+            {
+                key: 'accountNo',
+                label: 'Bank Account',
+                render: (_: any, row: any) => (
+                    <div className="flex flex-col">
+                        <span className="text-slate-700 text-[11px] font-semibold">{nm(row.bankName)}</span>
+                        <span className="text-slate-400 text-[10px]">{nm(row.accountNo)}</span>
+                    </div>
+                )
+            },
+        ];
+    } else if (nType === 'arrears') {
+        middleCols = [
+            empIdCol,
+            designationCol,
+            { key: 'amount', label: 'Request Amount', headerAlign: 'right', render: (v: any) => <span className="text-slate-700 font-semibold inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'approvedAmount', label: 'Approved Amt', headerAlign: 'right', render: (v: any) => <span className="text-slate-600 inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'reason', label: 'Reason' },
+        ];
+    } else if (nType === 'overtime') {
+        middleCols = [
+            empIdCol,
+            designationCol,
+            { key: 'otFromDate', label: 'OT From', render: (v: any) => <span className="text-slate-700 whitespace-nowrap">{fmtDate(v)}</span> },
+            { key: 'otToDate', label: 'OT To', render: (v: any) => <span className="text-slate-700 whitespace-nowrap">{fmtDate(v)}</span> },
+            { key: 'otHours', label: 'OT Hours', headerAlign: 'center', render: (v: any) => <span className="text-slate-700 font-semibold">{nm(v)}</span> },
+            { key: 'amount', label: 'Request Amount', headerAlign: 'right', render: (v: any) => <span className="text-slate-700 font-semibold inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'paidStatus', label: 'Paid Status', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+        ];
+    } else if (nType === 'bonus') {
+        middleCols = [
+            empIdCol,
+            designationCol,
+            { key: 'bonusType', label: 'Bonus Type', render: (v: any) => <span className="text-slate-700">{nm(v)}</span> },
+            { key: 'monthEntered', label: 'Month', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'yearEntered', label: 'Year', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'amount', label: 'Request Amount', headerAlign: 'right', render: (v: any) => <span className="text-slate-700 font-semibold inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'approvedAmount', label: 'Approved Amt', headerAlign: 'right', render: (v: any) => <span className="text-slate-600 inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'paidStatus', label: 'Paid Status', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+        ];
+    } else if (nType === 'leave-encashment') {
+        middleCols = [
+            empIdCol,
+            designationCol,
+            { key: 'balanceLeaveDays', label: 'Balance Days', headerAlign: 'center', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'encashmentDays', label: 'Encash Days', headerAlign: 'center', render: (v: any) => <span className="text-slate-700 font-semibold">{nm(v)}</span> },
+            { key: 'amount', label: 'Gross Amount', headerAlign: 'right', render: (v: any) => <span className="text-slate-700 font-semibold inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'monthEntered', label: 'Month', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'yearEntered', label: 'Year', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+        ];
+    } else if (nType === 'promotion-demotion-transfer') {
+        middleCols = [
+            empIdCol,
+            designationCol,
+            { key: 'transferType', label: 'Type', render: (v: any) => <span className="text-slate-700 font-medium">{nm(v)}</span> },
+            { key: 'oldCompanyName', label: 'Old Company', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'newCompanyName', label: 'New Company', render: (v: any) => <span className="text-slate-700 font-medium">{nm(v)}</span> },
+            { key: 'oldDesignationName', label: 'Old Desig', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'newDesignationName', label: 'New Desig', render: (v: any) => <span className="text-slate-700 font-medium">{nm(v)}</span> },
+            { key: 'oldGrossAmount', label: 'Old Gross', headerAlign: 'right', render: (v: any) => <span className="text-slate-600 inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'newGrossAmount', label: 'New Gross', headerAlign: 'right', render: (v: any) => <span className="text-slate-700 font-semibold inline-block min-w-[64px] text-right">{fmtMoney(v)}</span> },
+            { key: 'managerRecommendedYn', label: 'Mgr Rec', headerAlign: 'center', render: (v: any) => <span className="text-slate-600">{nm(v || '-')}</span> },
+        ];
+    } else {
+        // Purchase Order / Work Order / Price Approval / Sales Return keep the
+        // legacy "No of Days" summary column.
+        middleCols = [pendingDaysCol];
+    }
+
+    const statusCol: Column = {
+        key: 'finalResponseStatus',
+        label: 'Status',
+        render: (val: string, row: any) => {
+            // Fallback to statusEntry for admin-created requests
+            const status = val || row?.statusEntry || 'PENDING';
+            const colors: Record<string, string> = {
+                'APPROVED': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                'REJECTED': 'bg-rose-100 text-rose-700 border-rose-200',
+                'PENDING': 'bg-amber-100 text-amber-700 border-amber-200',
+                'HOLD': 'bg-indigo-100 text-indigo-700 border-indigo-200',
+                'CLOSED': 'bg-slate-200 text-slate-600 border-slate-300',
+            };
+
+            return (
+                <span className={`px-2.5 py-1 text-[10px] font-black uppercase rounded-lg border shadow-sm ${colors[status] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                    {status}
+                </span>
+            );
+        }
+    };
+
+    return {
+        columns: [...baseCols, statusCol],
+        middleCols
+    };
 }
 
 const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
@@ -291,44 +390,6 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
 
         await runStatusUpdate(pendingStatusUpdate.ids, pendingStatusUpdate.status, remarksInput);
     };
-
-    const handleViewConversation = React.useCallback((row: any) => {
-        router.push(`/${approvalType}/conversation?poRefNo=${row.poRefNo}`);
-    }, [router, approvalType]);
-
-
-    const handleViewDocument = React.useCallback(async (row: any) => {
-        setIsLoading(true);
-        try {
-            const res = await fetch(`/api/approvals/${approvalType}/${row.sno || row.id}`);
-            if (!res.ok) throw new Error('Failed to fetch document');
-            const detail = await res.json();
-            const matchingFiles: any[] = detail?.files || [];
-
-            if (matchingFiles.length === 0) {
-                toast.error(`No document found for ${row.poRefNo}`);
-                return;
-            }
-
-            const selectedFile =
-                matchingFiles.find((file: any) => file.fileType === 'INVOICE' && file.contentType === 'application/pdf') ||
-                matchingFiles.find((file: any) => file.contentType === 'application/pdf');
-
-            if (!selectedFile?.contentData) {
-                toast.error(`Document content is missing for ${row.poRefNo}`);
-                return;
-            }
-
-            setCurrentPdfData(selectedFile.contentData);
-            setCurrentPdfTitle(`Document - ${row.poRefNo}`);
-            setIsPdfModalOpen(true);
-            toast.success(`Opening document for ${row.poRefNo}...`);
-        } catch {
-            toast.error(`Failed to open document for ${row.poRefNo}`);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [approvalType]);
 
     const handleGenerateInvoicePdf = React.useCallback(async (row: any) => {
         setIsLoading(true);
@@ -596,8 +657,20 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                 if (itemStatus !== filters.status.toLowerCase()) return false;
             }
 
-            // 6. PO Number / Roll No Search
-            if (filters.poRollNo && !item.poRefNo.toLowerCase().includes(filters.poRollNo.toLowerCase())) return false;
+            // 6. Emp Id / Name Live Search
+            if (filters.empId) {
+                const q = String(filters.empId).toLowerCase().trim();
+                const haystack = [
+                    item.empId,
+                    item.EMP_ID,
+                    item.requestedBy,
+                    item.requestedByName,
+                    item.FIRST_NAME,
+                    item.MIDDLE_NAME,
+                    item.LAST_NAME
+                ].filter((v: any) => v != null).map((v: any) => String(v)).join(' ').toLowerCase();
+                if (!haystack.includes(q)) return false;
+            }
 
             // 7. Currency Filter
             if (filters.currency && item.currencyType !== filters.currency) return false;
@@ -652,9 +725,9 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
         });
     }, [approvalType, router, queryParams]);
 
-    const tableColumns = useMemo(
-        () => getTableColumns(approvalType, handleViewDetails, handleViewDocument, handleGenerateInvoicePdf, handleViewConversation),
-        [approvalType, handleViewDetails, handleViewDocument, handleGenerateInvoicePdf, handleViewConversation]
+    const { columns: tableColumns, middleCols } = useMemo(
+        () => getTableColumns(approvalType, handleViewDetails, handleGenerateInvoicePdf),
+        [approvalType, handleViewDetails, handleGenerateInvoicePdf]
     );
 
     const filterOptions = useMemo(() => {
@@ -663,11 +736,6 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
             companies: Array.from(
                 new Map(rawData.map((i: any) => [i.companyId, i.companyName || String(i.companyId)])).entries()
             ).filter(([id]) => id).map(([id, name]) => ({ id, name })),
-            purchaseTypes: Array.from(new Set(rawData.map((i: any) => i.purchaseType))).filter(Boolean).map(String),
-            suppliers: Array.from(new Set(rawData.map((i: any) => i.supplierId))).filter(Boolean).map(id => ({
-                id,
-                name: rawData.find((i: any) => i.supplierId === id)?.supplierName || String(id)
-            })),
             departments: Array.from(new Set(rawData.map((i: any) => i.poStoreId))).filter(Boolean).map(id => ({
                 id,
                 name: rawData.find((i: any) => i.poStoreId === id)?.storeName || String(id)
@@ -888,108 +956,22 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                                 renderExpansion: (row: any) => (
                                     <div className="flex flex-col space-y-6 px-4 py-6 bg-slate-50/30 rounded-xl border border-slate-100 animate-in slide-in-from-top-2 duration-500">
 
-                                        {/* --- Section 1: Request DNA (Metadata Summary) --- */}
-                                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-x-12 gap-y-6">
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Organization Unit</span>
-                                                <div className="flex items-center space-x-2">
-                                                    <div className="w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.5)]"></div>
-                                                    <span className="text-[14px] font-bold text-slate-800">
-                                                        {row.companyName || row.companyId}
-                                                    </span>
+                                        {/* --- Section 1.5: Request Details (moved from table so no side-scroll needed) --- */}
+                                        {middleCols.length > 0 && (
+                                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Request Details</p>
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-10">
+                                                    {middleCols.map((mCol: Column, mIdx: number) => (
+                                                        <div key={mCol.key || mIdx} className="space-y-1">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{mCol.label}</p>
+                                                            <div className="text-[13px] font-bold text-slate-800">
+                                                                {mCol.render ? mCol.render(row[mCol.key], row) : (row[mCol.key] !== null && row[mCol.key] !== undefined ? row[mCol.key] : '-')}
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
-                                            <div className="flex flex-col border-l border-slate-100 pl-8">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Currency Axis</span>
-                                                <p className="text-[14px] font-bold text-slate-800 uppercase flex items-center space-x-1.5">
-                                                    <span className="text-slate-400 font-medium">{row.currencyType || 'TZS'}</span>
-                                                    <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px]">BASE</span>
-                                                </p>
-                                            </div>
-                                            <div className="flex flex-col border-l border-slate-100 pl-8">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Operational Dept</span>
-                                                <p className="text-[14px] font-bold text-slate-800">
-                                                    {row.storeName || row.poStoreId}
-                                                </p>
-                                            </div>
-                                            <div className="flex flex-col border-l border-slate-100 pl-8">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Source Record</span>
-                                                <p className="text-[14px] font-bold text-slate-800 flex items-center space-x-1.5">
-                                                    <span className="text-indigo-600">#{row.sno?.toString().padStart(4, '0')}</span>
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>
-                                                    <span className="text-slate-500">{row.poRefNo}</span>
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* --- Section 2: Workflow Lifecycle (Dual Tracking) --- */}
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                            {/* Enhanced Response 1 Log */}
-                                            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                                                <div className="bg-indigo-50/50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-                                                    <div className="flex items-center space-x-2">
-                                                        <div className="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-[10px] font-black text-white">01</div>
-                                                        <span className="text-[12px] font-black text-slate-800 uppercase tracking-tight">Technical Review</span>
-                                                    </div>
-                                                    <span className={`px-2.5 py-0.5 text-[10px] font-black rounded-full border ${row.response1Status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-amber-50 text-amber-700 border-amber-100"
-                                                        }`}>
-                                                        {row.response1Status || "AWAITING"}
-                                                    </span>
-                                                </div>
-
-                                                <div className="p-5 space-y-5">
-                                                    <div className="flex items-center space-x-4">
-                                                        <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
-                                                            <Eye className="w-5 h-5" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Reviewing Authority</p>
-                                                            <p className="text-[14px] font-bold text-slate-800">{row.response1Person || "Not Initiated"}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="relative pl-4 border-l-2 border-slate-100 py-1">
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Audit Remarks</p>
-                                                        <div className="text-[13px] text-slate-600 leading-relaxed font-medium capitalize italic">
-                                                            "<ExpandableText text={row.response1Remarks || "Pending technical validation of specific line items and supplier terms."} limit={100} />"
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Enhanced Response 2 Log */}
-                                            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                                                <div className="bg-indigo-50/50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-                                                    <div className="flex items-center space-x-2">
-                                                        <div className="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-[10px] font-black text-white">02</div>
-                                                        <span className="text-[12px] font-black text-slate-800 uppercase tracking-tight">Executive Decision</span>
-                                                    </div>
-                                                    <span className={`px-2.5 py-0.5 text-[10px] font-black rounded-full border ${row.response2Status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-amber-50 text-amber-700 border-amber-100"
-                                                        }`}>
-                                                        {row.response2Status || "PENDING"}
-                                                    </span>
-                                                </div>
-
-                                                <div className="p-5 space-y-5">
-                                                    <div className="flex items-center space-x-4">
-                                                        <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
-                                                            <Settings className="w-5 h-5" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Approving Authority</p>
-                                                            <p className="text-[14px] font-bold text-slate-800">{row.response2Person || "Final Tier Pending"}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="relative pl-4 border-l-2 border-slate-100 py-1">
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Final Remarks</p>
-                                                        <div className="text-[13px] text-slate-600 leading-relaxed font-medium capitalize italic">
-                                                            "<ExpandableText text={row.response2Remarks || "Awaiting final sign-off from the department head to execute procurement."} limit={100} />"
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        )}
                                     </div>
                                 )
                             }}
@@ -1073,17 +1055,15 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                             <p className="text-sm text-slate-500 font-medium">
                                 You are about to mark <span className="text-indigo-600 font-bold">{pendingStatusUpdate?.ids?.length} request(s)</span> as <span className={`font-bold ${pendingStatusUpdate?.status === 'APPROVED' ? 'text-emerald-600' : pendingStatusUpdate?.status === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'}`}>{pendingStatusUpdate?.status}</span>.
                             </p>
-                            {pendingStatusUpdate?.status === 'HOLD' && (
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">Remarks / Comments <span className="text-rose-500">*</span></label>
-                                    <textarea
-                                        value={remarksInput}
-                                        onChange={(e) => setRemarksInput(e.target.value)}
-                                        placeholder="Enter mandatory remarks for this action..."
-                                        className="w-full h-24 p-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all placeholder:text-slate-400"
-                                    />
-                                </div>
-                            )}
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">Remarks / Comments {pendingStatusUpdate?.status === 'HOLD' && <span className="text-rose-500">*</span>}</label>
+                                <textarea
+                                    value={remarksInput}
+                                    onChange={(e) => setRemarksInput(e.target.value)}
+                                    placeholder={pendingStatusUpdate?.status === 'HOLD' ? "Enter mandatory remarks for this action..." : "Enter remarks / comments (optional)"}
+                                    className="w-full h-24 p-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all placeholder:text-slate-400"
+                                />
+                            </div>
                         </div>
 
                         <div className="flex items-center justify-end space-x-3 pt-2">

@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
 import { installAuthFetchInterceptor } from "@/lib/httpInterceptor";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { hydrateFromStorage, loginUser, logoutUser, type UserData } from "@/lib/authSlice";
+import { hydrateFromStorage, loginUser, logoutUser, updateUserCompany, type UserData, type UserCompanyInfo } from "@/lib/authSlice";
 
 export interface AuthUser {
   id: number | string;
@@ -76,26 +76,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     dispatch(hydrateFromStorage());
   }, [dispatch]);
 
-  const fetchPermissions = useCallback(async (): Promise<Permission[]> => {
+  const fetchPermissions = useCallback(async (): Promise<{ permissions: Permission[]; companies: UserCompanyInfo[] }> => {
     try {
       const res = await fetch(`${API_URL}/auth/permissions`, { credentials: "include" });
-      if (!res.ok) return [];
+      if (!res.ok) return { permissions: [], companies: [] };
       const json = await res.json();
-      return json?.data ?? [];
+      const permissions: Permission[] = Array.isArray(json?.data) ? json.data : [];
+      const companies: UserCompanyInfo[] = Array.isArray(json?.companies) ? json.companies : [];
+      return { permissions, companies };
     } catch {
-      return [];
+      return { permissions: [], companies: [] };
     }
   }, []);
 
   const refreshPermissions = useCallback(async () => {
     setIsLoading(true);
     try {
-      const perms = await fetchPermissions();
-      setPermissions(perms);
+      const { permissions, companies } = await fetchPermissions();
+      setPermissions(permissions);
+      if (companies.length > 0) dispatch(updateUserCompany(companies));
     } finally {
       setIsLoading(false);
     }
-  }, [fetchPermissions]);
+  }, [fetchPermissions, dispatch]);
 
   // Wait for the localStorage hydration to settle, then load permissions
   // for whatever user (if any) the session restored.
@@ -104,14 +107,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const init = async () => {
       await new Promise((r) => setTimeout(r, 0));
       if (cancelled) return;
-      setPermissions(await fetchPermissions());
+      const { permissions, companies } = await fetchPermissions();
+      setPermissions(permissions);
+      if (companies.length > 0) dispatch(updateUserCompany(companies));
       setIsLoading(false);
     };
     init();
     return () => {
       cancelled = true;
     };
-  }, [fetchPermissions]);
+  }, [fetchPermissions, dispatch]);
 
   // React to Redux login/logout events, and to the fetch interceptor
   // telling us the session died mid-way through.
@@ -123,15 +128,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch(logoutUser());
       router.push("/login");
     };
-    const onForbidden = () => router.push("/unauthorized");
 
     window.addEventListener("user-data-updated", refresh);
     window.addEventListener("auth-session-expired", onSessionExpired);
-    window.addEventListener("auth-forbidden", onForbidden);
     return () => {
       window.removeEventListener("user-data-updated", refresh);
       window.removeEventListener("auth-session-expired", onSessionExpired);
-      window.removeEventListener("auth-forbidden", onForbidden);
     };
   }, [dispatch, refreshPermissions, router]);
 

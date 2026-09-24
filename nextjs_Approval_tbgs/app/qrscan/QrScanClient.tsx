@@ -64,7 +64,7 @@ export default function QrScanClient({ initialId, initialIsValid }: QrScanClient
         }
 
         // 1. Try to find the record from the live API
-        const approvalTypes = ['purchase-order', 'work-order', 'price-approval', 'sales-return-approval', 'attendance', 'cash-advance', 'arrears', 'overtime'];
+        const approvalTypes = ['purchase-order', 'work-order', 'price-approval', 'sales-return-approval', 'attendance', 'cash-advance', 'arrears', 'overtime', 'bonus', 'leave-encashment', 'promotion-demotion-transfer'];
         let foundRecord: any = null;
         let foundType = '';
 

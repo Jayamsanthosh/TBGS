@@ -47,6 +47,8 @@ export const isMenuOpened = (path: string): boolean => {
  * The first screen a user should land on after login.
  * Privileged roles (Admin/Manager) who own the Dashboard link land on
  * /dashboard; everyone else lands on their first permitted link.
+ * A role with no screens assigned lands on "/" (Home shows a friendly
+ * "no screens assigned" state instead of an Access Denied dead-end).
  */
 export function getLandingPath(permissions: Permission[]): string {
   const list = permissions ?? [];
@@ -54,5 +56,5 @@ export function getLandingPath(permissions: Permission[]): string {
   const first = list.find(
     (p) => p.linkLocation && p.linkLocation.startsWith("/") && p.linkLocation !== "/login" && p.linkLocation !== "/unauthorized" && p.linkLocation !== "/403"
   );
-  return first?.linkLocation || "/unauthorized";
+  return first?.linkLocation || "/";
 }
