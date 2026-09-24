@@ -125,8 +125,10 @@ export default function BonusEntriesPage() {
     return json.data || [];
   });
 
-  const { data: bonusRequests } = useApiQuery("bon-entry-requests", async () => {
-    const res = await fetch(`${API_URL}/bonus-request`);
+  const { data: bonusRequests } = useApiQuery("bon-entry-requests-pending", async () => {
+    const url = new URL(`${API_URL}/bonus-request`);
+    url.searchParams.set("pendingOnly", "true");
+    const res = await fetch(url.toString());
     if (!res.ok) throw new Error("Failed to fetch bonus requests");
     const json = await res.json();
     return json.data || [];

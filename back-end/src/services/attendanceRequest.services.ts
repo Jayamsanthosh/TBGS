@@ -155,7 +155,7 @@ const applyInputs = (request: sql.Request, inputs: { name: string; type: any; va
   return request;
 };
 
-export const getAllAttendanceRequestService = async (status = "ALL", allowedCompanyIds?: number[]) => {
+export const getAllAttendanceRequestService = async (status = "ALL", allowedCompanyIds?: number[], pendingOnly = false) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -174,6 +174,15 @@ export const getAllAttendanceRequestService = async (status = "ALL", allowedComp
       allRows = allRows.filter((r) => allowed.has(Number(r.COMPANY_ID)));
     }
     allRows = await mergeApprovalStatuses(allRows);
+    if (pendingOnly) {
+      allRows = allRows.filter((r) => {
+        // A request is "issued" once its deepest decided level is Approved/Rejected.
+        const resolved = String(
+          r.FINAL_RESPONSE_STATUS || r.RESPONSE_2_STATUS || r.RESPONSE_1_STATUS || r.SECTION_HEAD_RESPONSE_STATUS || ""
+        ).trim().toUpperCase();
+        return resolved !== "APPROVED" && resolved !== "APPROVAL" && resolved !== "REJECTED" && resolved !== "REJECT";
+      });
+    }
     return allRows.map((r) => normalizeRow({ ...r, id: r.SNO }));
   } catch (error) {
     console.error("SHOW_ATTENDANCE_REQUEST SP error:", error);

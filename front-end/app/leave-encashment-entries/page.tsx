@@ -108,8 +108,10 @@ export default function LeaveEncashmentEntriesPage() {
     return json.data || [];
   });
 
-  const { data: leaveEncashmentRequests } = useApiQuery("le-entries-requests", async () => {
-    const res = await fetch(`${API_URL}/leave-encashment-request`);
+  const { data: leaveEncashmentRequests } = useApiQuery("le-entries-requests-pending", async () => {
+    const url = new URL(`${API_URL}/leave-encashment-request`);
+    url.searchParams.set("pendingOnly", "true");
+    const res = await fetch(url.toString());
     if (!res.ok) throw new Error("Failed to fetch leave encashment requests");
     const json = await res.json();
     return json.data || [];

@@ -107,8 +107,10 @@ export default function ArrearEntriesPage() {
     return json.data || [];
   });
 
-  const { data: arrearsRequests } = useApiQuery("arr-entry-requests", async () => {
-    const res = await fetch(`${API_URL}/arrears-request`);
+  const { data: arrearsRequests } = useApiQuery("arr-entry-requests-pending", async () => {
+    const url = new URL(`${API_URL}/arrears-request`);
+    url.searchParams.set("pendingOnly", "true");
+    const res = await fetch(url.toString());
     if (!res.ok) throw new Error("Failed to fetch arrear requests");
     const json = await res.json();
     return json.data || [];

@@ -12,7 +12,10 @@ import {
     RefreshCw,
     Settings,
     ArrowLeft,
-    Layers
+    Layers,
+    Check,
+    X,
+    Clock
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -39,6 +42,7 @@ function getTableColumns(
     approvalType: string,
     onViewDetails: (row: any) => void,
     onGenerateInvoicePdf: (row: any) => void | Promise<void>,
+    onStatusAction: (row: any, status: "APPROVED" | "REJECTED" | "HOLD") => void,
 ): { columns: Column[]; middleCols: Column[] } {
     const nType = (approvalType || '').toLowerCase();
     const isPO = nType === 'purchase-order';
@@ -125,6 +129,38 @@ function getTableColumns(
                     >
                         <ChevronDown size={14} strokeWidth={3} />
                     </button>
+
+                    {(() => {
+                        const rowStatus = String(row?.finalResponseStatus || row?.statusEntry || 'PENDING').toUpperCase();
+                        const actionable = rowStatus !== 'APPROVED' && rowStatus !== 'REJECTED' && rowStatus !== 'CLOSED';
+                        if (!actionable) return null;
+                        return (
+                            <>
+                                <span className="w-px h-6 bg-slate-200 mx-0.5 shrink-0" />
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onStatusAction(row, 'APPROVED'); }}
+                                    className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all border border-emerald-200 shrink-0"
+                                    title="Approve"
+                                >
+                                    <Check size={14} strokeWidth={3} />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onStatusAction(row, 'REJECTED'); }}
+                                    className="flex items-center justify-center w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all border border-rose-200 shrink-0"
+                                    title="Reject"
+                                >
+                                    <X size={14} strokeWidth={3} />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onStatusAction(row, 'HOLD'); }}
+                                    className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white transition-all border border-amber-200 shrink-0"
+                                    title="Hold"
+                                >
+                                    <Clock size={14} strokeWidth={3} />
+                                </button>
+                            </>
+                        );
+                    })()}
                 </div>
             )
         },
@@ -390,6 +426,18 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
 
         await runStatusUpdate(pendingStatusUpdate.ids, pendingStatusUpdate.status, remarksInput);
     };
+
+    // Quick action from the per-row buttons / bulk toolbar
+    const handleStatusAction = React.useCallback((rows: any[] | any, status: "APPROVED" | "REJECTED" | "HOLD") => {
+        const ids = Array.isArray(rows)
+            ? rows.map((r: any) => Number(r.id ?? r.rowId ?? r.sno)).filter((n: number) => !isNaN(n))
+            : [Number(rows?.id ?? rows?.rowId ?? rows?.sno)].filter((n: number) => !isNaN(n));
+
+        if (ids.length === 0) return;
+        setPendingStatusUpdate({ ids, status });
+        setRemarksInput("");
+        setIsRemarksModalOpen(true);
+    }, []);
 
     const handleGenerateInvoicePdf = React.useCallback(async (row: any) => {
         setIsLoading(true);
@@ -726,8 +774,13 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
     }, [approvalType, router, queryParams]);
 
     const { columns: tableColumns, middleCols } = useMemo(
-        () => getTableColumns(approvalType, handleViewDetails, handleGenerateInvoicePdf),
-        [approvalType, handleViewDetails, handleGenerateInvoicePdf]
+        () => getTableColumns(
+            approvalType,
+            handleViewDetails,
+            handleGenerateInvoicePdf,
+            (row: any, status: "APPROVED" | "REJECTED" | "HOLD") => handleStatusAction(row, status)
+        ),
+        [approvalType, handleViewDetails, handleGenerateInvoicePdf, handleStatusAction]
     );
 
     const filterOptions = useMemo(() => {
@@ -996,35 +1049,31 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
 
                             // Bulk Actions Implementation
                             bulkActions={(ids: number[]) => (
-                                <div className="flex items-center space-x-3">
-                                    <div className="flex items-center bg-white rounded-lg p-0.5 shadow-sm">
-                                        <select
-                                            id="bulk-status-select"
-                                            className="bg-transparent text-xs font-bold text-slate-700 py-1 pl-3 pr-8 outline-none border-none focus:ring-0 cursor-pointer"
-                                            defaultValue=""
-                                            onChange={(e) => {
-                                                const status = e.target.value;
-                                                if (!status || ids.length === 0) return;
-
-                                                // Reset dropdown back to placeholder
-                                                e.target.value = "";
-
-                                                // Open modal for all statuses to confirm
-                                                setPendingStatusUpdate({
-                                                    ids: [...ids],
-                                                    status: status as PendingStatusUpdate["status"]
-                                                });
-                                                setRemarksInput("");
-                                                setIsRemarksModalOpen(true);
-                                            }}
-                                        >
-                                            <option value="" disabled>Change Status To...</option>
-                                            <option value="APPROVED">Approve Selected</option>
-                                            <option value="REJECTED">Reject Selected</option>
-                                            <option value="HOLD">Put on Hold</option>
-                                        </select>
-
-                                    </div>
+                                <div className="flex items-center space-x-2">
+                                    <button
+                                        onClick={() => handleStatusAction(ids.map((id: number) => ({ id })), 'APPROVED')}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-200 transition-all"
+                                        title="Approve selected"
+                                    >
+                                        <Check size={14} strokeWidth={3} />
+                                        Approve
+                                    </button>
+                                    <button
+                                        onClick={() => handleStatusAction(ids.map((id: number) => ({ id })), 'REJECTED')}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-sm shadow-rose-200 transition-all"
+                                        title="Reject selected"
+                                    >
+                                        <X size={14} strokeWidth={3} />
+                                        Reject
+                                    </button>
+                                    <button
+                                        onClick={() => handleStatusAction(ids.map((id: number) => ({ id })), 'HOLD')}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 shadow-sm shadow-amber-200 transition-all"
+                                        title="Hold selected"
+                                    >
+                                        <Clock size={14} strokeWidth={3} />
+                                        Hold
+                                    </button>
                                 </div>
                             )}
 
@@ -1052,9 +1101,15 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                         </div>
 
                         <div className="space-y-3">
-                            <p className="text-sm text-slate-500 font-medium">
-                                You are about to mark <span className="text-indigo-600 font-bold">{pendingStatusUpdate?.ids?.length} request(s)</span> as <span className={`font-bold ${pendingStatusUpdate?.status === 'APPROVED' ? 'text-emerald-600' : pendingStatusUpdate?.status === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'}`}>{pendingStatusUpdate?.status}</span>.
-                            </p>
+                            {(() => {
+                                const stLabel = pendingStatusUpdate?.status === 'APPROVED' ? 'Approved' : pendingStatusUpdate?.status === 'REJECTED' ? 'Rejected' : 'Hold';
+                                const stColor = pendingStatusUpdate?.status === 'APPROVED' ? 'text-emerald-600' : pendingStatusUpdate?.status === 'REJECTED' ? 'text-rose-600' : 'text-amber-600';
+                                return (
+                                    <p className="text-sm text-slate-500 font-medium">
+                                        You are about to mark <span className="text-indigo-600 font-bold">{pendingStatusUpdate?.ids?.length} request(s)</span> as <span className={`font-bold ${stColor}`}>{stLabel}</span>.
+                                    </p>
+                                );
+                            })()}
                             <div className="space-y-1">
                                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">Remarks / Comments {pendingStatusUpdate?.status === 'HOLD' && <span className="text-rose-500">*</span>}</label>
                                 <textarea

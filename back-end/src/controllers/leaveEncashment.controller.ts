@@ -15,6 +15,8 @@ const VALID_STATUSES = ["AC", "IN", "CL"];
 export const getAllLeaveEncashmentRequest = async (req: Request, res: Response): Promise<void> => {
   try {
     const status = (req.query.status as string) || "ALL";
+    const pendingOnly =
+      req.query.pendingOnly === "1" || req.query.pendingOnly === "true" || req.query.pendingOnly === "yes";
     const isAdmin = req.user?.role === "Admin" || req.user?.role === "Super Admin";
     let allowedCompanyIds: number[] | undefined;
     if (!isAdmin) {
@@ -28,7 +30,7 @@ export const getAllLeaveEncashmentRequest = async (req: Request, res: Response):
         return;
       }
     }
-    const items = await getAllLeaveEncashmentRequestsService(status, allowedCompanyIds);
+    const items = await getAllLeaveEncashmentRequestsService(status, allowedCompanyIds, pendingOnly);
     res.json({ success: true, count: items.length, data: items });
   } catch (error: any) {
     console.error("GetAllLeaveEncashmentRequest error:", error);

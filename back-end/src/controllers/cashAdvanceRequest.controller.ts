@@ -16,6 +16,8 @@ const VALID_STATUSES = ["AC", "IN"];
 export const getAllCashAdvanceRequest = async (req: Request, res: Response): Promise<void> => {
   try {
     const status = (req.query.status as string) || "ALL";
+    const pendingOnly =
+      req.query.pendingOnly === "1" || req.query.pendingOnly === "true" || req.query.pendingOnly === "yes";
     const isAdmin = req.user?.role === "Admin" || req.user?.role === "Super Admin";
     let allowedCompanyIds: number[] | undefined;
     if (!isAdmin) {
@@ -29,7 +31,7 @@ export const getAllCashAdvanceRequest = async (req: Request, res: Response): Pro
         return;
       }
     }
-    const items = await getAllCashAdvanceRequestsService(status, allowedCompanyIds);
+    const items = await getAllCashAdvanceRequestsService(status, allowedCompanyIds, pendingOnly);
     res.json({ success: true, count: items.length, data: items });
   } catch (error: any) {
     console.error("GetAllCashAdvanceRequest error:", error);
