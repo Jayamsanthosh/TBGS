@@ -54,6 +54,13 @@ const normalizeRow = (r: any) => ({
   STATUS_MASTER: r.STATUS_MASTER ?? r.STATUS ?? null,
 });
 
+const isRequestIssued = (r: any): boolean => {
+  const resolved = String(
+    r.FINAL_RESPONSE_STATUS || r.RESPONSE_2_STATUS || r.RESPONSE_1_STATUS || r.SECTION_HEAD_RESPONSE_STATUS || ""
+  ).trim().toUpperCase();
+  return resolved === "APPROVED" || resolved === "APPROVAL" || resolved === "REJECTED" || resolved === "REJECT";
+};
+
 const parseResult = (row: any) => {
   if (!row) return { status: "", message: "", data: undefined as any };
   const arr: any[] = Array.isArray(row[""]) ? row[""] : [];
@@ -130,7 +137,7 @@ const applyInputs = (request: sql.Request, inputs: { name: string; type: any; va
   return request;
 };
 
-export const getAllCashAdvanceRequestsService = async (status = "ALL", allowedCompanyIds?: number[]) => {
+export const getAllCashAdvanceRequestsService = async (status = "ALL", allowedCompanyIds?: number[], pendingOnly = false) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -175,6 +182,18 @@ export const getAllCashAdvanceRequestsService = async (status = "ALL", allowedCo
               ,[SECTION_HEAD_RESPONSE_DATE]
               ,[SECTION_HEAD_RESPONSE_STATUS]
               ,[SECTION_HEAD_RESPONSE_REMARKS]
+              ,[RESPONSE_1_EMP_ID]
+              ,[RESPONSE_1_DATE]
+              ,[RESPONSE_1_STATUS]
+              ,[RESPONSE_1_REMARKS]
+              ,[RESPONSE_2_EMP_ID]
+              ,[RESPONSE_2_DATE]
+              ,[RESPONSE_2_STATUS]
+              ,[RESPONSE_2_REMARKS]
+              ,[FINAL_RESPONSE_PERSON]
+              ,[FINAL_RESPONSE_DATE]
+              ,[FINAL_RESPONSE_STATUS]
+              ,[FINAL_RESPONSE_REMARKS]
               ,[REMARKS]
               ,[STATUS_MASTER]
         FROM [VRequest].[TBL_CASH_ADVANCE_REQUEST]
@@ -186,6 +205,7 @@ export const getAllCashAdvanceRequestsService = async (status = "ALL", allowedCo
       const allowed = new Set(allowedCompanyIds.map(Number));
       rows = rows.filter((r) => allowed.has(Number(r.COMPANY_ID)));
     }
+    if (pendingOnly) rows = rows.filter((r) => !isRequestIssued(r));
     return rows.map((r) => normalizeRow({ ...r, id: r.SNO }));
   } catch (error) {
     console.error("SHOW_CASH_ADVANCE_REQUEST list query error:", error);

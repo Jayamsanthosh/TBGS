@@ -102,8 +102,10 @@ export default function CashAdvancePage() {
     return json.data || [];
   });
 
-  const { data: requests } = useApiQuery("ca-requests", async () => {
-    const res = await fetch(`${API_URL}/cash-advance-request`);
+  const { data: requests } = useApiQuery("ca-requests-pending", async () => {
+    const url = new URL(`${API_URL}/cash-advance-request`);
+    url.searchParams.set("pendingOnly", "true");
+    const res = await fetch(url.toString());
     if (!res.ok) throw new Error("Failed to fetch cash advance requests");
     const json = await res.json();
     return json.data || [];

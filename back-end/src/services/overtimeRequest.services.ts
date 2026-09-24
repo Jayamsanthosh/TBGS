@@ -70,6 +70,13 @@ const normalizeRow = (r: any) => ({
   STATUS_MASTER: r.STATUS_MASTER ?? r.STATUS ?? null,
 });
 
+const isRequestIssued = (r: any): boolean => {
+  const resolved = String(
+    r.FINAL_RESPONSE_STATUS || r.RESPONSE_2_STATUS || r.RESPONSE_1_STATUS || r.SECTION_HEAD_RESPONSE_STATUS || ""
+  ).trim().toUpperCase();
+  return resolved === "APPROVED" || resolved === "APPROVAL" || resolved === "REJECTED" || resolved === "REJECT";
+};
+
 const parseResult = (row: any) => {
   if (!row) return { status: "", message: "", data: undefined as any };
   const arr: any[] = Array.isArray(row[""]) ? row[""] : [];
@@ -162,7 +169,7 @@ const applyInputs = (request: sql.Request, inputs: { name: string; type: any; va
   return request;
 };
 
-export const getAllOvertimeRequestsService = async (status = "ALL", allowedCompanyIds?: number[]) => {
+export const getAllOvertimeRequestsService = async (status = "ALL", allowedCompanyIds?: number[], pendingOnly = false) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -226,6 +233,7 @@ export const getAllOvertimeRequestsService = async (status = "ALL", allowedCompa
       const allowed = new Set(allowedCompanyIds.map(Number));
       rows = rows.filter((r) => allowed.has(Number(r.COMPANY_ID)));
     }
+    if (pendingOnly) rows = rows.filter((r) => !isRequestIssued(r));
     return rows.map((r) => normalizeRow({ ...r, id: r.SNO }));
   } catch (error) {
     console.error("SHOW_OVERTIME_REQUEST list query error:", error);

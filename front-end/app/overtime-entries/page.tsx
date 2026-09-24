@@ -104,8 +104,10 @@ export default function OvertimeEntriesPage() {
     return json.data || [];
   });
 
-  const { data: overtimeRequests } = useApiQuery("ot-entry-requests", async () => {
-    const res = await fetch(`${API_URL}/overtime-request`);
+  const { data: overtimeRequests } = useApiQuery("ot-entry-requests-pending", async () => {
+    const url = new URL(`${API_URL}/overtime-request`);
+    url.searchParams.set("pendingOnly", "true");
+    const res = await fetch(url.toString());
     if (!res.ok) throw new Error("Failed to fetch overtime requests");
     const json = await res.json();
     return json.data || [];

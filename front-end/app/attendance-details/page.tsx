@@ -170,8 +170,10 @@ export default function AttendanceDetailsPage() {
     return json.data || [];
   });
 
-  const { data: attendanceRequests } = useApiQuery("ad-att-requests", async () => {
-    const res = await fetch(`${API_URL}/attendance-request`);
+  const { data: attendanceRequests } = useApiQuery("ad-att-requests-pending", async () => {
+    const url = new URL(`${API_URL}/attendance-request`);
+    url.searchParams.set("pendingOnly", "true");
+    const res = await fetch(url.toString());
     const json = await res.json();
     return json.data || [];
   });
