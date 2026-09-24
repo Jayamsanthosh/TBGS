@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Check, Copy, RefreshCw, X, AlertCircle, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { apiUrl } from '@/lib/config';
 
 interface QrScanClientProps {
     initialId: string | null;
@@ -70,7 +71,7 @@ export default function QrScanClient({ initialId, initialIsValid }: QrScanClient
 
         for (const type of approvalTypes) {
             try {
-                const res = await fetch(`/api/approvals/${type}`);
+                const res = await fetch(apiUrl(`/approvals/${type}`));
                 const records = await res.json();
                 const normalize = (str: string) => str.replace(/-/g, '/').toUpperCase();
                 const match = (records || []).find((r: any) => r.poRefNo && normalize(r.poRefNo) === normalize(id));
@@ -90,7 +91,7 @@ export default function QrScanClient({ initialId, initialIsValid }: QrScanClient
         // 2. Fetch full detail from the detail endpoint
         let detail: any;
         try {
-            const res = await fetch(`/api/approvals/${foundType}/${foundRecord.sno}`);
+            const res = await fetch(`${apiUrl(`/approvals/${foundType}/${foundRecord.sno}`)}`);
             if (!res.ok) throw new Error('Failed to fetch detail');
             detail = await res.json();
         } catch {

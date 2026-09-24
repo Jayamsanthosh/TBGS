@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useApiQuery } from "@/lib/reduxQuery";
 import { useAppDispatch } from "@/lib/store";
 import { clearCacheKey } from "@/lib/reduxQuery";
+import { BASE_PATH } from "@/lib/config";
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -39,7 +40,7 @@ export function useMasterData(domain: string, initialData: any[] = [], idPrefix:
     if (status === 401 || status === 403) {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      window.location.href = `${BASE_PATH}/login`;
     }
   };
 

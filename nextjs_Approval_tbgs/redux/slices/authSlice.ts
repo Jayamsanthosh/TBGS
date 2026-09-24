@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-import { API_URL } from "@/lib/config";
+import { API_URL, BASE_PATH } from "@/lib/config";
+import { isTokenExpired } from "@/lib/auth";
 
 export interface UserCompanyInfo {
   companyId: number;
@@ -100,6 +101,57 @@ export const loginUser = createAsyncThunk<
   return { ...data, permissions } as LoginApiResponse;
 });
 
+export const refreshPermissions = createAsyncThunk<
+  Permission[],
+  void,
+  { rejectValue: string }
+>("auth/refreshPermissions", async (_, { rejectWithValue }) => {
+  const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+  if (!token) return rejectWithValue("No authentication token");
+  try {
+    const res = await fetch(`${API_URL}/auth/permissions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return rejectWithValue("Failed to load permissions");
+    const json = await res.json();
+    return Array.isArray(json?.data) ? (json.data as Permission[]) : [];
+  } catch {
+    return rejectWithValue("Failed to load permissions");
+  }
+});
+
+/**
+ * Logout thunk.
+ *
+ * `logoutUser` below is intentionally pure. All side effects (server logout
+ * call + redirect) live here, so dispatching logout can never re-trigger the
+ * API/observer loop. The server call only happens when a session actually
+ * existed, because POST /auth/logout is itself authenticated (a dead session
+ * would only produce a 401).
+ */
+export const logoutUserThunk = createAsyncThunk<void, void>(
+  "auth/logoutUserThunk",
+  async (_, { dispatch }) => {
+    const hadSession =
+      typeof window !== "undefined" &&
+      Boolean(localStorage.getItem("accessToken") || localStorage.getItem("refreshToken"));
+
+    dispatch(logoutUser());
+
+    if (hadSession && typeof window !== "undefined") {
+      fetch(`${API_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        keepalive: true,
+      }).catch(() => {});
+    }
+
+    if (typeof window !== "undefined") {
+      window.location.replace(`${BASE_PATH}/login`);
+    }
+  }
+);
+
 function normalizeUser(serverUser: Record<string, unknown>, permissions?: Permission[]): UserData {
   const loginName = String(serverUser.loginName ?? serverUser.LOGIN_NAME ?? "");
   const companies = Array.isArray(serverUser.companies)
@@ -149,17 +201,14 @@ const authSlice = createSlice({
       state.loading = false;
       state.error = null;
       clearPersistedAuth();
-      // Fire-and-forget: clears the httpOnly access_token/refresh_token
-      // cookies server-side. Local UI state above is already cleared,
-      // so we don't block on the network response.
-      fetch(`${API_URL}/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {});
-      window.dispatchEvent(new Event("user-data-updated"));
     },
     hydrateFromStorage(state) {
       const accessToken = localStorage.getItem("accessToken");
       const refreshToken = localStorage.getItem("refreshToken");
       const userJson = localStorage.getItem("user");
-      if (accessToken && refreshToken && userJson) {
+      // Never restore an expired/garbage token as a live session - otherwise
+      // the UI reports "authenticated" while every API call 401s.
+      if (accessToken && refreshToken && userJson && !isTokenExpired(accessToken)) {
         try {
           const user = JSON.parse(userJson);
           const permissionsJson = localStorage.getItem("permissions");
@@ -169,10 +218,12 @@ const authSlice = createSlice({
           state.user = user;
           state.accessToken = accessToken;
           state.refreshToken = refreshToken;
+          return;
         } catch {
-          clearPersistedAuth();
+          // fall through to clear below
         }
       }
+      clearPersistedAuth();
     },
     clearAuthError(state) {
       state.error = null;
@@ -198,6 +249,14 @@ const authSlice = createSlice({
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || action.error.message || "Login failed";
+      })
+      .addCase(refreshPermissions.fulfilled, (state, action) => {
+        if (state.user) {
+          state.user.permissions = action.payload;
+          try {
+            localStorage.setItem("permissions", JSON.stringify(action.payload));
+          } catch {}
+        }
       });
   },
 });

@@ -7,6 +7,7 @@ import { encryptData, decryptData } from '@/lib/cryptoUtils';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { loginUser, clearAuthError } from '@/lib/authSlice';
 import { useToast } from '@/hooks/use-toast';
+import { asset } from '@/lib/config';
 
 type LoginFormData = {
   LOGIN_NAME: string;
@@ -109,7 +110,7 @@ export default function LoginPage() {
       {/* Atmospheric Hero Image */}
       <div
         className="absolute inset-0 z-0 opacity-[0.07] blur-[2px] pointer-events-none transition-opacity duration-1000"
-        style={{ backgroundImage: "url('/login-bg.png')", backgroundSize: 'cover', backgroundPosition: 'center' }}
+        style={{ backgroundImage: `url("${asset('/login-bg.png')}")`, backgroundSize: 'cover', backgroundPosition: 'center' }}
       />
 
       <div className="relative z-10 w-full max-w-md px-6 py-4">
@@ -118,7 +119,7 @@ export default function LoginPage() {
           <div className="relative">
             <div className="bg-white/90 flex items-center justify-center backdrop-blur-xl p-4 rounded-3xl shadow-[0_15px_40px_rgba(0,0,0,0.06)] border border-white transform transition-all duration-1000 group-hover:scale-[1.02]">
               <img
-                src="/tbgs-logo.jpg"
+                src={asset('/tbgs-logo.jpg')}
                 alt="tbgs Logo"
                 className="w-40 h-auto max-h-20 object-contain transition-transform duration-700"
               />
@@ -248,7 +249,7 @@ export default function LoginPage() {
       {/* Branded Footer Asset */}
       <div className="fixed bottom-0 left-0 w-full h-1/4 z-[-1] opacity-5 overflow-hidden pointer-events-none grayscale mix-blend-multiply transition-opacity duration-700">
         <img
-          src="/agro-muted-footer.png"
+          src={asset('/agro-muted-footer.png')}
           alt=""
           className="w-full h-full object-cover object-bottom"
         />

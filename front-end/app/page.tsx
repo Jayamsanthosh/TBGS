@@ -16,7 +16,7 @@ export default function Home() {
   const { permissions, isLoading: permLoading } = usePermission();
 
   useEffect(() => {
-    if (authLoading || permLoading) return;
+    if (authLoading) return;
     if (!isAuthenticated) {
       router.replace("/login");
       return;

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
     Menu,
@@ -23,8 +23,8 @@ import FullscreenToggle from './components/FullscreenToggle';
 
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { fetchApprovalCounts, fetchDashboardCards } from '@/redux/slices/dashboardSlice';
-import { logoutUser, hydrateFromStorage } from '@/redux/slices/authSlice';
-import { API_URL } from '@/lib/config';
+import { logoutUserThunk, hydrateFromStorage, refreshPermissions } from '@/redux/slices/authSlice';
+import { API_URL, asset } from '@/lib/config';
 
 interface MenuItem {
     id: string;
@@ -64,6 +64,9 @@ export default function Template({ children }: { children: React.ReactNode }) {
     const [menuItems, setMenuItems] = useState<MenuItem[]>(STATIC_MENU_ITEMS);
     const [isMenuLoading, setIsMenuLoading] = useState(false);
     const [validating, setValidating] = useState(true);
+    // Ensures a dead session only triggers ONE logout/redirect, even if many
+    // axios requests 401 at the same time.
+    const sessionExpiredHandled = useRef(false);
 
     const getPendingCount = (permissionColumn?: string, routePath?: string) => {
         const permissionCount = Number(counts?.[permissionColumn || ""] ?? 0);
@@ -75,6 +78,30 @@ export default function Template({ children }: { children: React.ReactNode }) {
     // Initial hydration of Redux from localStorage
     useEffect(() => {
         dispatch(hydrateFromStorage());
+    }, [dispatch]);
+
+    // Any axios call that gets a 401 funnels here once: clear the session and
+    // hard-redirect to /login instead of leaving the app in a broken state.
+    useEffect(() => {
+        const onSessionExpired = () => {
+            if (sessionExpiredHandled.current) return;
+            sessionExpiredHandled.current = true;
+            dispatch(logoutUserThunk());
+        };
+        window.addEventListener('auth-session-expired', onSessionExpired);
+        return () => {
+            window.removeEventListener('auth-session-expired', onSessionExpired);
+        };
+    }, [dispatch]);
+
+    // Re-derive permissions from the backend so we never trust
+    // permissions persisted by another app / previous user in the
+    // shared localStorage on this origin.
+    useEffect(() => {
+        const token = localStorage.getItem("accessToken");
+        if (token) {
+            dispatch(refreshPermissions());
+        }
     }, [dispatch]);
 
     // Validate token on mount and auth sync
@@ -105,9 +132,8 @@ export default function Template({ children }: { children: React.ReactNode }) {
                     if (!resp.ok) throw new Error("invalid");
                 } catch {
                     // Token is invalid/expired — clear and redirect to login
-                    dispatch(logoutUser());
-                    router.push("/login");
                     setValidating(false);
+                    dispatch(logoutUserThunk());
                     return;
                 }
             }
@@ -171,9 +197,8 @@ export default function Template({ children }: { children: React.ReactNode }) {
     }, [counts, cards, user, cardsLoading]);
 
     const handleLogout = () => {
-        dispatch(logoutUser());
         toast.success('Logged out successfully');
-        router.push('/login');
+        dispatch(logoutUserThunk());
     };
 
     const handleMenuItemClick = (item: MenuItem) => {
@@ -234,7 +259,7 @@ export default function Template({ children }: { children: React.ReactNode }) {
                 <div className="flex items-center justify-between p-4 border-b border-white/10 h-16 shrink-0">
                     <div className={`flex items-center space-x-3 ${!isExpanded && 'justify-center w-full'}`}>
                         <div className="w-9 h-9 shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-md bg-white">
-                            <img src="/tbgs-logo.jpg" alt="TBGS Logo" className="w-full h-full object-contain" />
+                            <img src={asset("/tbgs-logo.jpg")} alt="TBGS Logo" className="w-full h-full object-contain" />
                         </div>
                         {isExpanded && (
                             <div className="min-w-0">
