@@ -1,8 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  basePath: process.env.BASE_PATH || "",
   experimental: {
     turbopackFileSystemCacheForDev: false,
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${process.env.BACKEND_URL || "http://127.0.0.1:5000"}/api/:path*`,
+      },
+    ];
   },
 };
 

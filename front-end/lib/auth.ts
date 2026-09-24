@@ -1,3 +1,5 @@
+import { BASE_PATH } from "./config";
+
 export function getJWTPayload(token: string) {
   try {
     const base64Url = token.split(".")[1];
@@ -39,7 +41,8 @@ export function logout() {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("user");
-  window.dispatchEvent(new Event("user-data-updated"));
+  localStorage.removeItem("permissions");
+  window.location.replace(`${BASE_PATH}/login`);
 }
 
 export function getCurrentUser() {

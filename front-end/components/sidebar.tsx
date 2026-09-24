@@ -3,6 +3,7 @@
 import React, { useState, createContext, useContext } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { asset } from '@/lib/config';
 import {
   Search,
   Bell,
@@ -27,7 +28,7 @@ import {
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
-import { logoutUser, hydrateFromStorage } from '@/lib/authSlice';
+import { logoutUserThunk, hydrateFromStorage } from '@/lib/authSlice';
 import * as LucideIcons from 'lucide-react';
 import { fetchNavigation, clearNavigation, NavMainMenu } from '@/lib/navigationSlice';
 import { markMenuOpened } from '@/lib/navigationOrigin';
@@ -153,8 +154,7 @@ export function Header() {
                 onClick={() => {
                   setDropdownOpen(false);
                   dispatch(clearNavigation());
-                  dispatch(logoutUser());
-                  router.push('/login');
+                  dispatch(logoutUserThunk());
                 }}
                 className="flex items-center gap-3 w-full px-4 py-2.5 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
               >
@@ -228,7 +228,6 @@ export function Sidebar() {
   const pathname = usePathname();
   const { isCollapsed, toggleSidebar, isMobileOpen, setIsMobileOpen, user } = useSidebar();
   const isMobile = useIsMobile();
-  const router = useRouter();
   const dispatch = useAppDispatch();
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
@@ -378,8 +377,7 @@ export function Sidebar() {
 
   const handleLogout = () => {
     dispatch(clearNavigation());
-    dispatch(logoutUser());
-    router.push('/login');
+    dispatch(logoutUserThunk());
   };
 
   if (pathname === '/' || pathname === '/login') return null;
@@ -402,7 +400,7 @@ export function Sidebar() {
         <div className={`flex items-center gap-3 px-5 py-6 group cursor-pointer ${isCollapsed && !isMobile ? 'justify-center' : ''}`}>
           <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center shadow-lg shadow-black/10 shrink-0 transition-all duration-500 group-hover:scale-105 active:scale-95 ring-4 ring-white/5">
             <img
-              src="/tbgs-logo.jpg"
+              src={asset('/tbgs-logo.jpg')}
               alt="tbgs Logo"
               className="w-24 h-24 object-contain transition-transform duration-500"
             />

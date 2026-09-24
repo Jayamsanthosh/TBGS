@@ -29,7 +29,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { allowed, isLoading: permLoading, permissions } = usePermission();
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-  const isLoading = authLoading || (!isPublic && permLoading) || (isAuthenticated && permLoading);
+  // Only wait on permission loading when there IS a session. An unauthenticated
+  // visitor must reach the redirect below instead of spinning forever.
+  const isLoading = authLoading || (isAuthenticated && permLoading);
   const landing = getLandingPath(permissions);
 
   useEffect(() => {

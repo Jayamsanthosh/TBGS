@@ -6,11 +6,12 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
-import { installAuthFetchInterceptor } from "@/lib/httpInterceptor";
+import { installAuthFetchInterceptor, resetAuthExpiredFlag } from "@/lib/httpInterceptor";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { hydrateFromStorage, loginUser, logoutUser, updateUserCompany, type UserData, type UserCompanyInfo } from "@/lib/authSlice";
 
@@ -65,6 +66,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const authState = useAppSelector((s) => s.auth);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Ensures a dead session only triggers ONE logout/redirect, even if many
+  // requests 401 at the same time.
+  const sessionExpiredHandled = useRef(false);
 
   useEffect(() => {
     installAuthFetchInterceptor();
@@ -89,7 +93,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const applyPermissions = useCallback((perms: Permission[]) => {
+    setPermissions(perms);
+    try {
+      localStorage.setItem("permissions", JSON.stringify(perms));
+    } catch {}
+  }, []);
+
   const refreshPermissions = useCallback(async () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+    if (!token) {
+      // No session -> nothing to load. Resolve immediately so the guard can
+      // redirect instead of spinning on a doomed API call.
+      setPermissions([]);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const { permissions, companies } = await fetchPermissions();
@@ -100,11 +119,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fetchPermissions, dispatch]);
 
-  // Wait for the localStorage hydration to settle, then load permissions
-  // for whatever user (if any) the session restored.
+  // Restore the session from localStorage, then load the role's permissions
+  // exactly once. If there is no valid session we resolve immediately.
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
+      dispatch(hydrateFromStorage());
       await new Promise((r) => setTimeout(r, 0));
       if (cancelled) return;
       const { permissions, companies } = await fetchPermissions();
@@ -118,21 +138,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchPermissions, dispatch]);
 
-  // React to Redux login/logout events, and to the fetch interceptor
-  // telling us the session died mid-way through.
+  // `user-data-updated` is emitted ONLY on a successful login now (logout no
+  // longer emits it), so reacting to it just loads permissions after login -
+  // it can no longer feed a logout loop. refreshPermissions is also a no-op
+  // when there is no token.
   useEffect(() => {
-    const refresh = () => {
+    const onUserDataUpdated = () => {
       refreshPermissions();
     };
     const onSessionExpired = () => {
-      dispatch(logoutUser());
-      router.push("/login");
+      if (sessionExpiredHandled.current) return;
+      sessionExpiredHandled.current = true;
+      // Thunk clears local state + cookies then hard-redirects to /login.
+      dispatch(logoutUserThunk());
     };
 
-    window.addEventListener("user-data-updated", refresh);
+    window.addEventListener("user-data-updated", onUserDataUpdated);
     window.addEventListener("auth-session-expired", onSessionExpired);
     return () => {
-      window.removeEventListener("user-data-updated", refresh);
+      window.removeEventListener("user-data-updated", onUserDataUpdated);
       window.removeEventListener("auth-session-expired", onSessionExpired);
     };
   }, [dispatch, refreshPermissions, router]);
@@ -147,6 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await dispatch(loginUser({ LOGIN_NAME: loginName, PASSWORD: password }));
 
       if (loginUser.fulfilled.match(result)) {
+        resetAuthExpiredFlag();
+        sessionExpiredHandled.current = false;
         await refreshPermissions();
         return { success: true };
       }
@@ -157,9 +183,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    dispatch(logoutUser());
-    router.push("/login");
-  }, [dispatch, router]);
+    await dispatch(logoutUserThunk());
+  }, [dispatch]);
 
   const hasPermission = useCallback(
     (pathname: string) => {

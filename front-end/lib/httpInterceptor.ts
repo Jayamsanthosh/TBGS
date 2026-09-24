@@ -1,6 +1,6 @@
 "use client";
 
-import { API_URL } from "./config";
+import { API_URL, BASE_PATH } from "./config";
 
 /**
  * WHY THIS FILE EXISTS
@@ -29,6 +29,24 @@ import { API_URL } from "./config";
  */
 let installed = false;
 
+/**
+ * Guards against the "401 storm" feedback loop.
+ *
+ * A dead session makes many requests 401 at once. Naively dispatching
+ * `auth-session-expired` for every one of them causes the logout handler to
+ * fire repeatedly, and because the protected page stays mounted until
+ * navigation commits, each logout produced another 401 -> another dispatch.
+ * We only ever notify once per session; a successful API response (i.e. a
+ * real login) resets the flags.
+ */
+let expiredNotified = false;
+let forbiddenNotified = false;
+
+export function resetAuthExpiredFlag() {
+  expiredNotified = false;
+  forbiddenNotified = false;
+}
+
 export function installAuthFetchInterceptor() {
   if (installed || typeof window === "undefined") return;
   installed = true;
@@ -38,6 +56,9 @@ export function installAuthFetchInterceptor() {
   window.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
     const isApiCall = url.startsWith(API_URL);
+    // Login failures ("wrong password") and logout calls must never be treated
+    // as an expired session.
+    const isAuthEndpoint = url.includes("/auth/login") || url.includes("/auth/logout");
 
     const token = localStorage.getItem("accessToken");
     const headers = new Headers(init.headers);
