@@ -13,6 +13,8 @@ export interface ProductGridData {
   ALTERNATE_UOM_ID?: number;
   COST_CENTRE_ID?: number;
   COMPANY_ID?: number;
+  TRUCK_ID?: number;
+  TRUCK_NAME?: string;
   PRODUCTION_COST?: number;
   VAT_PERCENTAGE?: number;
   REMARKS?: string;

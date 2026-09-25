@@ -87,6 +87,13 @@ export default function ProductMasterPage() {
     return (json.data || []).map((c: any) => ({ ...c, id: c.COST_CENTRE_ID }));
   });
 
+  const { data: trucks } = useApiQuery("prod-truck", async () => {
+    const res = await fetch(`${API_URL}/truck-master`);
+    if (!res.ok) throw new Error("Failed");
+    const json = await res.json();
+    return (json.data || []).map((c: any) => ({ ...c, id: c.TRUCK_ID }));
+  });
+
   const mainCatOptions = useMemo(() =>
     (Array.isArray(mainCategories) ? mainCategories : []).map((c: any) => ({ value: String(c.MAIN_CATEGORY_ID), label: c.MAIN_CATEGORY_NAME })),
     [mainCategories]
@@ -117,6 +124,11 @@ export default function ProductMasterPage() {
     return filtered.map((c: any) => ({ value: String(c.COST_CENTRE_ID), label: c.COST_CENTRE_NAME }));
   }, [costCentres, form.COMPANY_ID]);
 
+  const truckOptions = useMemo(() =>
+    (Array.isArray(trucks) ? trucks : []).map((t: any) => ({ value: String(t.TRUCK_ID), label: t.TRUCK_NO || `Truck #${t.TRUCK_ID}` })),
+    [trucks]
+  );
+
   const enrichedData = useMemo(() => {
     if (!Array.isArray(products)) return [];
     return products.map((p: any) => {
@@ -126,6 +138,7 @@ export default function ProductMasterPage() {
       const altUom = Array.isArray(uoms) ? uoms.find((u: any) => Number(u.UOM_ID) === Number(p.ALTERNATE_UOM_ID)) : undefined;
       const company = Array.isArray(companies) ? companies.find((c: any) => Number(c.COMPANY_ID) === Number(p.COMPANY_ID)) : undefined;
       const costCentre = Array.isArray(costCentres) ? costCentres.find((c: any) => Number(c.COST_CENTRE_ID) === Number(p.COST_CENTRE_ID)) : undefined;
+      const truck = Array.isArray(trucks) ? trucks.find((t: any) => Number(t.TRUCK_ID) === Number(p.TRUCK_ID)) : undefined;
       return {
         ...p,
         id: p.PRODUCT_ID,
@@ -135,9 +148,10 @@ export default function ProductMasterPage() {
         ALTERNATE_UOM_NAME: altUom?.UOM_NAME || altUom?.UOM_Short_Name || `ID: ${p.ALTERNATE_UOM_ID}`,
         COMPANY_NAME: company?.COMPANY_NAME || `ID: ${p.COMPANY_ID}`,
         COST_CENTRE_NAME: costCentre?.COST_CENTRE_NAME || `ID: ${p.COST_CENTRE_ID}`,
+        TRUCK_NAME: p.TRUCK_ID ? (truck?.TRUCK_NO || `ID: ${p.TRUCK_ID}`) : null,
       };
     });
-  }, [products, mainCategories, subCategories, uoms, companies, costCentres]);
+  }, [products, mainCategories, subCategories, uoms, companies, costCentres, trucks]);
 
   const uniqueStatuses = useMemo(() => {
     if (!Array.isArray(enrichedData)) return [];
@@ -191,6 +205,7 @@ export default function ProductMasterPage() {
     ALTERNATE_UOM_ID: "",
     COMPANY_ID: "",
     COST_CENTRE_ID: "",
+    TRUCK_ID: "",
     PRODUCTION_COST: "",
     VAT_PERCENTAGE: "",
     REMARKS: "",
@@ -221,6 +236,7 @@ export default function ProductMasterPage() {
       ALTERNATE_UOM_ID: String(src.ALTERNATE_UOM_ID || ""),
       COMPANY_ID: String(src.COMPANY_ID || ""),
       COST_CENTRE_ID: String(src.COST_CENTRE_ID || ""),
+      TRUCK_ID: src.TRUCK_ID ? String(src.TRUCK_ID) : "",
       PRODUCTION_COST: src.PRODUCTION_COST ?? "",
       VAT_PERCENTAGE: src.VAT_PERCENTAGE ?? "",
       REMARKS: src.REMARKS || "",
@@ -265,6 +281,7 @@ export default function ProductMasterPage() {
         ALTERNATE_UOM_ID: form.ALTERNATE_UOM_ID ? Number(form.ALTERNATE_UOM_ID) : null,
         COMPANY_ID: form.COMPANY_ID ? Number(form.COMPANY_ID) : null,
         COST_CENTRE_ID: form.COST_CENTRE_ID ? Number(form.COST_CENTRE_ID) : null,
+        TRUCK_ID: form.TRUCK_ID ? Number(form.TRUCK_ID) : null,
         PRODUCTION_COST: form.PRODUCTION_COST !== "" ? Math.max(0, Number(form.PRODUCTION_COST) || 0) : null,
         VAT_PERCENTAGE: form.VAT_PERCENTAGE !== "" ? Math.max(0, Number(form.VAT_PERCENTAGE) || 0) : null,
         REMARKS: form.REMARKS?.trim() || null,
@@ -408,6 +425,7 @@ export default function ProductMasterPage() {
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">UOM</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">PCS/Pack</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Company</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Truck</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Cost Centre</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Prod Cost</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">VAT%</th>
@@ -427,6 +445,7 @@ export default function ProductMasterPage() {
                     <td className="p-3">{item.UOM_NAME}</td>
                     <td className="p-3">{item.NO_OF_PCS_PER_PACKING ?? "-"}</td>
                     <td className="p-3">{item.COMPANY_NAME}</td>
+                    <td className="p-3">{item.TRUCK_NAME || "-"}</td>
                     <td className="p-3">{item.COST_CENTRE_NAME}</td>
                     <td className="p-3">{item.PRODUCTION_COST != null ? Number(item.PRODUCTION_COST).toFixed(2) : "-"}</td>
                     <td className="p-3">{item.VAT_PERCENTAGE != null ? `${Number(item.VAT_PERCENTAGE).toFixed(2)}%` : "-"}</td>
@@ -438,7 +457,7 @@ export default function ProductMasterPage() {
                   </tr>
                 ))}
                 {paginated.length === 0 && (
-                  <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">No products found</td></tr>
+                  <tr><td colSpan={12} className="p-8 text-center text-muted-foreground">No products found</td></tr>
                 )}
               </tbody>
             </table>
@@ -499,6 +518,7 @@ export default function ProductMasterPage() {
               <div className="grid grid-cols-2 gap-4">
                 {renderField("COMPANY_ID", "Company", "select", companyOptions, true, "Select company")}
                 {renderField("COST_CENTRE_ID", "Cost Centre", "select", costCentreOptions, false, "Select cost centre")}
+                <div className="col-span-2">{renderField("TRUCK_ID", "Truck", "select", truckOptions, false, "Select truck (optional)", true)}</div>
               </div>
             </div>
             <div>
