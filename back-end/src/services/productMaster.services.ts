@@ -13,6 +13,7 @@ export interface ProductMasterData {
   ALTERNATE_UOM_ID?: number;
   COST_CENTRE_ID?: number;
   COMPANY_ID?: number;
+  TRUCK_ID?: number;
   PRODUCTION_COST?: number;
   VAT_PERCENTAGE?: number;
   REMARKS?: string;
@@ -21,6 +22,9 @@ export interface ProductMasterData {
   MAC_ADDRESS?: string;
   ROLE?: string;
 }
+
+const toIntOrNull = (v: any): number | null =>
+  v === undefined || v === null || v === "" || Number.isNaN(Number(v)) ? null : Number(v);
 
 export const getAllProductMasterService = async () => {
   const pool = getPool();
@@ -71,6 +75,7 @@ export const saveProductMasterService = async (data: ProductMasterData) => {
       .input("ALTERNATE_UOM_ID", sql.Int, data.ALTERNATE_UOM_ID ?? null)
       .input("COST_CENTRE_ID", sql.Int, data.COST_CENTRE_ID ?? null)
       .input("COMPANY_ID", sql.Int, data.COMPANY_ID ?? null)
+      .input("TRUCK_ID", sql.Int, toIntOrNull(data.TRUCK_ID))
       .input("PRODUCTION_COST", sql.Decimal(15, 2), data.PRODUCTION_COST ?? null)
       .input("VAT_PERCENTAGE", sql.Decimal(15, 2), data.VAT_PERCENTAGE ?? null)
       .input("REMARKS", sql.VarChar(2000), data.REMARKS || null)
@@ -105,6 +110,7 @@ export const updateProductMasterService = async (data: ProductMasterData) => {
       .input("ALTERNATE_UOM_ID", sql.Int, data.ALTERNATE_UOM_ID ?? null)
       .input("COST_CENTRE_ID", sql.Int, data.COST_CENTRE_ID ?? null)
       .input("COMPANY_ID", sql.Int, data.COMPANY_ID ?? null)
+      .input("TRUCK_ID", sql.Int, toIntOrNull(data.TRUCK_ID))
       .input("PRODUCTION_COST", sql.Decimal(15, 2), data.PRODUCTION_COST ?? null)
       .input("VAT_PERCENTAGE", sql.Decimal(15, 2), data.VAT_PERCENTAGE ?? null)
       .input("REMARKS", sql.VarChar(2000), data.REMARKS ?? null)

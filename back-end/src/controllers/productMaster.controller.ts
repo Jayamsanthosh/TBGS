@@ -50,6 +50,11 @@ export const saveProductMaster = async (req: Request, res: Response): Promise<vo
     return;
   }
 
+  if (!productData.COMPANY_ID) {
+    res.status(400).json({ success: false, message: "Company is required" });
+    return;
+  }
+
   try {
     const result = await saveProductMasterService(productData);
     res.json({ success: true, message: result.message || "Product saved successfully" });
@@ -63,11 +68,16 @@ export const updateProductMaster = async (req: Request, res: Response): Promise<
   const productData: ProductMasterData = req.body;
   const { id } = req.params;
 
-  try {
-    if (!productData.PRODUCT_ID && id) {
-      productData.PRODUCT_ID = parseInt(id as string, 10);
-    }
+  if (!productData.PRODUCT_ID && id) {
+    productData.PRODUCT_ID = parseInt(id as string, 10);
+  }
 
+  if (!productData.PRODUCT_ID) {
+    res.status(400).json({ success: false, message: "Product ID is required" });
+    return;
+  }
+
+  try {
     const result = await updateProductMasterService(productData);
     res.json({ success: true, message: result.message || "Product updated successfully" });
   } catch (error: any) {
@@ -92,7 +102,7 @@ export const deleteProductMaster = async (req: Request, res: Response): Promise<
       ROLE as string,
       MAC_ADDRESS as string
     );
-    res.json({ success: true, message: result.message || "Product deleted successfully" });
+    res.json({ success: true, message: result.message || "Product deleted successfully", PRODUCT_ID: parseInt(id as string, 10) });
   } catch (error: any) {
     console.error("DeleteProductMaster error:", error);
     res.status(500).json({ success: false, message: error?.message || "Internal server error" });
