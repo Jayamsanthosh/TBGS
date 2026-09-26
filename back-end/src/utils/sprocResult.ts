@@ -49,7 +49,9 @@ export const isSprocError = (result: SprocResult): boolean => {
 export const parseSprocResult = (row?: any, fallback = "Operation failed"): SprocResult => {
   const result = readSprocResult(row);
   if (isSprocError(result)) {
-    throw new Error(result.message || fallback);
+    const error = new Error(result.message || fallback) as Error & { httpStatus?: number };
+    error.httpStatus = 400;
+    throw error;
   }
   return result;
 };

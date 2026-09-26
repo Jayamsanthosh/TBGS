@@ -138,6 +138,12 @@ import expensePayerTypeMasterReducer from "./expensePayerTypeMasterSlice";
 import permitAuthorityMasterReducer from "./permitAuthorityMasterSlice";
 import taxMasterReducer from "./taxMasterSlice";
 import reportMasterReducer from "./reportMasterSlice";
+import purchaseRequestTypeMasterReducer from "./purchaseRequestTypeMasterSlice";
+import statusMasterReducer from "./statusMasterSlice";
+import referenceTypeMasterReducer from "./referenceTypeMasterSlice";
+import shipmentModeMasterReducer from "./shipmentModeMasterSlice";
+import purchaseRequestMasterReducer from "./purchaseRequestMasterSlice";
+import additionalChargeTypeMasterReducer from "./additionalChargeTypeMasterSlice";
 
 import { useAppDispatch, useAppSelector } from "./hooks";
 
@@ -284,6 +290,12 @@ export const store = configureStore({
     permitAuthorityMaster: permitAuthorityMasterReducer,
     taxMaster: taxMasterReducer,
     reportMaster: reportMasterReducer,
+    purchaseRequestTypeMaster: purchaseRequestTypeMasterReducer,
+    statusMaster: statusMasterReducer,
+    referenceTypeMaster: referenceTypeMasterReducer,
+    shipmentModeMaster: shipmentModeMasterReducer,
+    purchaseRequestMaster: purchaseRequestMasterReducer,
+    additionalChargeTypeMaster: additionalChargeTypeMasterReducer,
 
   },
 });
