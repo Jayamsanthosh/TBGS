@@ -152,6 +152,12 @@ import VisaStatusMasterRouter from "./visaStatusMaster.routers";
 import ExpensePayerTypeMasterRouter from "./expensePayerTypeMaster.routers";
 import PermitAuthorityMasterRouter from "./permitAuthorityMaster.routers";
 import TaxMasterRouter from "./taxMaster.routers";
+import PurchaseRequestTypeMasterRouter from "./purchaseRequestTypeMaster.routers";
+import StatusMasterRouter from "./statusMaster.routers";
+import ReferenceTypeMasterRouter from "./referenceTypeMaster.routers";
+import ShipmentModeMasterRouter from "./shipmentModeMaster.routers";
+import PurchaseRequestMasterRouter from "./purchaseRequestMaster.routers";
+import AdditionalChargeTypeMasterRouter from "./additionalChargeTypeMaster.routers";
 
 const Router = express.Router()
 
@@ -303,6 +309,39 @@ Router.use("/visa-status-master", authenticate, checkPermission("/visa-status-ma
 Router.use("/expense-payer-type-master", authenticate, checkPermission("/expense-payer-type-master"), ExpensePayerTypeMasterRouter);
 Router.use("/permit-authority-master", authenticate, checkPermission("/permit-authority-master"), PermitAuthorityMasterRouter);
 Router.use("/tax-master", authenticate, checkPermission("/tax-master"), TaxMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Purchase Request Type
+// Master has no TBL_LINKS_AND_PAGES / role-mapping entry yet (menu placement TBD).
+// Re-enable checkPermission("/purchase-request-type-master") once a Link record
+// is seeded for this route.
+Router.use("/purchase-request-type-master", authenticate, PurchaseRequestTypeMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Status Master has no
+// TBL_LINKS_AND_PAGES / role-mapping entry yet (menu placement TBD).
+// Re-enable checkPermission("/status-master") once a Link record is seeded.
+Router.use("/status-master", authenticate, StatusMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Reference Type Master has
+// no TBL_LINKS_AND_PAGES / role-mapping entry yet (menu placement TBD).
+// Re-enable checkPermission("/reference-type-master") once a Link record is seeded.
+Router.use("/reference-type-master", authenticate, ReferenceTypeMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Shipment Mode Master has no
+// TBL_LINKS_AND_PAGES / role-mapping entry yet (menu placement TBD).
+// Re-enable checkPermission("/shipment-mode-master") once a Link record is seeded.
+Router.use("/shipment-mode-master", authenticate, ShipmentModeMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Purchase Request
+// (HDR + DTL) module has no TBL_LINKS_AND_PAGES / role-mapping entry yet
+// (menu placement TBD). Re-enable checkPermission("/purchase-request") once a
+// Link record is seeded for this route.
+Router.use("/purchase-request", authenticate, PurchaseRequestMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Additional Charge Type
+// Master has no TBL_LINKS_AND_PAGES / role-mapping entry yet (menu placement TBD).
+// Re-enable checkPermission("/additional-charge-type-master") once a Link record
+// is seeded for this route.
+Router.use("/additional-charge-type-master", authenticate, AdditionalChargeTypeMasterRouter);
 Router.use("/holiday-entries", authenticate, checkPermission("/holidays"), HolidayEntriesRouter);
 Router.use("/employee-database", authenticate, checkPermission("/employee-database"), EmployeeDatabaseRouter);
 Router.use("/dms", authenticate, checkPermission(["/dms", "/truck-master", "/driver-master", "/trailer-master"]), DMSRouter);
