@@ -144,6 +144,8 @@ import referenceTypeMasterReducer from "./referenceTypeMasterSlice";
 import shipmentModeMasterReducer from "./shipmentModeMasterSlice";
 import purchaseRequestMasterReducer from "./purchaseRequestMasterSlice";
 import additionalChargeTypeMasterReducer from "./additionalChargeTypeMasterSlice";
+import purchaseQuotationMasterReducer from "./purchaseQuotationMasterSlice";
+import purchaseQuotationConversationReducer from "./purchaseQuotationConversationSlice";
 
 import { useAppDispatch, useAppSelector } from "./hooks";
 
@@ -296,6 +298,8 @@ export const store = configureStore({
     shipmentModeMaster: shipmentModeMasterReducer,
     purchaseRequestMaster: purchaseRequestMasterReducer,
     additionalChargeTypeMaster: additionalChargeTypeMasterReducer,
+    purchaseQuotationMaster: purchaseQuotationMasterReducer,
+    purchaseQuotationConversation: purchaseQuotationConversationReducer,
 
   },
 });

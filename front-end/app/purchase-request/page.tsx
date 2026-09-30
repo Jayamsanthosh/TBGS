@@ -1,7 +1,20 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Plus, Search, Pencil, Trash2, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import RequestReview from "./request-review";
+import WizardShell from "@/components/wizard/WizardShell";
+import WizardSection from "@/components/wizard/WizardSection";
+import DetailLineCard from "@/components/wizard/DetailLineCard";
+import {
+  HDR_STEP,
+  DTL_STEP,
+  REVIEW_STEP,
+  lineStepKey,
+  SECTION_ORDER,
+  type FieldGroup,
+  type StepErrors,
+} from "@/components/wizard/types";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import {
   fetchPurchaseRequests,
@@ -26,7 +39,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -92,7 +104,9 @@ export default function PurchaseRequestPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PurchaseRequestGridData | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
-  const [step, setStep] = useState(1);
+  const [stepErrors, setStepErrors] = useState<StepErrors>({});
+  const [lineErrors, setLineErrors] = useState<StepErrors>({});
+  const [focusRequest, setFocusRequest] = useState<{ key: string; nonce: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -386,13 +400,12 @@ export default function PurchaseRequestPage() {
     );
   };
 
-  const nextLineNo = () => {
-    const lines = dtls.map((r: any) => Number(r.LINE_NO) || 0);
-    return lines.length ? Math.max(...lines) + 1 : 1;
-  };
+  /* Line numbers are always the row's position, so a line added or removed in
+     the middle never leaves a gap behind. */
+  const renumberDtls = (rows: any[]) => rows.map((r, i) => ({ ...r, LINE_NO: i + 1 }));
 
   const addDtl = () => {
-    setDtls((prev) => [...prev, emptyDtl(nextLineNo())]);
+    setDtls((prev) => renumberDtls([...prev, emptyDtl(prev.length + 1)]));
   };
 
   const removeDtl = (key: string) => {
@@ -400,7 +413,7 @@ export default function PurchaseRequestPage() {
     if (row?.PURCHASE_REQUEST_DTL_ID) {
       setDeletedIds((d) => [...d, Number(row.PURCHASE_REQUEST_DTL_ID)]);
     }
-    setDtls((prev) => prev.filter((r) => r.key !== key));
+    setDtls((prev) => renumberDtls(prev.filter((r) => r.key !== key)));
   };
 
   const openAdd = () => {
@@ -408,7 +421,9 @@ export default function PurchaseRequestPage() {
     setForm(emptyForm());
     setDtls([emptyDtl(1)]);
     setDeletedIds([]);
-    setStep(1);
+    setStepErrors({});
+    setLineErrors({});
+    setFocusRequest(null);
     setDialogOpen(true);
   };
 
@@ -465,69 +480,93 @@ export default function PurchaseRequestPage() {
           STATUS_ENTRY: d.STATUS_ENTRY || "CF",
         }));
       }
-      setDtls(rows.length ? rows : [emptyDtl(1)]);
+      setDtls(renumberDtls(rows.length ? rows : [emptyDtl(1)]));
       setDeletedIds([]);
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Failed to load record"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
       return;
     }
-    setStep(1);
+    setStepErrors({});
+    setLineErrors({});
+    setFocusRequest(null);
     setDialogOpen(true);
   };
 
-  const handleNext = () => {
-    if (!form.PURCHASE_REQUEST_DATE) {
-      toast({ title: "Purchase Request Date is required", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
-      return;
-    }
-    if (!form.REQUESTED_BY_EMP_ID) {
-      toast({ title: "Please select the Requested By Employee", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
-      return;
-    }
-    if (!form.COMPANY_ID) {
-      toast({ title: "Please select a Company", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
-      return;
-    }
-    setStep(2);
-  };
+  /* One scrolling page, so nothing blocks the way down - every rule is checked
+     on Save. Section problems land in stepErrors; per-line problems stay with the
+     card so the user sees which line is at fault. */
+  const validateRequest = (): { stepErrors: StepErrors; lineErrors: StepErrors } => {
+    const stepErrors: StepErrors = {};
+    const lineErrors: StepErrors = {};
+    const push = (step: string, message: string) => {
+      if (!stepErrors[step]) stepErrors[step] = [];
+      stepErrors[step].push(message);
+    };
+    const pushLine = (lineKey: string, message: string) => {
+      if (!lineErrors[lineKey]) lineErrors[lineKey] = [];
+      lineErrors[lineKey].push(message);
+    };
 
-  const handleBack = () => {
-    setStep(1);
+    if (!form.PURCHASE_REQUEST_DATE) push(HDR_STEP, "Purchase Request Date is required");
+    if (!form.REQUESTED_BY_EMP_ID) push(HDR_STEP, "Please select the Requested By Employee");
+    if (!form.COMPANY_ID) push(HDR_STEP, "Please select a Company");
+
+    if (!editing) {
+      const entryUp = String(form.STATUS_ENTRY || "").toUpperCase();
+      if (entryUp === "INACTIVE" || entryUp === "IN" || entryUp === "IA") {
+        push(HDR_STEP, "Status Entry cannot be inactive for a new record");
+      }
+    }
+
+    const meaningful = (r: any) =>
+      r.REFERENCE_TYPE_ID || r.PRODUCT_ID || r.MAIN_CATEGORY_ID || (r.DESCRIPTION || "").trim();
+
+    const validRows = dtls.filter(meaningful);
+    if (validRows.length === 0) {
+      push(REVIEW_STEP, "At least one purchase request detail line is required");
+    } else {
+      const lineNos = validRows.map((r: any) => String(r.LINE_NO ?? ""));
+      if (new Set(lineNos).size !== lineNos.length) {
+        push(REVIEW_STEP, "Line No must be unique within the same Purchase Request");
+      }
+    }
+
+    validRows.forEach((r: any) => {
+      const label = `Line ${r.LINE_NO ?? "?"}`;
+      if (!r.REFERENCE_TYPE_ID) pushLine(r.key, `${label}: Reference Type is required`);
+      if (!r.MAIN_CATEGORY_ID) pushLine(r.key, `${label}: Main Category is required`);
+      if (!r.PRODUCT_ID) pushLine(r.key, `${label}: Product is required`);
+      if (!r.UOM_ID) pushLine(r.key, `${label}: UOM is required`);
+    });
+
+    /* One marker on the section so it shows as needing attention. */
+    const broken = Object.keys(lineErrors);
+    if (broken.length > 0) {
+      push(DTL_STEP, `${broken.length} line${broken.length === 1 ? "" : "s"} need attention`);
+    }
+
+    return { stepErrors, lineErrors };
   };
 
   const handleSave = async () => {
-    const validRows = dtls.filter((r: any) =>
-      r.REFERENCE_TYPE_ID || r.PRODUCT_ID || r.MAIN_CATEGORY_ID || (r.DESCRIPTION || "").trim()
-    );
-    if (validRows.length === 0) {
-      toast({ title: "At least one purchase request detail line is required", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
-      return;
-    }
-    const lineNos = validRows.map((r: any) => String(r.LINE_NO ?? ""));
-    if (new Set(lineNos).size !== lineNos.length) {
-      toast({ title: "Line No must be unique within the same Purchase Request", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
-      return;
-    }
-    const incomplete = validRows.find((r: any) => !r.REFERENCE_TYPE_ID || !r.MAIN_CATEGORY_ID || !r.PRODUCT_ID || !r.UOM_ID);
-    if (incomplete) {
-      toast({
-        title: `Line ${incomplete.LINE_NO ?? "?"}: Reference Type, Main Category, Product and UOM are required`,
-        variant: "destructive",
-        duration: DEFAULT_TOAST_DURATION,
-      });
+    const { stepErrors, lineErrors } = validateRequest();
+    setStepErrors(stepErrors);
+    setLineErrors(lineErrors);
+    const firstBad = SECTION_ORDER.find((k) => (stepErrors[k]?.length ?? 0) > 0);
+    if (firstBad) {
+      /* Jump to the first failing line when the detail section is at fault. */
+      const firstLine = Object.keys(lineErrors)[0];
+      focusOn(firstBad === DTL_STEP && firstLine ? lineStepKey(firstLine) : firstBad);
+      toast({ title: stepErrors[firstBad][0], variant: "destructive", duration: DEFAULT_TOAST_DURATION });
       return;
     }
 
+    const validRows = dtls.filter((r: any) =>
+      r.REFERENCE_TYPE_ID || r.PRODUCT_ID || r.MAIN_CATEGORY_ID || (r.DESCRIPTION || "").trim()
+    );
+
     setSaving(true);
     try {
-      if (!editing) {
-        const entryUp = String(form.STATUS_ENTRY || "").toUpperCase();
-        if (entryUp === "INACTIVE" || entryUp === "IN" || entryUp === "IA") {
-          toast({ title: "Status Entry cannot be inactive for a new record", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
-          setSaving(false);
-          return;
-        }
-      }
       const toNum = (v: any) => {
         if (v === "" || v === null || v === undefined) return null;
         const n = Number(v);
@@ -583,6 +622,9 @@ export default function PurchaseRequestPage() {
         toast({ title: res?.message ?? "Purchase Request created successfully", duration: DEFAULT_TOAST_DURATION });
       }
       setDialogOpen(false);
+      setStepErrors({});
+      setLineErrors({});
+      setFocusRequest(null);
       dispatch(fetchPurchaseRequests({}));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error saving purchase request"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
@@ -628,6 +670,183 @@ export default function PurchaseRequestPage() {
         )}
       </div>
     );
+  };
+
+  /* ------------------------------------------------- wizard line groups --- */
+  const lineGroups = (): FieldGroup[] => [
+    {
+      title: "Reference",
+      fields: [
+        {
+          key: "REFERENCE_TYPE_ID",
+          label: "Reference Type",
+          kind: "select",
+          required: true,
+          options: refTypeOptions,
+          transform: (v) => Number(v),
+          placeholder: "Select ref type",
+        },
+        { key: "REFERENCE_NO", label: "Reference No", kind: "text", placeholder: "Reference no" },
+        {
+          key: "LINE_NO",
+          label: "Line No",
+          kind: "computed",
+          hint: "auto",
+          display: (r: any) => r.LINE_NO ?? "-",
+        },
+      ],
+    },
+    {
+      title: "Product",
+      fields: [
+        {
+          key: "MAIN_CATEGORY_ID",
+          label: "Main Category",
+          kind: "select",
+          required: true,
+          options: mainCategoryOptions,
+          transform: (v) => Number(v),
+          placeholder: "Select main category",
+        },
+        {
+          key: "SUB_CATEGORY_ID",
+          label: "Sub Category",
+          kind: "select",
+          options: (row: any) => subCategoryOptionsFor(row.MAIN_CATEGORY_ID),
+          transform: (v) => Number(v),
+          placeholder: "Select sub category",
+        },
+        {
+          key: "PRODUCT_ID",
+          label: "Product",
+          kind: "select",
+          required: true,
+          options: (row: any) => productOptionsFor(form.COMPANY_ID, row.MAIN_CATEGORY_ID),
+          transform: (v) => Number(v),
+          placeholder: "Select product",
+        },
+        {
+          key: "DESCRIPTION",
+          label: "Description",
+          kind: "textarea",
+          colSpan: true,
+          placeholder: "Description",
+        },
+      ],
+    },
+    {
+      title: "Quantity & Packing",
+      fields: [
+        {
+          key: "Total_Quantity",
+          label: "Quantity",
+          kind: "number",
+          min: 0,
+          step: "any",
+          transform: (v) => clampNonNegative(v),
+        },
+        {
+          key: "NO_OF_PCS_PER_PACKING",
+          label: "Pcs / Packing",
+          kind: "computed",
+          hint: "from product",
+          display: (row: any) => row.NO_OF_PCS_PER_PACKING ?? "-",
+        },
+        {
+          key: "Total_Packing",
+          label: "Total Packing",
+          kind: "computed",
+          hint: "auto",
+          display: (row: any) => row.Total_Packing ?? "-",
+        },
+        {
+          key: "UOM_ID",
+          label: "UOM",
+          kind: "computed",
+          required: true,
+          display: (row: any) =>
+            uomOptions.find((o: any) => o.value === String(row.UOM_ID))?.label || "-",
+        },
+        {
+          key: "ALT_UOM_ID",
+          label: "Alternate UOM",
+          kind: "computed",
+          display: (row: any) =>
+            uomOptions.find((o: any) => o.value === String(row.ALT_UOM_ID))?.label || "-",
+        },
+        {
+          key: "TRUCK_ID",
+          label: "Truck",
+          kind: "select",
+          options: truckOptions,
+          transform: (v) => Number(v),
+          placeholder: "Select truck",
+        },
+      ],
+    },
+    {
+      title: "Schedule & Status",
+      fields: [
+        {
+          key: "REQUIRED_DATE",
+          label: "Required Date",
+          kind: "date",
+          hint: "defaults to the request date",
+        },
+        {
+          key: "REASON",
+          label: "Reason",
+          kind: "text",
+          maxLength: 500,
+          placeholder: "Reason",
+        },
+        {
+          key: "STATUS_ENTRY",
+          label: "Status Entry",
+          kind: "select",
+          options: statusEntryOptions,
+        },
+      ],
+    },
+  ];
+
+  const headerLabels = useMemo(() => {
+    const labelOf = (options: { value: string; label: string }[] | undefined, v: any) =>
+      (options || []).find((o) => o.value === String(v ?? ""))?.label || "";
+    return {
+      REQUESTED_BY_EMP_ID:
+        (employees || []).find((e: any) => String(e.EMP_ID) === String(form.REQUESTED_BY_EMP_ID))
+          ?.EMP_NAME || "",
+      COMPANY_ID: labelOf(companyOptions, form.COMPANY_ID),
+      BRANCH_ID: labelOf(branchOptions, form.BRANCH_ID),
+      PO_STORE_ID: labelOf(storeOptions, form.PO_STORE_ID),
+      CAMP_ID: labelOf(campOptions, form.CAMP_ID),
+      REQUEST_STORE_ID: labelOf(storeOptions, form.REQUEST_STORE_ID),
+      REQUEST_TYPE_ID: labelOf(requestTypeOptions, form.REQUEST_TYPE_ID),
+      PRIORITY_ID: labelOf(priorityOptions, form.PRIORITY_ID),
+      STATUS_ID: labelOf(statusOptions, form.STATUS_ID),
+      DELIVERY_LOCATION_ID: labelOf(locationOptions, form.DELIVERY_LOCATION_ID),
+    };
+  }, [
+    employees, form.REQUESTED_BY_EMP_ID, form.COMPANY_ID, form.BRANCH_ID, form.PO_STORE_ID,
+    form.CAMP_ID, form.REQUEST_STORE_ID, form.REQUEST_TYPE_ID, form.PRIORITY_ID, form.STATUS_ID,
+    form.DELIVERY_LOCATION_ID, companyOptions, branchOptions, storeOptions, campOptions,
+    requestTypeOptions, priorityOptions, statusOptions, locationOptions,
+  ]);
+
+  /* Only lines with content reach the review and the payload. */
+  const reviewRows = useMemo(
+    () =>
+      dtls.filter(
+        (r: any) =>
+          r.REFERENCE_TYPE_ID || r.PRODUCT_ID || r.MAIN_CATEGORY_ID || (r.DESCRIPTION || "").trim()
+      ),
+    [dtls]
+  );
+
+  const focusOn = (key: string) => setFocusRequest({ key, nonce: Date.now() });
+  const scrollToLine = (row: any) => {
+    focusOn(lineStepKey(row.key));
   };
 
   return (
@@ -771,235 +990,131 @@ export default function PurchaseRequestPage() {
         </div>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)]">
-          <DialogHeader>
-            <DialogTitle>{editing ? `Edit Purchase Request (${editing.purchaseRequestNo ?? editing.PURCHASE_REQUEST_NO})` : "Add Purchase Request"}</DialogTitle>
-          </DialogHeader>
-
-          <div className="flex items-center gap-2 mb-4">
-            <div className={`flex items-center gap-1.5 text-xs font-medium ${step === 1 ? "text-primary" : "text-muted-foreground"}`}>
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${step === 1 ? "bg-primary text-primary-foreground" : "bg-green-500 text-white"}`}>
-                {step > 1 ? "✓" : "1"}
-              </span>
-              Header
+      <WizardShell
+        open={dialogOpen}
+        onOpenChange={(v) => {
+          if (!v) {
+            setStepErrors({});
+            setLineErrors({});
+            setFocusRequest(null);
+          }
+          setDialogOpen(v);
+        }}
+        title={
+          editing
+            ? `Edit Purchase Request (${editing.purchaseRequestNo ?? editing.PURCHASE_REQUEST_NO})`
+            : "Add Purchase Request"
+        }
+        errors={stepErrors}
+        saving={saving}
+        saveLabel={editing ? "Update" : "Create"}
+        saveClassName={
+          editing
+            ? "bg-info text-info-foreground hover:bg-info/90"
+            : "bg-primary text-primary-foreground hover:bg-primary/90"
+        }
+        onSave={handleSave}
+        focusStep={focusRequest}
+        footerNote={`${dtls.length} line${dtls.length === 1 ? "" : "s"}`}
+      >
+        <WizardSection
+          stepKey={HDR_STEP}
+          title="Header Information"
+          subtitle="Requester, company, dates and status"
+          errors={stepErrors[HDR_STEP]}
+        >
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">Requested By <span className="text-destructive ml-0.5">*</span></Label>
+              <EmployeeCombobox
+                value={form.REQUESTED_BY_EMP_ID}
+                onChange={handleRequestedByChange}
+                options={employees || []}
+              />
             </div>
-            <div className="h-px flex-1 bg-border" />
-            <div className={`flex items-center gap-1.5 text-xs font-medium ${step === 2 ? "text-primary" : "text-muted-foreground"}`}>
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${step === 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>2</span>
-              Request Details
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("PURCHASE_REQUEST_DATE", "Purchase Request Date", "date", undefined, true)}
+              {renderField("COMPANY_ID", "Company", "select", companyOptions, true, "Select company", true, "from employee")}
             </div>
-          </div>
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("BRANCH_ID", "Branch", "select", branchOptions, false, "Select branch")}
+              {renderField("PO_STORE_ID", "PO Store", "select", storeOptions, false, "Select PO store", true, "from employee")}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("CAMP_ID", "Camp", "select", campOptions, false, "Select camp", true, "from employee")}
+              {renderField("REQUEST_STORE_ID", "Request Store", "select", storeOptions, false, "Select request store")}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("REQUEST_TYPE_ID", "Request Type", "select", requestTypeOptions, false, "Select request type")}
+              {renderField("PRIORITY_ID", "Priority", "select", priorityOptions, false, "Select priority")}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("REQUIRED_DATE", "Required Date", "date", undefined, false)}
+              {renderField("DELIVERY_LOCATION_ID", "Delivery Location", "select", locationOptions, false, "Select delivery location")}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("STATUS_ID", "Status", "select", statusOptions, false, "Select status")}
+              {renderField("STATUS_ENTRY", "Status Entry", "select", statusEntryOptions, false)}
+            </div>
+            {renderField("REASON", "Reason", "textarea", undefined, false, "Reason...")}
+            {renderField("REMARKS", "Remarks", "textarea", undefined, false, "Additional notes...")}
+        </WizardSection>
 
-          {step === 1 && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2">Header Information</h3>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs">Requested By <span className="text-destructive ml-0.5">*</span></Label>
-                <EmployeeCombobox
-                  value={form.REQUESTED_BY_EMP_ID}
-                  onChange={handleRequestedByChange}
-                  options={employees || []}
+        <WizardSection
+          stepKey={DTL_STEP}
+          title="Detail Lines"
+          subtitle="Line numbers are assigned automatically and renumber when a line is removed"
+          errors={stepErrors[DTL_STEP]}
+          actions={
+            <Button variant="outline" size="sm" onClick={addDtl} className="h-8 text-xs">
+              <Plus className="w-3.5 h-3.5 mr-1" /> Add Line
+            </Button>
+          }
+        >
+          {dtls.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
+              No detail lines yet. Use Add Line to start one.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {dtls.map((row: any) => (
+                <DetailLineCard
+                  key={row.key}
+                  anchor={lineStepKey(row.key)}
+                  title={`Line ${row.LINE_NO ?? "?"}`}
+                  subtitle={
+                    (row.PRODUCT_NAME && String(row.PRODUCT_NAME)) ||
+                    (row.DESCRIPTION && String(row.DESCRIPTION).slice(0, 80)) ||
+                    "Not filled in yet"
+                  }
+                  groups={lineGroups()}
+                  row={row}
+                  errors={lineErrors[row.key]}
+                  onChange={(field, value) => updateDtl(row.key, field, value)}
+                  onRemove={() => removeDtl(row.key)}
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {renderField("PURCHASE_REQUEST_DATE", "Purchase Request Date", "date", undefined, true)}
-                {renderField("COMPANY_ID", "Company", "select", companyOptions, true, "Select company", true, "from employee")}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {renderField("BRANCH_ID", "Branch", "select", branchOptions, false, "Select branch")}
-                {renderField("PO_STORE_ID", "PO Store", "select", storeOptions, false, "Select PO store", true, "from employee")}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {renderField("CAMP_ID", "Camp", "select", campOptions, false, "Select camp", true, "from employee")}
-                {renderField("REQUEST_STORE_ID", "Request Store", "select", storeOptions, false, "Select request store")}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {renderField("REQUEST_TYPE_ID", "Request Type", "select", requestTypeOptions, false, "Select request type")}
-                {renderField("PRIORITY_ID", "Priority", "select", priorityOptions, false, "Select priority")}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {renderField("REQUIRED_DATE", "Required Date", "date", undefined, false)}
-                {renderField("DELIVERY_LOCATION_ID", "Delivery Location", "select", locationOptions, false, "Select delivery location")}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {renderField("STATUS_ID", "Status", "select", statusOptions, false, "Select status")}
-                {renderField("STATUS_ENTRY", "Status Entry", "select", statusEntryOptions, false)}
-              </div>
-              {renderField("REASON", "Reason", "textarea", undefined, false, "Reason...")}
-              {renderField("REMARKS", "Remarks", "textarea", undefined, false, "Additional notes...")}
-              <div className="flex justify-end gap-3 pt-2 border-t">
-                <Button variant="outline" onClick={() => setDialogOpen(false)} className="text-xs">Cancel</Button>
-                <Button onClick={handleNext} className="bg-primary text-primary-foreground text-xs">
-                  Next <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                </Button>
-              </div>
+              ))}
             </div>
           )}
+          <p className="text-[11px] text-muted-foreground">
+            Blank lines stay while you work and are dropped on save.
+          </p>
+        </WizardSection>
 
-          {step === 2 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2">Purchase Request Detail Lines</h3>
-                <Button variant="outline" size="sm" onClick={addDtl} className="h-8 text-xs">
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Row
-                </Button>
-              </div>
-              {dtls.length === 0 ? (
-                <p className="p-4 text-center text-muted-foreground text-xs border rounded-lg">No detail lines added</p>
-              ) : (
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="max-h-[52vh] overflow-auto">
-                    <table className="w-full text-sm border-collapse whitespace-nowrap">
-                      <thead>
-                        <tr className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                          <th className="p-2 font-semibold min-w-[130px]">Ref Type *</th>
-                          <th className="p-2 font-semibold min-w-[110px]">Line No</th>
-                          <th className="p-2 font-semibold min-w-[120px]">Main Category</th>
-                          <th className="p-2 font-semibold min-w-[120px]">Sub Category</th>
-                          <th className="p-2 font-semibold min-w-[140px]">Product</th>
-                          <th className="p-2 font-semibold min-w-[120px]">Reference No</th>
-                          <th className="p-2 font-semibold min-w-[160px]">Description</th>
-                          <th className="p-2 font-semibold min-w-[90px]">Pcs/Packing</th>
-                          <th className="p-2 font-semibold min-w-[90px]">Quantity</th>
-                          <th className="p-2 font-semibold min-w-[90px]">UOM</th>
-                          <th className="p-2 font-semibold min-w-[90px]">Total Packing</th>
-                          <th className="p-2 font-semibold min-w-[90px]">Alt UOM</th>
-                          <th className="p-2 font-semibold min-w-[90px]">Truck</th>
-                          <th className="p-2 font-semibold min-w-[120px]">Required Date</th>
-                          <th className="p-2 font-semibold min-w-[130px]">Reason</th>
-                          <th className="p-2 font-semibold min-w-[110px]">Status Entry</th>
-                          <th className="p-2 w-9" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dtls.map((row) => {
-                          const subOpts = subCategoryOptionsFor(row.MAIN_CATEGORY_ID);
-                          const productOpts = productOptionsFor(form.COMPANY_ID, row.MAIN_CATEGORY_ID);
-                          return (
-                            <tr key={row.key} className="border-t hover:bg-muted/30 transition-colors">
-                              <td className="p-1 pl-2">
-                                <Select value={row.REFERENCE_TYPE_ID ? String(row.REFERENCE_TYPE_ID) : ""} onValueChange={(v) => updateDtl(row.key, "REFERENCE_TYPE_ID", Number(v))}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select ref type" /></SelectTrigger>
-                                  <SelectContent>
-                                    {refTypeOptions.map((o) => (
-                                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="p-1">
-                                <Input type="number" min="1" step="1" value={row.LINE_NO ?? ""} onChange={(e) => updateDtl(row.key, "LINE_NO", clampNonNegative(e.target.value))} className="h-8 text-xs w-24" />
-                              </td>
-                              <td className="p-1">
-                                <Select value={row.MAIN_CATEGORY_ID ? String(row.MAIN_CATEGORY_ID) : ""} onValueChange={(v) => updateDtl(row.key, "MAIN_CATEGORY_ID", Number(v))}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Main category" /></SelectTrigger>
-                                  <SelectContent>
-                                    {mainCategoryOptions.map((o) => (
-                                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="p-1">
-                                <Select value={row.SUB_CATEGORY_ID ? String(row.SUB_CATEGORY_ID) : ""} onValueChange={(v) => updateDtl(row.key, "SUB_CATEGORY_ID", Number(v))}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Sub category" /></SelectTrigger>
-                                  <SelectContent>
-                                    {subOpts.map((o) => (
-                                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="p-1">
-                                <Select value={row.PRODUCT_ID ? String(row.PRODUCT_ID) : ""} onValueChange={(v) => updateDtl(row.key, "PRODUCT_ID", Number(v))}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Product" /></SelectTrigger>
-                                  <SelectContent>
-                                    {productOpts.map((o) => (
-                                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="p-1">
-                                <Input maxLength={50} value={row.REFERENCE_NO} onChange={(e) => updateDtl(row.key, "REFERENCE_NO", e.target.value)} placeholder="Ref no" className="h-8 text-xs" />
-                              </td>
-                              <td className="p-1">
-                                <Input maxLength={500} value={row.DESCRIPTION} onChange={(e) => updateDtl(row.key, "DESCRIPTION", e.target.value)} placeholder="Description" className="h-8 text-xs" />
-                              </td>
-                              <td className="p-1">
-                                <Input type="number" min="0" step="any" readOnly value={row.NO_OF_PCS_PER_PACKING} placeholder="From product" className="h-8 text-xs w-24 bg-muted" />
-                              </td>
-                              <td className="p-1">
-                                <Input type="number" min="0" step="any" value={row.Total_Quantity} onChange={(e) => updateDtl(row.key, "Total_Quantity", clampNonNegative(e.target.value))} className="h-8 text-xs w-24" />
-                              </td>
-                              <td className="p-1">
-                                <div className="w-24 rounded-md border bg-muted px-2 py-1.5 text-xs text-muted-foreground truncate" title={String(uomOptions.find((o: any) => o.value === String(row.UOM_ID))?.label || "")}>
-                                  {uomOptions.find((o: any) => o.value === String(row.UOM_ID))?.label || "-"}
-                                </div>
-                              </td>
-                              <td className="p-1">
-                                <Input type="number" min="0" step="any" readOnly value={row.Total_Packing} placeholder="Auto" className="h-8 text-xs w-24 bg-muted" />
-                              </td>
-                              <td className="p-1">
-                                <div className="w-24 rounded-md border bg-muted px-2 py-1.5 text-xs text-muted-foreground truncate" title={String(uomOptions.find((o: any) => o.value === String(row.ALT_UOM_ID))?.label || "")}>
-                                  {uomOptions.find((o: any) => o.value === String(row.ALT_UOM_ID))?.label || "-"}
-                                </div>
-                              </td>
-                              <td className="p-1">
-                                <Select value={row.TRUCK_ID ? String(row.TRUCK_ID) : ""} onValueChange={(v) => updateDtl(row.key, "TRUCK_ID", Number(v))}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Truck" /></SelectTrigger>
-                                  <SelectContent>
-                                    {truckOptions.map((o) => (
-                                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="p-1">
-                                <div className="w-36">
-                                  <DatePicker value={row.REQUIRED_DATE || ""} onChange={(v) => updateDtl(row.key, "REQUIRED_DATE", v)} placeholder="Required date" />
-                                </div>
-                              </td>
-                              <td className="p-1">
-                                <Input maxLength={500} value={row.REASON} onChange={(e) => updateDtl(row.key, "REASON", e.target.value)} placeholder="Reason" className="h-8 text-xs" />
-                              </td>
-                              <td className="p-1">
-                                <Select value={row.STATUS_ENTRY || "CF"} onValueChange={(v) => updateDtl(row.key, "STATUS_ENTRY", v)}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    {statusEntryOptions.map((o) => (
-                                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="p-1 pr-2 text-center">
-                                <button type="button" onClick={() => removeDtl(row.key)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors" title="Remove row">
-                                  <Trash2 className="w-4 h-4 text-destructive" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-              <div className="flex justify-end gap-3 pt-2 border-t">
-                <Button variant="outline" onClick={handleBack} className="text-xs" disabled={saving}>
-                  <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back
-                </Button>
-                <Button onClick={handleSave} disabled={saving} className={editing ? "bg-info text-info-foreground hover:bg-info/90 text-xs" : "bg-primary text-primary-foreground hover:bg-primary/90 text-xs"}>
-                  {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
-                  {saving ? "Saving..." : editing ? "Update" : "Create"}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+        <WizardSection
+          stepKey={REVIEW_STEP}
+          title="Review & Submit"
+          subtitle="Header and every detail line on one page"
+          errors={stepErrors[REVIEW_STEP]}
+        >
+          <RequestReview
+            form={form}
+            headerLabels={headerLabels}
+            rows={reviewRows}
+            onEditLine={scrollToLine}
+            onAddLine={addDtl}
+          />
+        </WizardSection>
+      </WizardShell>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

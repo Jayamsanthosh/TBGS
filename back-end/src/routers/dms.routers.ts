@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getAllDocuments,
+  getDocumentTypes,
   getDocumentById,
   saveDocument,
   updateDocument,
@@ -10,6 +11,8 @@ import {
 const DMSRouter = express.Router();
 
 DMSRouter.get("/", getAllDocuments);
+/* Must stay above "/:id", otherwise "document-types" is parsed as a document id. */
+DMSRouter.get("/document-types", getDocumentTypes);
 DMSRouter.get("/:id", getDocumentById);
 DMSRouter.post("/", saveDocument);
 DMSRouter.put("/:id", updateDocument);
