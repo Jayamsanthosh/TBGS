@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
 import { installAuthFetchInterceptor, resetAuthExpiredFlag } from "@/lib/httpInterceptor";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { hydrateFromStorage, loginUser, logoutUser, updateUserCompany, type UserData, type UserCompanyInfo } from "@/lib/authSlice";
+import { hydrateFromStorage, loginUser, logoutUser, logoutUserThunk, updateUserCompany, type UserData, type UserCompanyInfo } from "@/lib/authSlice";
 
 export interface AuthUser {
   id: number | string;

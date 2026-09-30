@@ -212,6 +212,7 @@ label span.required {
 
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
+  height: 5px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -227,5 +228,35 @@ label span.required {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--sidebar-foreground) / 0.2);
+  background-clip: padding-box;
+}
+
+/* The wizard is one long scrolling page, so its bars are deliberately obvious
+   rather than the near-invisible decorative ones used elsewhere. */
+.wizard-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.6) hsl(var(--muted) / 0.7);
+}
+
+.wizard-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.wizard-scrollbar::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.7);
+  border-left: 1px solid hsl(var(--border));
+  border-top: 1px solid hsl(var(--border));
+}
+
+.wizard-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.6);
+  border-radius: 100px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.wizard-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground) / 0.65);
   background-clip: padding-box;
 }

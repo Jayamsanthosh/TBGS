@@ -5,6 +5,7 @@ export interface DMSFileGridData {
   id?: string | number;
   DMS_ID?: number;
   LINK_PAGES_ID?: number;
+  LINK_PAGES_NAME?: string;
   PAGE_REF_NO?: string;
   DOCUMENT_TYPE?: string;
   DESCRIPTIONS?: string;
@@ -17,12 +18,14 @@ export interface DMSFileGridData {
 
 interface DMSState {
   files: DMSFileGridData[];
+  documentTypes: string[];
   loading: boolean;
   error: string | null;
 }
 
 const initialState: DMSState = {
   files: [],
+  documentTypes: [],
   loading: false,
   error: null,
 };
@@ -47,6 +50,23 @@ export const fetchDMSFiles = createAsyncThunk(
       return (json.data || []).map((u: any) => ({ ...u, id: u.DMS_ID }));
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to fetch DMS files");
+    }
+  }
+);
+
+export const fetchDocumentTypes = createAsyncThunk(
+  "dms/fetchDocumentTypes",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_URL}/dms/document-types`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return rejectWithValue(errorData.message || "Failed to fetch document types");
+      }
+      const json = await response.json();
+      return (json.data || []) as string[];
+    } catch (error: any) {
+      return rejectWithValue(error.message || "Failed to fetch document types");
     }
   }
 );
@@ -111,22 +131,17 @@ export const updateDMSFile = createAsyncThunk(
 
 export const deleteDMSFile = createAsyncThunk(
   "dms/deleteDMSFile",
-  async (id: string | number, { rejectWithValue, getState }) => {
+  async (id: string | number, { rejectWithValue }) => {
     try {
-      const state: any = getState();
-      const authUser = state.auth?.user;
-      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
-      const ROLE = authUser?.role || authUser?.ROLE || "Admin";
-
-      const response = await fetch(
-        `${API_URL}/dms/${id}?USER=${encodeURIComponent(USER)}&ROLE=${encodeURIComponent(ROLE)}&MAC_ADDRESS=WEB`,
-        { method: "DELETE" }
-      );
+      /* The server takes the user, role and MAC from the session, so no identity
+         is sent from the browser. */
+      const response = await fetch(`${API_URL}/dms/${id}`, { method: "DELETE" });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to delete file");
       }
-      return await response.json(); } catch (error: any) {
+      return await response.json();
+    } catch (error: any) {
       return rejectWithValue(error.message || "Failed to delete file");
     }
   }
@@ -168,6 +183,12 @@ const dmsSlice = createSlice({
       .addCase(deleteDMSFile.pending, (state) => { state.error = null; })
       .addCase(deleteDMSFile.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to delete file";
+      })
+      .addCase(fetchDocumentTypes.fulfilled, (state, action) => {
+        state.documentTypes = action.payload;
+      })
+      .addCase(fetchDocumentTypes.rejected, (state) => {
+        state.documentTypes = [];
       });
   },
 });
