@@ -50,6 +50,10 @@ export interface FieldDescriptor {
   options?: WizardOption[] | ((row: any) => WizardOption[]);
   /* How a readOnly/computed cell renders itself from the row. */
   display?: (row: any) => any;
+  /* Locks an editable cell. A function is used where the lock depends on the
+     line, e.g. a reference that is only editable on lines with no source
+     document. The value still renders, it just cannot be typed over. */
+  disabled?: boolean | ((row: any) => boolean);
   /* Applied to the raw input string before it reaches the row. */
   transform?: (value: string) => any;
 }

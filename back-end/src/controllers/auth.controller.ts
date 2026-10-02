@@ -4,8 +4,45 @@ import {
   changePasswordService,
   getPermissionsByRoleId,
   getUserCompanyInfo,
+  getUserEmployeeInfo,
+  type UserCompanyInfo,
+  type UserEmployeeInfo,
 } from "../services/auth.services";
 import { signAccessToken, signRefreshToken } from "../utils/jwt";
+
+/* One shape for the company/branch context, shared by login, /auth/permissions
+   and /auth/me so the three can never drift apart. branchId/branchName are
+   null when the company has no active mapping - that is a valid state, not an
+   error, so a missing mapping must never fail a login. */
+const toSessionCompany = (c: UserCompanyInfo) => ({
+  companyId: c.COMPANY_ID,
+  companyName: c.COMPANY_NAME,
+  shortCode: c.SHORT_CODE,
+  yearCode: c.YEAR_CODE,
+  branchId: c.BRANCH_ID ?? null,
+  branchName: c.BRANCH_NAME ?? null,
+});
+
+/* The employee behind the login, resolved once at login so screens that stamp a
+   requester (purchase request) can take it from the session instead of asking the
+   user to pick themselves from a list.
+
+   empId is null for a login that is not an employee - either because it has no
+   EMP_ID or because the mapped employee row does not exist. That null must be
+   respected: REQUESTED_BY_EMP_ID is a real foreign key, so saving the dangling id
+   would fail the insert. empName is never empty; it falls back to the login name.
+
+   companyId/branchId/campId/storeId are the header defaults the screen stamps.
+   branchId follows companyId: they are resolved as a pair so a document never
+   carries one company's id with another company's branch. */
+const toSessionEmployee = (e: UserEmployeeInfo) => ({
+  empId: e.EMP_ID ?? null,
+  empName: e.EMP_NAME,
+  companyId: e.COMPANY_ID ?? null,
+  branchId: e.BRANCH_ID ?? null,
+  campId: e.CAMP_ID ?? null,
+  storeId: e.STORE_ID ?? null,
+});
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -42,20 +79,28 @@ export const login = async (req: Request, res: Response) => {
       return;
     }
 
-    const companies = (await getUserCompanyInfo(user.LOGIN_ID, user.LOGIN_NAME)).map((c) => ({
-      companyId: c.COMPANY_ID,
-      companyName: c.COMPANY_NAME,
-      shortCode: c.SHORT_CODE,
-      yearCode: c.YEAR_CODE,
-    }));
+  const companies = (await getUserCompanyInfo(user.LOGIN_ID, user.LOGIN_NAME)).map(toSessionCompany);
+  /* Companies first: the active company is the fallback for the employee record's
+     own company, so the branch can be resolved against whichever one will win. */
+  const activeCompany = companies[0];
+  const employee = toSessionEmployee(
+    await getUserEmployeeInfo(user.LOGIN_ID, user.LOGIN_NAME, activeCompany?.companyId ?? null)
+  );
 
-    const accessToken = signAccessToken({
-      sub: user.LOGIN_ID,
-      loginName: user.LOGIN_NAME,
-      role: user.ROLE,
-      roleId: user.ROLE_ID as number,
-      companies,
-    });
+  /* The session's active company is the first one, so its branch is the branch
+     the rest of the app should treat as current. Kept top-level because screens
+     read a single branch; the per-company values above stay authoritative. */
+
+  const accessToken = signAccessToken({
+    sub: user.LOGIN_ID,
+    loginName: user.LOGIN_NAME,
+    role: user.ROLE,
+    roleId: user.ROLE_ID as number,
+    companies,
+    branchId: activeCompany?.branchId ?? null,
+    branchName: activeCompany?.branchName ?? null,
+    employee,
+  });
 
     const refreshToken = signRefreshToken({ sub: user.LOGIN_ID, type: "refresh" });
 
@@ -81,6 +126,9 @@ export const login = async (req: Request, res: Response) => {
         monthProcess: user.MONTH_PROCESS,
         yearProcess: user.YEAR_PROCESS,
         companies,
+        branchId: activeCompany?.branchId ?? null,
+        branchName: activeCompany?.branchName ?? null,
+        employee,
       },
     });
   } catch (error: any) {
@@ -104,6 +152,9 @@ export const me = async (req: Request, res: Response) => {
       role: req.user.role,
       roleId: req.user.roleId,
       companies: req.user.companies,
+      branchId: req.user.branchId ?? null,
+      branchName: req.user.branchName ?? null,
+      employee: req.user.employee ?? null,
     },
   });
 };
@@ -125,12 +176,17 @@ export const getPermissions = async (req: Request, res: Response) => {
 
   try {
     const permissions = await getPermissionsByRoleId(req.user.roleId);
-    const companies = (await getUserCompanyInfo(Number(req.user.sub), req.user.loginName)).map((c) => ({
-      companyId: c.COMPANY_ID,
-      companyName: c.COMPANY_NAME,
-      shortCode: c.SHORT_CODE,
-      yearCode: c.YEAR_CODE,
-    }));
+    const companies = (await getUserCompanyInfo(Number(req.user.sub), req.user.loginName)).map(toSessionCompany);
+    const activeCompany = companies[0];
+    /* Re-derived from the DB like the companies, so a corrected employee mapping
+       takes effect without forcing a fresh login. */
+    const employee = toSessionEmployee(
+      await getUserEmployeeInfo(
+        Number(req.user.sub),
+        req.user.loginName,
+        activeCompany?.companyId ?? null
+      )
+    );
 
     res.json({
       success: true,
@@ -142,6 +198,9 @@ export const getPermissions = async (req: Request, res: Response) => {
         redirectionType: p.REDIRECTION_TYPE,
       })),
       companies,
+      branchId: activeCompany?.branchId ?? null,
+      branchName: activeCompany?.branchName ?? null,
+      employee,
     });
   } catch (error) {
     console.error("getPermissions error:", error);

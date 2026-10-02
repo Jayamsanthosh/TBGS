@@ -10,12 +10,14 @@ export default function QuotationReview({
   headerLabels,
   totals,
   money,
+  rate6,
 }: {
   form: Record<string, any>;
   /* Resolved display names for the header select fields, keyed by form field. */
   headerLabels: Record<string, string>;
   totals: any;
   money: (v: any) => string;
+  rate6: (v: any) => string;
 }) {
   const shown = (v: any) => (v === null || v === undefined || v === "" ? "" : v);
 
@@ -44,15 +46,23 @@ export default function QuotationReview({
   ].filter((f) => shown(f.value) !== "");
 
   const totalCards = [
+    /* Sits with the LC figures it produced, not up in the header block, so the
+       rate and the amounts it converted read as one set. rollup hands back every
+       distinct rate the lines used - normally one, but a line may carry its
+       own, and collapsing that to a single number would misstate the others. */
+    {
+      label: "Exchange Rate",
+      value: (totals.EXCHANGE_RATE_VALUES || []).length > 1
+        ? (totals.EXCHANGE_RATE_VALUES as any[]).map((n: any) => rate6(n)).join(", ")
+        : rate6((totals.EXCHANGE_RATE_VALUES || [])[0]),
+    },
     { label: "Sub Total FC", value: money(totals.TOTAL_SUB_TOTAL_HDR_AMOUNT_FC) },
     { label: "Discount FC", value: money(totals.TOTAL_DISCOUNT_HDR_AMOUNT_FC) },
-    { label: "Addl Cost FC", value: money(totals.TOTAL_ADDITIONAL_COST_AMOUNT_FC) },
     { label: "Product FC", value: money(totals.TOTAL_PRODUCT_HDR_AMOUNT_FC) },
     { label: "VAT FC", value: money(totals.TOTAL_VAT_HDR_AMOUNT_FC) },
     { label: "Final FC", value: money(totals.FINAL_PRODUCT_HDR_AMOUNT_FC) },
     { label: "Sub Total LC", value: money(totals.TOTAL_SUB_TOTAL_HDR_AMOUNT_LC) },
     { label: "Discount LC", value: money(totals.TOTAL_DISCOUNT_HDR_AMOUNT_LC) },
-    { label: "Addl Cost LC", value: money(totals.TOTAL_ADDITIONAL_COST_AMOUNT_LC) },
     { label: "Product LC", value: money(totals.TOTAL_PRODUCT_HDR_AMOUNT_LC) },
     { label: "Tax LC", value: money(totals.TOTAL_TAX_HDR_AMOUNT_LC) },
     { label: "Final LC", value: money(totals.FINAL_PRODUCT_HDR_AMOUNT_LC) },

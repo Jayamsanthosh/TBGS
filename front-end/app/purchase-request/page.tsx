@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Loader2, Send } from "lucide-react";
 import RequestReview from "./request-review";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
@@ -25,13 +25,13 @@ import {
   fetchPurchaseRequestDtls,
   fetchPurchaseRequestDtl,
   clearPurchaseRequestMasterError,
+  submitPurchaseRequest,
   PurchaseRequestGridData,
 } from "@/lib/purchaseRequestMasterSlice";
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { formatDate, clampNonNegative } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
-import { EmployeeCombobox } from "@/components/EmployeeCombobox";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,25 +44,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
-const statusEntryOptions = [
-  { value: "CF", label: "Draft" },
-  { value: "CL", label: "Submitted" },
-  { value: "INACTIVE", label: "Inactive" },
-];
-
+/* Status Entry only has two meaningful positions on the request itself:
+   CL once it has been sent for approval, and everything else still waiting.
+   The row's Submit action moves CF -> CL, so a new request reads as Pending
+   for Submitted rather than leaking a raw Draft / Inactive code. */
 const entryLabel = (s: any) => {
   const v = String(s).toUpperCase();
-  if (v === "CF") return "Draft";
-  if (v === "CL" || v === "SUBMITTED") return "Submitted";
-  if (v === "INACTIVE" || v === "IN" || v === "IA") return "Inactive";
-  return String(s || "");
+  return v === "CL" || v === "SUBMITTED" ? "Submitted" : "Pending for Submitted";
 };
 
 const entryBadgeClass = (s: any) => {
   const v = String(s).toUpperCase();
-  if (v === "CF") return "bg-blue-500/10 text-blue-600 border-blue-200";
-  if (v === "CL" || v === "SUBMITTED") return "bg-green-500/10 text-green-600 border-green-200";
-  return "bg-red-500/10 text-red-600 border-red-200";
+  return v === "CL" || v === "SUBMITTED"
+    ? "bg-green-500/10 text-green-600 border-green-200"
+    : "bg-orange-500/10 text-orange-600 border-orange-200";
 };
 
 const finalLabel = (s: any) => {
@@ -109,6 +104,7 @@ export default function PurchaseRequestPage() {
   const [focusRequest, setFocusRequest] = useState<{ key: string; nonce: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [submittingRef, setSubmittingRef] = useState<string | null>(null);
 
   const role = useMemo(() => {
     if (typeof window !== "undefined") {
@@ -121,6 +117,17 @@ export default function PurchaseRequestPage() {
   }, []);
   const isAdmin = role === "Admin" || role === "Super Admin" || role === "Administrator";
 
+  /* Select needs a non-empty value, but a login that is not an employee has no
+     REQUESTED_BY_EMP_ID to show. This sentinel stands in for it in the dropdown only;
+     the backend still resolves the real requester from the session and stores a null
+     id, which is what the foreign key requires. */
+  const NO_EMPLOYEE_ID = "__session__";
+
+  /* The login's mapped (active) company and its branch, from the session. These are
+     only a fallback for a login with no employee record. Note an employee's own
+     company can differ from the company the login is mapped to. */
+  const activeCompanyId = user?.companies?.[0]?.companyId ?? null;
+
   const fetchList = async (url: string) => {
     const res = await fetch(url);
     if (!res.ok) throw new Error("Request failed");
@@ -128,7 +135,7 @@ export default function PurchaseRequestPage() {
     return json.data || [];
   };
 
-  const { data: employees } = useApiQuery("pr-master-employees", () => fetchList(`${API_URL}/employee-database?status=AC`));
+  /* No employee lookup here on purpose - the requester comes from the session. */
   const { data: companies } = useApiQuery("pr-master-companies", () => fetchList(`${API_URL}/company-master`));
   const { data: branches } = useApiQuery("pr-master-branches", () => fetchList(`${API_URL}/branch-master?status=AC`));
   const { data: stores } = useApiQuery("pr-master-stores", () => fetchList(`${API_URL}/store-master`));
@@ -173,6 +180,21 @@ export default function PurchaseRequestPage() {
       })).filter((o) => o.value),
     [statuses]
   );
+
+  /* The request status is decided by the workflow, not picked by hand: a new
+     request starts at DRAFT, and the row's Submit action moves it to PENDING
+     APPROVAL. Ids are resolved from the master by STATUS_CODE so no numeric id
+     is hard-coded. */
+  const statusIdFor = (code: string) =>
+    String(
+      (Array.isArray(statuses) ? statuses : []).find(
+        (s: any) => String(s.statusCode ?? s.STATUS_CODE ?? "") === code
+      )?.statusId ?? ""
+    );
+  const draftStatusId = statusIdFor("DRAFT");
+  const pendingStatusId = statusIdFor("PENDING_APPROVAL");
+  /* Submit from the table is blocked until both statuses can be resolved. */
+  const missingStatusMaster = statusOptions.length === 0 || !draftStatusId || !pendingStatusId;
   const requestTypeOptions = useMemo(
     () =>
       (Array.isArray(requestTypes) ? requestTypes : []).map((r: any) => ({
@@ -266,6 +288,17 @@ export default function PurchaseRequestPage() {
     dispatch(fetchPurchaseRequests({}));
   }, [dispatch]);
 
+  /* A new request starts at DRAFT. The default is applied once the id is known
+     from the status master rather than baked into the initial state, because the
+     master is loaded asynchronously. Editing an existing record never re-stamps
+     its status. */
+  useEffect(() => {
+    if (editing) return;
+    if (!draftStatusId) return;
+    if (form.STATUS_ID) return;
+    setForm((prev) => (prev.STATUS_ID ? prev : { ...prev, STATUS_ID: draftStatusId }));
+  }, [draftStatusId, editing, form.STATUS_ID]);
+
   useEffect(() => {
     if (error) {
       toast({ variant: "destructive", title: "Error", description: error, duration: DEFAULT_TOAST_DURATION });
@@ -303,11 +336,17 @@ export default function PurchaseRequestPage() {
   const emptyForm = () => ({
     PURCHASE_REQUEST_NO: "",
     PURCHASE_REQUEST_DATE: fmtDate(new Date()),
-    REQUESTED_BY_EMP_ID: "",
-    COMPANY_ID: "",
-    BRANCH_ID: "",
-    PO_STORE_ID: "",
-    CAMP_ID: "",
+    /* Pre-filled with the logged-in user's employee, from the session. Empty for a
+       login that is not an employee, which is allowed - the request is still raised
+       under that login's name, just with a null employee id. */
+    REQUESTED_BY_EMP_ID: sessionRequesterEmpId,
+    /* Company / Branch / PO Store / Camp are the logged-in user's, so they are filled
+       from the session rather than picked. Each stays empty when the session has no
+       value for it (e.g. an employee with no camp), which is a valid state. */
+    COMPANY_ID: sessionEmployeeDefaults.companyId != null ? String(sessionEmployeeDefaults.companyId) : "",
+    BRANCH_ID: sessionEmployeeDefaults.branchId != null ? String(sessionEmployeeDefaults.branchId) : "",
+    PO_STORE_ID: sessionEmployeeDefaults.storeId != null ? String(sessionEmployeeDefaults.storeId) : "",
+    CAMP_ID: sessionEmployeeDefaults.campId != null ? String(sessionEmployeeDefaults.campId) : "",
     REQUEST_STORE_ID: "",
     REQUEST_TYPE_ID: "",
     PRIORITY_ID: "",
@@ -323,44 +362,61 @@ export default function PurchaseRequestPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  /* The requester is whoever is logged in, resolved by the backend into the
+     session, so this screen never fetches the employee list. That list was only
+     ever needed to let a user pick a requester - and picking yourself is not a
+     choice. Dropping the query also stops a few hundred employee rows from being
+     pulled into a screen that needs one person.
+
+     empId is null for a login that is not an employee (no EMP_ID, or an EMP_ID with
+     no employee row) - which is a valid state and must not block the screen. The
+     name is never empty; the backend falls back to the login name. */
+  const sessionEmployee = user?.employee ?? null;
+  const sessionRequesterName = String(sessionEmployee?.empName || user?.loginName || "").trim();
+  const sessionRequesterEmpId =
+    sessionEmployee?.empId != null && sessionEmployee.empId > 0 ? String(sessionEmployee.empId) : "";
+
+  /* Company / Branch / PO Store / Camp all belong to the logged-in user, so the header
+     takes them from the session instead of asking.
+
+     Company is the employee's own company, falling back to the login's mapped company
+     because it is required. Branch comes from the session's employee block, which the
+     backend resolves against whichever company wins above - so Company and Branch are
+     always a real pair rather than one company's id beside another company's branch.
+     Camp / PO Store are the employee's and have no fallback: an employee without a camp
+     simply has none. */
+  const sessionEmployeeDefaults = useMemo(
+    () => ({
+      companyId: sessionEmployee?.companyId ?? activeCompanyId ?? null,
+      branchId: sessionEmployee?.branchId ?? user?.companies?.[0]?.branchId ?? null,
+      campId: sessionEmployee?.campId ?? null,
+      storeId: sessionEmployee?.storeId ?? null,
+    }),
+    [
+      sessionEmployee?.companyId,
+      sessionEmployee?.branchId,
+      sessionEmployee?.campId,
+      sessionEmployee?.storeId,
+      activeCompanyId,
+      user?.companies,
+    ]
+  );
+
+  /* The only entry in the dropdown is the logged-in user, so selecting it just
+     re-applies their defaults. Kept as a handler so the field stays a real
+     dropdown, as required. */
   const handleRequestedByChange = (empId: string) => {
-    setForm((prev) => ({ ...prev, REQUESTED_BY_EMP_ID: empId }));
-
-    const empGrid = Array.isArray(employees)
-      ? employees.find((e: any) => String(e.EMP_ID) === String(empId))
-      : undefined;
-
-    const applyFullEmp = (fullEmp: any) => {
-      if (!fullEmp) {
-        setForm((prev) => ({ ...prev, COMPANY_ID: "", CAMP_ID: "", PO_STORE_ID: "" }));
-        return;
-      }
-      setForm((prev) => ({
-        ...prev,
-        REQUESTED_BY_EMP_ID: empId,
-        COMPANY_ID: fullEmp.COMPANY_ID != null && fullEmp.COMPANY_ID !== "" ? String(fullEmp.COMPANY_ID) : "",
-        CAMP_ID: fullEmp.CAMP_ID != null && fullEmp.CAMP_ID !== "" ? String(fullEmp.CAMP_ID) : "",
-        PO_STORE_ID: fullEmp.STORE_ID != null && fullEmp.STORE_ID !== "" ? String(fullEmp.STORE_ID) : "",
-      }));
-    };
-
-    if (!empGrid) {
-      applyFullEmp(null);
-      return;
-    }
-
-    if (empGrid.SNO != null && empGrid.SNO !== "") {
-      fetch(`${API_URL}/employee-database/${empGrid.SNO}`)
-        .then((res) => res.json())
-        .then((json: any) => applyFullEmp(json?.success && json.data ? json.data : null))
-        .catch(() => applyFullEmp(null));
-    } else {
-      applyFullEmp({
-        COMPANY_ID: empGrid.COMPANY_ID ?? "",
-        CAMP_ID: empGrid.CAMP_ID ?? "",
-        PO_STORE_ID: empGrid.STORE_ID ?? "",
-      });
-    }
+    const realEmpId = empId === NO_EMPLOYEE_ID ? "" : empId;
+    setForm((prev) => ({
+      ...prev,
+      REQUESTED_BY_EMP_ID: realEmpId,
+      COMPANY_ID:
+        sessionEmployeeDefaults.companyId != null ? String(sessionEmployeeDefaults.companyId) : "",
+      BRANCH_ID:
+        sessionEmployeeDefaults.branchId != null ? String(sessionEmployeeDefaults.branchId) : "",
+      CAMP_ID: sessionEmployeeDefaults.campId != null ? String(sessionEmployeeDefaults.campId) : "",
+      PO_STORE_ID: sessionEmployeeDefaults.storeId != null ? String(sessionEmployeeDefaults.storeId) : "",
+    }));
   };
 
   const updateDtl = (key: string, field: string, value: any) => {
@@ -436,11 +492,22 @@ export default function PurchaseRequestPage() {
       setForm({
         PURCHASE_REQUEST_NO: hdr.PURCHASE_REQUEST_NO || refNo || "",
         PURCHASE_REQUEST_DATE: fmtDate(hdr.PURCHASE_REQUEST_DATE),
-        REQUESTED_BY_EMP_ID: toStr(hdr.REQUESTED_BY_EMP_ID),
-        COMPANY_ID: toStr(hdr.COMPANY_ID),
-        BRANCH_ID: toStr(hdr.BRANCH_ID),
-        PO_STORE_ID: toStr(hdr.PO_STORE_ID),
-        CAMP_ID: toStr(hdr.CAMP_ID),
+        /* The requester is always the logged-in user, and the backend re-stamps it on
+           save, so load the session identity rather than the stored one - otherwise
+           the field would show the original requester right up until the save
+           silently changed it. The stored name is still what the grid shows. */
+        REQUESTED_BY_EMP_ID: sessionRequesterEmpId,
+        /* Company / Branch / PO Store / Camp are session-owned too, so load them from
+           the session for the same reason: otherwise the form would show the stored
+           values while the save stamps the session's. */
+        COMPANY_ID:
+          sessionEmployeeDefaults.companyId != null ? String(sessionEmployeeDefaults.companyId) : "",
+        BRANCH_ID:
+          sessionEmployeeDefaults.branchId != null ? String(sessionEmployeeDefaults.branchId) : "",
+        PO_STORE_ID:
+          sessionEmployeeDefaults.storeId != null ? String(sessionEmployeeDefaults.storeId) : "",
+        CAMP_ID:
+          sessionEmployeeDefaults.campId != null ? String(sessionEmployeeDefaults.campId) : "",
         REQUEST_STORE_ID: toStr(hdr.REQUEST_STORE_ID),
         REQUEST_TYPE_ID: toStr(hdr.REQUEST_TYPE_ID),
         PRIORITY_ID: toStr(hdr.PRIORITY_ID),
@@ -508,15 +575,15 @@ export default function PurchaseRequestPage() {
     };
 
     if (!form.PURCHASE_REQUEST_DATE) push(HDR_STEP, "Purchase Request Date is required");
-    if (!form.REQUESTED_BY_EMP_ID) push(HDR_STEP, "Please select the Requested By Employee");
-    if (!form.COMPANY_ID) push(HDR_STEP, "Please select a Company");
-
-    if (!editing) {
-      const entryUp = String(form.STATUS_ENTRY || "").toUpperCase();
-      if (entryUp === "INACTIVE" || entryUp === "IN" || entryUp === "IA") {
-        push(HDR_STEP, "Status Entry cannot be inactive for a new record");
-      }
-    }
+    /* The requester is the logged-in user, so the only thing worth checking is that
+       we resolved one. Requiring an employee id here would lock out the logins that
+       have no employee record ('sandy', 'sri'), which are valid requesters. */
+    if (!sessionRequesterName) push(HDR_STEP, "Your login could not be resolved to a requester. Please sign in again.");
+    /* Company comes from the session and cannot be picked here, so if it is missing the
+       message has to say who can fix it - telling the user to "select a Company" would
+       leave them with a disabled, empty field and no way forward. */
+    if (!form.COMPANY_ID)
+      push(HDR_STEP, "No company is mapped to your login, so a request cannot be raised. Please contact your administrator.");
 
     const meaningful = (r: any) =>
       r.REFERENCE_TYPE_ID || r.PRODUCT_ID || r.MAIN_CATEGORY_ID || (r.DESCRIPTION || "").trim();
@@ -575,7 +642,10 @@ export default function PurchaseRequestPage() {
       const payload: Record<string, any> = {
         PURCHASE_REQUEST_NO: editing ? String(editing.purchaseRequestNo ?? editing.PURCHASE_REQUEST_NO) : "",
         PURCHASE_REQUEST_DATE: form.PURCHASE_REQUEST_DATE || null,
+        /* Sent for display consistency only. The backend overrides both with the
+           verified session, so a tampered body cannot change the requester. */
         REQUESTED_BY_EMP_ID: toNum(form.REQUESTED_BY_EMP_ID),
+        REQUESTED_BY_NAME: sessionRequesterName,
         COMPANY_ID: toNum(form.COMPANY_ID),
         BRANCH_ID: toNum(form.BRANCH_ID),
         PO_STORE_ID: toNum(form.PO_STORE_ID),
@@ -642,6 +712,31 @@ export default function PurchaseRequestPage() {
       dispatch(fetchPurchaseRequests({}));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error deleting purchase request"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+    }
+  };
+
+  /* Per-row Submit: moves a saved request to Pending for Approval through the
+     dedicated endpoint, so the request is submitted without re-saving the record
+     and Status / Status Entry are both set by the workflow. */
+  const handleSubmitRow = async (row: any) => {
+    const refNo = row?.purchaseRequestNo ?? row?.PURCHASE_REQUEST_NO;
+    if (!refNo || missingStatusMaster || !pendingStatusId) return;
+    if (submittingRef === refNo) return;
+    setSubmittingRef(refNo);
+    try {
+      const res: any = await dispatch(
+        submitPurchaseRequest({ refNo, statusId: Number(pendingStatusId) })
+      ).unwrap();
+      toast({ title: res?.message ?? "Purchase Request submitted for approval", duration: DEFAULT_TOAST_DURATION });
+      dispatch(fetchPurchaseRequests({}));
+    } catch (e: any) {
+      toast({
+        title: typeof e === "string" ? e : e?.message || "Error submitting purchase request",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+    } finally {
+      setSubmittingRef(null);
     }
   };
 
@@ -800,12 +895,6 @@ export default function PurchaseRequestPage() {
           maxLength: 500,
           placeholder: "Reason",
         },
-        {
-          key: "STATUS_ENTRY",
-          label: "Status Entry",
-          kind: "select",
-          options: statusEntryOptions,
-        },
       ],
     },
   ];
@@ -814,9 +903,9 @@ export default function PurchaseRequestPage() {
     const labelOf = (options: { value: string; label: string }[] | undefined, v: any) =>
       (options || []).find((o) => o.value === String(v ?? ""))?.label || "";
     return {
-      REQUESTED_BY_EMP_ID:
-        (employees || []).find((e: any) => String(e.EMP_ID) === String(form.REQUESTED_BY_EMP_ID))
-          ?.EMP_NAME || "",
+      /* The requester is the session user, so the review shows that name directly
+         rather than looking it up in an employee list. */
+      REQUESTED_BY_EMP_ID: sessionRequesterName,
       COMPANY_ID: labelOf(companyOptions, form.COMPANY_ID),
       BRANCH_ID: labelOf(branchOptions, form.BRANCH_ID),
       PO_STORE_ID: labelOf(storeOptions, form.PO_STORE_ID),
@@ -825,12 +914,13 @@ export default function PurchaseRequestPage() {
       REQUEST_TYPE_ID: labelOf(requestTypeOptions, form.REQUEST_TYPE_ID),
       PRIORITY_ID: labelOf(priorityOptions, form.PRIORITY_ID),
       STATUS_ID: labelOf(statusOptions, form.STATUS_ID),
+      STATUS_ENTRY: entryLabel(form.STATUS_ENTRY),
       DELIVERY_LOCATION_ID: labelOf(locationOptions, form.DELIVERY_LOCATION_ID),
     };
   }, [
-    employees, form.REQUESTED_BY_EMP_ID, form.COMPANY_ID, form.BRANCH_ID, form.PO_STORE_ID,
+    sessionRequesterName, form.COMPANY_ID, form.BRANCH_ID, form.PO_STORE_ID,
     form.CAMP_ID, form.REQUEST_STORE_ID, form.REQUEST_TYPE_ID, form.PRIORITY_ID, form.STATUS_ID,
-    form.DELIVERY_LOCATION_ID, companyOptions, branchOptions, storeOptions, campOptions,
+    form.STATUS_ENTRY, form.DELIVERY_LOCATION_ID, companyOptions, branchOptions, storeOptions, campOptions,
     requestTypeOptions, priorityOptions, statusOptions, locationOptions,
   ]);
 
@@ -929,16 +1019,41 @@ export default function PurchaseRequestPage() {
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Camp</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Req Type</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Required Date</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Status</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Final Status</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Status Entry</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs whitespace-nowrap">Status Entry</th>
                 </tr>
               </thead>
               <tbody>
-                {paginated.map((item: any, idx: number) => (
+                {paginated.map((item: any, idx: number) => {
+                  const refNo = item.purchaseRequestNo ?? item.PURCHASE_REQUEST_NO;
+                  const isSubmitting = submittingRef === refNo;
+                  /* Submitting is one-way: once a row is pending the button stays
+                     disabled. The status comes from the server row, not local state. */
+                  const isPending = !!pendingStatusId && String(item.statusId ?? "") === pendingStatusId;
+                  return (
                   <tr key={item.id || idx} className="border-b hover:bg-muted/30 transition-colors">
                     <td className="p-3 flex gap-2">
                       <button onClick={() => openEdit(item)} className="p-1.5 rounded hover:bg-muted transition-colors"><Pencil className="w-4 h-4 text-muted-foreground" /></button>
                       {isAdmin && <button onClick={() => setDeleteId(item.purchaseRequestNo ?? item.PURCHASE_REQUEST_NO)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4 text-destructive" /></button>}
+                      <button
+                        onClick={() => handleSubmitRow(item)}
+                        disabled={isSubmitting || isPending}
+                        title={
+                          missingStatusMaster
+                            ? "Status Master is unavailable - PENDING_APPROVAL could not be resolved"
+                            : isPending
+                              ? "Already pending for approval"
+                              : "Submit for approval"
+                        }
+                        className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {isSubmitting ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-info" />
+                        ) : (
+                          <Send className="w-4 h-4 text-info" />
+                        )}
+                      </button>
                     </td>
                     <td className="p-3 font-medium">{item.purchaseRequestNo || "-"}</td>
                     <td className="p-3">{formatDate(item.purchaseRequestDate)}</td>
@@ -949,20 +1064,22 @@ export default function PurchaseRequestPage() {
                     <td className="p-3">{item.campName || "-"}</td>
                     <td className="p-3">{item.requestTypeName || "-"}</td>
                     <td className="p-3">{formatDate(item.requiredDate)}</td>
+                    <td className="p-3">{item.statusName || "-"}</td>
                     <td className="p-3">
                       <Badge variant="outline" className={`${finalBadgeClass(item.finalResponseStatus)} px-2 py-0.5 text-[10px] uppercase font-bold`}>
                         {finalLabel(item.finalResponseStatus)}
                       </Badge>
                     </td>
                     <td className="p-3">
-                      <Badge variant="outline" className={`${entryBadgeClass(item.statusEntry)} px-2 py-0.5 text-[10px] uppercase font-bold`}>
+                      <Badge variant="outline" className={`${entryBadgeClass(item.statusEntry)} px-2 py-0.5 text-xs font-semibold whitespace-nowrap`}>
                         {entryLabel(item.statusEntry)}
                       </Badge>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {paginated.length === 0 && (
-                  <tr><td colSpan={12} className="p-8 text-center text-muted-foreground">No purchase requests found</td></tr>
+                  <tr><td colSpan={13} className="p-8 text-center text-muted-foreground">No purchase requests found</td></tr>
                 )}
               </tbody>
             </table>
@@ -1024,23 +1141,36 @@ export default function PurchaseRequestPage() {
           errors={stepErrors[HDR_STEP]}
         >
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">Requested By <span className="text-destructive ml-0.5">*</span></Label>
-              <EmployeeCombobox
-                value={form.REQUESTED_BY_EMP_ID}
-                onChange={handleRequestedByChange}
-                options={employees || []}
-              />
+              <Label className="text-xs">
+                Requested By <span className="text-destructive ml-0.5">*</span>
+                <span className="text-muted-foreground font-normal ml-1">(your login)</span>
+              </Label>
+              {/* Still a dropdown as required, but it holds only the logged-in user -
+                  picking a requester is not a choice anyone gets to make. A login
+                  with no employee row has no id, so the option carries a sentinel
+                  instead of an empty id; the backend resolves the real requester
+                  from the session anyway and stores a null id for that case. */}
+              <Select value={form.REQUESTED_BY_EMP_ID || NO_EMPLOYEE_ID} onValueChange={handleRequestedByChange}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Select requester" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={sessionRequesterEmpId || NO_EMPLOYEE_ID}>
+                    {sessionRequesterName}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               {renderField("PURCHASE_REQUEST_DATE", "Purchase Request Date", "date", undefined, true)}
-              {renderField("COMPANY_ID", "Company", "select", companyOptions, true, "Select company", true, "from employee")}
+              {renderField("COMPANY_ID", "Company", "select", companyOptions, true, "No company mapped to your login", true, "from your login")}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              {renderField("BRANCH_ID", "Branch", "select", branchOptions, false, "Select branch")}
-              {renderField("PO_STORE_ID", "PO Store", "select", storeOptions, false, "Select PO store", true, "from employee")}
+              {renderField("BRANCH_ID", "Branch", "select", branchOptions, false, "No branch mapped to your login", true, "from your login")}
+              {renderField("PO_STORE_ID", "PO Store", "select", storeOptions, false, "No PO store for your employee", true, "from your login")}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              {renderField("CAMP_ID", "Camp", "select", campOptions, false, "Select camp", true, "from employee")}
+              {renderField("CAMP_ID", "Camp", "select", campOptions, false, "No camp for your employee", true, "from your login")}
               {renderField("REQUEST_STORE_ID", "Request Store", "select", storeOptions, false, "Select request store")}
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -1052,8 +1182,16 @@ export default function PurchaseRequestPage() {
               {renderField("DELIVERY_LOCATION_ID", "Delivery Location", "select", locationOptions, false, "Select delivery location")}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              {renderField("STATUS_ID", "Status", "select", statusOptions, false, "Select status")}
-              {renderField("STATUS_ENTRY", "Status Entry", "select", statusEntryOptions, false)}
+              {renderField("STATUS_ID", "Status", "select", statusOptions, false, undefined, true, "set by the workflow")}
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs">
+                  Status Entry
+                  <span className="text-muted-foreground font-normal ml-1">(set by the workflow)</span>
+                </Label>
+                <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-xs font-medium">
+                  {entryLabel(form.STATUS_ENTRY)}
+                </div>
+              </div>
             </div>
             {renderField("REASON", "Reason", "textarea", undefined, false, "Reason...")}
             {renderField("REMARKS", "Remarks", "textarea", undefined, false, "Additional notes...")}

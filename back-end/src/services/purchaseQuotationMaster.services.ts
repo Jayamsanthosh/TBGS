@@ -31,7 +31,6 @@ export interface PurchaseQuotationDtl {
   EXCHANGE_RATE?: any;
   SUB_TOTAL_AMOUNT_LC?: any;
   DISCOUNT_AMOUNT_LC?: any;
-  ADDITIONAL_COST_AMOUNT_LC?: any;
   TOTAL_PRODUCT_AMOUNT_LC?: any;
   TAX_AMOUNT_LC?: any;
   FINAL_AMOUNT_LC?: any;
@@ -66,7 +65,6 @@ export interface PurchaseQuotationData {
   DELIVERY_LOCATION_ID?: number | null;
   TOTAL_SUB_TOTAL_HDR_AMOUNT_FC?: any;
   TOTAL_DISCOUNT_HDR_AMOUNT_FC?: any;
-  TOTAL_ADDITIONAL_COST_AMOUNT_FC?: any;
   TOTAL_PRODUCT_HDR_AMOUNT_FC?: any;
   TOTAL_VAT_HDR_AMOUNT_FC?: any;
   FINAL_PRODUCT_HDR_AMOUNT_FC?: any;
@@ -74,7 +72,6 @@ export interface PurchaseQuotationData {
   EXCHANGE_RATE?: any;
   TOTAL_SUB_TOTAL_HDR_AMOUNT_LC?: any;
   TOTAL_DISCOUNT_HDR_AMOUNT_LC?: any;
-  TOTAL_ADDITIONAL_COST_AMOUNT_LC?: any;
   TOTAL_PRODUCT_HDR_AMOUNT_LC?: any;
   TOTAL_TAX_HDR_AMOUNT_LC?: any;
   FINAL_PRODUCT_HDR_AMOUNT_LC?: any;
@@ -150,7 +147,6 @@ const computeDtlAmounts = (dtl: PurchaseQuotationDtl, headerRate: any): Purchase
   const rate = toNum(dtl.RATE);
   const discPct = toNum(dtl.DISCOUNT_PERCENTAGE);
   const taxPct = toNum(dtl.TAX_PERCENTAGE);
-  const addlLc = toNum(dtl.ADDITIONAL_COST_AMOUNT_LC);
   const pcs = toNum(dtl.NO_OF_PCS_PER_PACKING);
 
   const exRate = amtOrNull(dtl.EXCHANGE_RATE) ?? amtOrNull(headerRate) ?? 0;
@@ -161,10 +157,7 @@ const computeDtlAmounts = (dtl: PurchaseQuotationDtl, headerRate: any): Purchase
   const taxFc = r3((prodFc * taxPct) / 100);
   const finalFc = r3(prodFc + taxFc);
 
-  /* Per the DTL DDL every LC column is "FC x EXCHANGE_RATE". The additional cost has no
-     FC column of its own, so ADDITIONAL_COST_AMOUNT_LC is taken in LC directly and is not
-     folded into the product/final LC: the header carries it in its own
-     TOTAL_ADDITIONAL_COST_AMOUNT_LC, so folding it in would double count it. */
+  /* Per the DTL DDL every LC column is "FC x EXCHANGE_RATE". */
   return {
     ...dtl,
     EXCHANGE_RATE: exRate,
@@ -176,7 +169,6 @@ const computeDtlAmounts = (dtl: PurchaseQuotationDtl, headerRate: any): Purchase
     FINAL_AMOUNT_FC: finalFc,
     SUB_TOTAL_AMOUNT_LC: r3(subFc * exRate),
     DISCOUNT_AMOUNT_LC: r3(discFc * exRate),
-    ADDITIONAL_COST_AMOUNT_LC: addlLc,
     TOTAL_PRODUCT_AMOUNT_LC: r3(prodFc * exRate),
     TAX_AMOUNT_LC: r3(taxFc * exRate),
     FINAL_AMOUNT_LC: r3(finalFc * exRate),
@@ -191,24 +183,15 @@ const computeHeaderTotals = (
   const sum = (k: keyof PurchaseQuotationDtl) =>
     r3(lines.reduce((a, l) => a + toNum(l[k]), 0));
 
-  const addlFc = r3(
-    lines.reduce((a, l) => {
-      const rate = toNum(l.EXCHANGE_RATE);
-      return a + (rate > 0 ? toNum(l.ADDITIONAL_COST_AMOUNT_LC) / rate : 0);
-    }, 0)
-  );
-
   return {
     ...data,
     TOTAL_SUB_TOTAL_HDR_AMOUNT_FC: sum("SUB_TOTAL_AMOUNT_FC"),
     TOTAL_DISCOUNT_HDR_AMOUNT_FC: sum("DISCOUNT_AMOUNT_FC"),
-    TOTAL_ADDITIONAL_COST_AMOUNT_FC: addlFc,
     TOTAL_PRODUCT_HDR_AMOUNT_FC: sum("TOTAL_PRODUCT_AMOUNT_FC"),
     TOTAL_VAT_HDR_AMOUNT_FC: sum("TAX_AMOUNT_FC"),
     FINAL_PRODUCT_HDR_AMOUNT_FC: sum("FINAL_AMOUNT_FC"),
     TOTAL_SUB_TOTAL_HDR_AMOUNT_LC: sum("SUB_TOTAL_AMOUNT_LC"),
     TOTAL_DISCOUNT_HDR_AMOUNT_LC: sum("DISCOUNT_AMOUNT_LC"),
-    TOTAL_ADDITIONAL_COST_AMOUNT_LC: sum("ADDITIONAL_COST_AMOUNT_LC"),
     TOTAL_PRODUCT_HDR_AMOUNT_LC: sum("TOTAL_PRODUCT_AMOUNT_LC"),
     TOTAL_TAX_HDR_AMOUNT_LC: sum("TAX_AMOUNT_LC"),
     FINAL_PRODUCT_HDR_AMOUNT_LC: sum("FINAL_AMOUNT_LC"),
@@ -389,7 +372,6 @@ const dtlRequest = (
     .input("EXCHANGE_RATE", sql.Decimal(18, 6), amtOrNull(dtl.EXCHANGE_RATE))
     .input("SUB_TOTAL_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(dtl.SUB_TOTAL_AMOUNT_LC))
     .input("DISCOUNT_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(dtl.DISCOUNT_AMOUNT_LC))
-    .input("ADDITIONAL_COST_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(dtl.ADDITIONAL_COST_AMOUNT_LC))
     .input("TOTAL_PRODUCT_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(dtl.TOTAL_PRODUCT_AMOUNT_LC))
     .input("TAX_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(dtl.TAX_AMOUNT_LC))
     .input("FINAL_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(dtl.FINAL_AMOUNT_LC))
@@ -403,6 +385,58 @@ const dtlRequest = (
     .input("STATUS_ENTRY", sql.VarChar(20), statusEntry)
     .input("USER", sql.VarChar(50), user)
     .input("MAC_ADDRESS", sql.VarChar(50), mac);
+
+/* A quoted line's reference describes the request it was quoted for, so it is
+   derived from the request line rather than accepted from the caller. The request
+   line's own ref no wins; the request number is the fallback, because a request
+   line's ref no is optional and is normally blank. A line with no request link is
+   left alone - there is nothing to derive it from, and the user types it.
+
+   Done in one query for the whole document rather than per line, because a
+   quotation can carry dozens of lines. */
+const applyRequestReferenceNo = async (
+  dtls: PurchaseQuotationDtl[]
+): Promise<PurchaseQuotationDtl[]> => {
+  const linked = dtls.filter((d) => numOrNull(d.PURCHASE_REQUEST_DTL_ID) != null);
+  if (linked.length === 0) return dtls;
+
+  const pool = getPool();
+  if (!pool) throw new Error("Database not connected");
+
+  const ids = Array.from(
+    new Set(linked.map((d) => numOrNull(d.PURCHASE_REQUEST_DTL_ID) as number))
+  );
+  const result = await pool
+    .request()
+    .input("IDS", sql.VarChar(4000), ids.join(","))
+    .query(
+      `SELECT d.PURCHASE_REQUEST_DTL_ID, h.PURCHASE_REQUEST_NO, d.REFERENCE_NO
+         FROM VPurchase.TBL_PURCHASE_REQUEST_DTL d
+         JOIN VPurchase.TBL_PURCHASE_REQUEST_HDR h
+           ON h.PURCHASE_REQUEST_NO = d.PURCHASE_REQUEST_NO
+        WHERE d.PURCHASE_REQUEST_DTL_ID IN (SELECT [value] FROM STRING_SPLIT(@IDS, ','))`
+    );
+
+  const byDtlId = new Map<string, string>();
+  for (const r of result.recordset || []) {
+    const own = String(r.REFERENCE_NO ?? "").trim();
+    byDtlId.set(
+      String(r.PURCHASE_REQUEST_DTL_ID),
+      own || String(r.PURCHASE_REQUEST_NO ?? "").trim()
+    );
+  }
+
+  return dtls.map((d) => {
+    const id = numOrNull(d.PURCHASE_REQUEST_DTL_ID);
+    if (id == null) return d;
+    const derived = byDtlId.get(String(id));
+    /* Unreachable while FK_TBL_PURCHASE_QUOTATION_DTL_REQUEST_DTL holds, since a
+       linked id always has a request line to resolve. Kept so a bad id blanks
+       nothing rather than overwriting a reference with an empty string. */
+    if (!derived) return d;
+    return { ...d, REFERENCE_NO: derived };
+  });
+};
 
 const savePurchaseQuotationDtlService = async (
   refNo: string,
@@ -483,7 +517,6 @@ const hdrRequest = (
     .input("DELIVERY_LOCATION_ID", sql.Int, numOrNull(data.DELIVERY_LOCATION_ID))
     .input("TOTAL_SUB_TOTAL_HDR_AMOUNT_FC", sql.Decimal(18, 3), amtOrNull(data.TOTAL_SUB_TOTAL_HDR_AMOUNT_FC))
     .input("TOTAL_DISCOUNT_HDR_AMOUNT_FC", sql.Decimal(18, 3), amtOrNull(data.TOTAL_DISCOUNT_HDR_AMOUNT_FC))
-    .input("TOTAL_ADDITIONAL_COST_AMOUNT_FC", sql.Decimal(18, 3), amtOrNull(data.TOTAL_ADDITIONAL_COST_AMOUNT_FC))
     .input("TOTAL_PRODUCT_HDR_AMOUNT_FC", sql.Decimal(18, 3), amtOrNull(data.TOTAL_PRODUCT_HDR_AMOUNT_FC))
     .input("TOTAL_VAT_HDR_AMOUNT_FC", sql.Decimal(18, 3), amtOrNull(data.TOTAL_VAT_HDR_AMOUNT_FC))
     .input("FINAL_PRODUCT_HDR_AMOUNT_FC", sql.Decimal(18, 3), amtOrNull(data.FINAL_PRODUCT_HDR_AMOUNT_FC))
@@ -491,7 +524,6 @@ const hdrRequest = (
     .input("EXCHANGE_RATE", sql.Decimal(18, 6), amtOrNull(data.EXCHANGE_RATE))
     .input("TOTAL_SUB_TOTAL_HDR_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(data.TOTAL_SUB_TOTAL_HDR_AMOUNT_LC))
     .input("TOTAL_DISCOUNT_HDR_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(data.TOTAL_DISCOUNT_HDR_AMOUNT_LC))
-    .input("TOTAL_ADDITIONAL_COST_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(data.TOTAL_ADDITIONAL_COST_AMOUNT_LC))
     .input("TOTAL_PRODUCT_HDR_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(data.TOTAL_PRODUCT_HDR_AMOUNT_LC))
     .input("TOTAL_TAX_HDR_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(data.TOTAL_TAX_HDR_AMOUNT_LC))
     .input("FINAL_PRODUCT_HDR_AMOUNT_LC", sql.Decimal(18, 3), amtOrNull(data.FINAL_PRODUCT_HDR_AMOUNT_LC))
@@ -518,8 +550,8 @@ export const savePurchaseQuotationCombinedService = async (raw: PurchaseQuotatio
   try {
     /* derive the line amounts and the header roll-ups before touching the DB,
        so the stored values always satisfy the DDL formulas */
-    const dtls = (Array.isArray(raw.dtls) ? raw.dtls : []).map((d) =>
-      computeDtlAmounts(d, raw.EXCHANGE_RATE)
+    const dtls = await applyRequestReferenceNo(
+      (Array.isArray(raw.dtls) ? raw.dtls : []).map((d) => computeDtlAmounts(d, raw.EXCHANGE_RATE))
     );
     const data = computeHeaderTotals(raw, dtls);
 
@@ -554,8 +586,8 @@ export const updatePurchaseQuotationCombinedService = async (raw: PurchaseQuotat
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const dtls = (Array.isArray(raw.dtls) ? raw.dtls : []).map((d) =>
-      computeDtlAmounts(d, raw.EXCHANGE_RATE)
+    const dtls = await applyRequestReferenceNo(
+      (Array.isArray(raw.dtls) ? raw.dtls : []).map((d) => computeDtlAmounts(d, raw.EXCHANGE_RATE))
     );
     const data = computeHeaderTotals(raw, dtls);
 

@@ -89,6 +89,7 @@ import VideographerMasterRouter from "./videographerMaster.routers";
 import MassagerMasterRouter from "./massagerMaster.routers";
 
 import CompanyDepartmentDesignationMappingRouter from "./companyDepartmentDesignationMapping.routers";
+import CompanyBranchMappingRouter from "./companyBranchMapping.routers";
 import CompanyCampStoreMappingRouter from "./companyCampStoreMapping.routers";
 import DesignationGroupMasterRouter from "./designationGroupMaster.routers";
 import NewSalaryScaleRouter from "./newSalaryScale.routers";
@@ -253,6 +254,7 @@ Router.use("/trip-template-master", authenticate, checkPermission("/trip-templat
 Router.use("/trip-template-price-mapping", authenticate, checkPermission("/trip-template-price-mapping"), TripTemplatePriceMappingRouter);
 Router.use("/customer-wise-trip-template-price-mapping", authenticate, checkPermission("/customer-wise-trip-template-price-mapping"), CustomerWiseTripTemplatePriceMappingRouter);
 Router.use("/company-department-designation-mapping", authenticate, checkPermission("/company-department-designation-mapping"), CompanyDepartmentDesignationMappingRouter);
+Router.use("/company-branch-mapping", authenticate, checkPermission("/company-branch-mapping"), CompanyBranchMappingRouter);
 Router.use("/company-camp-store-mapping", authenticate, checkPermission("/company-camp-store-mapping"), CompanyCampStoreMappingRouter);
 Router.use("/designation-group-master", authenticate, checkPermission("/designation-group-master"), DesignationGroupMasterRouter);
 Router.use("/new-salary-scale", authenticate, checkPermission("/new-salary-scale"), NewSalaryScaleRouter);

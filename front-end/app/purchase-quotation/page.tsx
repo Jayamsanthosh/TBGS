@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Plus, Search, Pencil, Trash2, Loader2, FileText, MessageSquare, Send } from "lucide-react";
 import ConversationDialog from "./conversation-dialog";
 import QuotationReview from "./quotation-review";
@@ -123,7 +123,6 @@ const calcLine = (row: any, headerRate: any) => {
   const rate = toNum(row.RATE);
   const discPct = toNum(row.DISCOUNT_PERCENTAGE);
   const taxPct = toNum(row.TAX_PERCENTAGE);
-  const addlLc = toNum(row.ADDITIONAL_COST_AMOUNT_LC);
   const pcs = toNum(row.NO_OF_PCS_PER_PACKING);
 
   const exRate = toNum(headerRate) > 0 ? toNum(headerRate) : toNum(row.EXCHANGE_RATE);
@@ -137,10 +136,7 @@ const calcLine = (row: any, headerRate: any) => {
   const subLc = r3(subFc * exRate);
   const discLc = r3(discFc * exRate);
   const taxLc = r3(taxFc * exRate);
-  /* Per the DTL DDL every LC column is "FC x EXCHANGE_RATE". The additional cost has
-     no FC column of its own, so ADDITIONAL_COST_AMOUNT_LC is entered in LC directly and
-     is deliberately NOT folded into the product/final LC - the header carries it in its
-     own TOTAL_ADDITIONAL_COST_AMOUNT_LC, so folding it in here would double count it. */
+  /* Per the DTL DDL every LC column is "FC x EXCHANGE_RATE". */
   const prodLc = r3(prodFc * exRate);
   const finalLc = r3(finalFc * exRate);
 
@@ -154,7 +150,6 @@ const calcLine = (row: any, headerRate: any) => {
     FINAL_AMOUNT_FC: finalFc,
     SUB_TOTAL_AMOUNT_LC: subLc,
     DISCOUNT_AMOUNT_LC: discLc,
-    ADDITIONAL_COST_AMOUNT_LC: addlLc,
     TOTAL_PRODUCT_AMOUNT_LC: prodLc,
     TAX_AMOUNT_LC: taxLc,
     FINAL_AMOUNT_LC: finalLc,
@@ -164,22 +159,20 @@ const calcLine = (row: any, headerRate: any) => {
 /* ----------------------------------------------- header level roll-ups ---------*/
 const rollup = (rows: any[]) => {
   const s = (k: string) => r3(rows.reduce((a, r) => a + toNum(r[k]), 0));
-  const addlFc = r3(
-    rows.reduce((a, r) => {
-      const rate = toNum(r.EXCHANGE_RATE);
-      return a + (rate > 0 ? toNum(r.ADDITIONAL_COST_AMOUNT_LC) / rate : 0);
-    }, 0)
-  );
+  /* The distinct positive rates the LC columns were built from. Normally one
+     rate for the whole quotation, but a line can carry its own, so keep the
+     whole set rather than letting the first row stand in for all of them. */
+  const rates = Array.from(new Set(rows.map((r) => toNum(r.EXCHANGE_RATE)).filter((n) => n > 0)));
   return {
+    EXCHANGE_RATE: rates.length === 1 ? rates[0] : 0,
+    EXCHANGE_RATE_VALUES: rates,
     TOTAL_SUB_TOTAL_HDR_AMOUNT_FC: s("SUB_TOTAL_AMOUNT_FC"),
     TOTAL_DISCOUNT_HDR_AMOUNT_FC: s("DISCOUNT_AMOUNT_FC"),
-    TOTAL_ADDITIONAL_COST_AMOUNT_FC: addlFc,
     TOTAL_PRODUCT_HDR_AMOUNT_FC: s("TOTAL_PRODUCT_AMOUNT_FC"),
     TOTAL_VAT_HDR_AMOUNT_FC: s("TAX_AMOUNT_FC"),
     FINAL_PRODUCT_HDR_AMOUNT_FC: s("FINAL_AMOUNT_FC"),
     TOTAL_SUB_TOTAL_HDR_AMOUNT_LC: s("SUB_TOTAL_AMOUNT_LC"),
     TOTAL_DISCOUNT_HDR_AMOUNT_LC: s("DISCOUNT_AMOUNT_LC"),
-    TOTAL_ADDITIONAL_COST_AMOUNT_LC: s("ADDITIONAL_COST_AMOUNT_LC"),
     TOTAL_PRODUCT_HDR_AMOUNT_LC: s("TOTAL_PRODUCT_AMOUNT_LC"),
     TOTAL_TAX_HDR_AMOUNT_LC: s("TAX_AMOUNT_LC"),
     FINAL_PRODUCT_HDR_AMOUNT_LC: s("FINAL_AMOUNT_LC"),
@@ -187,6 +180,16 @@ const rollup = (rows: any[]) => {
 };
 
 const money = (v: any) => (toNum(v) === 0 ? "-" : toNum(v).toFixed(3));
+
+/* EXCHANGE_RATE is DECIMAL(15,6) and the header field carries six decimals, so
+   the rate must print with six too - money()'s three would misreport a rate
+   like 83.512345 as 83.512, and LC amounts are derived from the full value. */
+const rate6 = (v: any) => (toNum(v) > 0 ? toNum(v).toFixed(6) : "-");
+
+/* A tax master row's percentage as the string the line keeps. Empty means "no
+   usable rate" - never coerce that to 0, or a blank tax would price as free. */
+const taxPct = (t: any) =>
+  t && t.TAX_PERCENTAGE != null && t.TAX_PERCENTAGE !== "" ? String(t.TAX_PERCENTAGE) : "";
 
 export default function PurchaseQuotationPage() {
   const dispatch = useAppDispatch();
@@ -245,7 +248,44 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
   const { data: taxes } = useApiQuery("pq-master-taxes", () => fetchList(`${API_URL}/tax-master`));
   const { data: currencies } = useApiQuery("pq-master-currencies", () => fetchList(`${API_URL}/currency-master`));
   const { data: quoteStatuses } = useApiQuery("pq-master-quote-statuses", () => fetchList(`${API_URL}/status-master/load?includeInactive=false`));
-  const { data: prOptions } = useApiQuery("pq-master-purchase-requests", () => fetchList(`${API_URL}/purchase-request/load`));
+  /* Only submitted requests may be quoted, so a draft cannot be priced by accident.
+
+     This filters on STATUS_ENTRY = 'CL' rather than on final approval.
+     FINAL_RESPONSE_STATUS can never become 'APPROVED' for a Purchase Request:
+     the proc that writes it, UPDATE_APPROVAL_STATUS_PURCHASE_REQUEST, has no
+     caller, and the approval screen's UPDATE_REQUEST_STATUS rejects 'Purchase
+     Request' as an invalid type. Gating on final approval therefore matched
+     nothing and left this dropdown permanently empty.
+
+     A request rejected at the final level is still STATUS_ENTRY = 'CL', so it
+     would still be offered here. Rejection is filtered client-side below, and
+     the same rule is re-checked on save. */
+  const { data: prOptions } = useApiQuery("pq-master-purchase-requests", () =>
+    fetchList(`${API_URL}/purchase-request/load?statusEntry=CL&includeInactive=false`)
+  );
+
+  /* A new line defaults to the first tax in the master (VAT STANDARD) so the
+     percentage is never blank and the line is ready to price. The master loads
+     asynchronously, so a line added before it arrives is queued here and stamped
+     once the list turns up. Only queued lines are ever touched, and never one
+     where the user has already picked a tax or saved a quotation with no tax. */
+  const pendingTaxDefaults = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const list = Array.isArray(taxes) ? taxes : [];
+    const def = list[0];
+    if (!def || def.TAX_ID == null || pendingTaxDefaults.current.size === 0) return;
+    /* Take the set and clear the ref before touching state. Mutating the ref
+       inside the updater would make StrictMode's double-invoke return the
+       original rows on the second pass and drop the default. */
+    const ids = pendingTaxDefaults.current;
+    pendingTaxDefaults.current = new Set();
+    setDtls((prev) => prev.map((r: any) =>
+      ids.has(r.key) && r.TAX_ID == null
+        ? { ...r, TAX_ID: Number(def.TAX_ID), TAX_NAME: def.TAX_NAME || "", TAX_PERCENTAGE: taxPct(def) }
+        : r
+    ));
+  }, [taxes]);
 
   /* The master SPs do not agree on column naming: SHOW_STORE_MASTER returns
      "Store_Id"/"Store_Name" and LOAD_SHIPMENT_MODE_MASTER returns
@@ -328,13 +368,64 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
     [suppliers]
   );
 
-  const requestOptions = useMemo(
+/* How many lines this quotation has taken from each request, keyed by request
+     number. Counted from the detail rows themselves so it stays correct when a
+     line is removed again - the request then goes back into the dropdown. */
+  const importedCountByRequest = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of dtls as any[]) {
+      const no = String(r.PURCHASE_REQUEST_NO ?? "").trim();
+      if (!no) continue;
+      counts.set(no, (counts.get(no) ?? 0) + 1);
+    }
+    return counts;
+  }, [dtls]);
+
+  /* A request drops out of the dropdown once every one of its lines is already
+     on this quotation: there is nothing left to take from it, and picking it
+     again only produced an "already added" refusal.
+
+     Comparing against the request's own detailLineCount is what makes this
+     exact. Counting the imported rows alone cannot tell a fully quoted request
+     from a partly used one, so a request whose lines were pulled in two goes
+     would still be offered even with nothing left to add.
+
+     detailLineCount is only present on rows loaded after the column was added,
+     so a missing value means "unknown" and the request is left in the list
+     rather than wrongly hidden. A request with no lines keeps a count of 0 and
+     stays listed, so selecting it still reports that it has no detail lines. */
+  const isFullyImported = (r: any) => {
+    const no = String(r.purchaseRequestNo ?? "").trim();
+    if (!no) return false;
+    const total = Number(r.detailLineCount);
+    if (!Number.isFinite(total) || total <= 0) return false;
+    return (importedCountByRequest.get(no) ?? 0) >= total;
+  };
+
+/* True only when there really were eligible requests and the only reason the
+     list is empty is that all of them are already on this quotation. This keeps
+     the empty-list message honest: a list emptied by the rejected/approved
+     filter, or by the request not having arrived yet, is a different thing. */
+  const allRequestsFullyImported = useMemo(() => {
+    const eligible = (Array.isArray(prOptions) ? prOptions : []).filter(
+      (r: any) => !/reject/i.test(String(r.finalResponseStatus ?? ""))
+    );
+    return eligible.length > 0 && eligible.every((r: any) => isFullyImported(r));
+  }, [prOptions, importedCountByRequest]);
+
+  /* Rejected requests are hidden here as well as by STATUS_ENTRY, because a
+   rejection leaves the entry at 'CL' and would otherwise still be quotable. */
+const requestOptions = useMemo(
     () =>
-      (Array.isArray(prOptions) ? prOptions : []).map((r: any) => ({
+      (Array.isArray(prOptions) ? prOptions : [])
+        .filter((r: any) => !/reject/i.test(String(r.finalResponseStatus ?? "")))
+        .filter((r: any) => !isFullyImported(r))
+        .map((r: any) => ({
         value: String(r.purchaseRequestNo ?? ""),
         label: r.displayText || r.purchaseRequestNo || "",
-      })).filter((o: any) => o.value),
-    [prOptions]
+      }))
+        .filter((o: any) => o.value),
+    [prOptions, importedCountByRequest]
   );
 
   const uniqueFinalStatuses = useMemo(() => {
@@ -457,8 +548,7 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
       if (r.key !== key) return r;
       if (field === "TAX_ID") {
         const t = (Array.isArray(taxes) ? taxes : []).find((x: any) => String(x.TAX_ID) === String(value));
-        const pct = t && t.TAX_PERCENTAGE != null && t.TAX_PERCENTAGE !== "" ? String(t.TAX_PERCENTAGE) : "";
-        return { ...r, TAX_ID: value, TAX_NAME: t?.TAX_NAME, TAX_PERCENTAGE: pct };
+        return { ...r, TAX_ID: value, TAX_NAME: t?.TAX_NAME, TAX_PERCENTAGE: taxPct(t) };
       }
       if (field === "REQUIRED_DATE") {
         return { ...r, REQUIRED_DATE: value || form.DELIVERY_DATE || "" };
@@ -497,6 +587,13 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
       let added = 0;
       let skipped = 0;
       const newRows: any[] = [];
+
+      /* New lines start on the first tax in the master. If the master has not
+         arrived yet, leave the tax off and queue the key so the effect above
+         stamps it in as soon as the list does. */
+      const defTax = (Array.isArray(taxes) ? taxes : [])[0];
+      const hasDef = !!(defTax && defTax.TAX_ID != null);
+      const queuedForTax: string[] = [];
       for (const p of prLines) {
         const prDtlId = p.ID ?? p.PURCHASE_REQUEST_DTL_ID;
         if (
@@ -506,8 +603,10 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
           skipped += 1;
           continue;
         }
+        const rowKey = newKey();
+        if (!hasDef) queuedForTax.push(rowKey);
         newRows.push({
-          key: newKey(),
+          key: rowKey,
           PURCHASE_QUOTATION_DTL_ID: undefined,
           PURCHASE_REQUEST_NO: reqNo,
           PURCHASE_REQUEST_DTL_ID: prDtlId != null ? Number(prDtlId) : undefined,
@@ -517,7 +616,12 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
           REQUEST_STORE_NAME: reqStoreId != null ? (storeNameMap.get(String(reqStoreId)) ?? "") : "",
           REFERENCE_TYPE_ID: p.REFERENCE_TYPE_ID != null ? Number(p.REFERENCE_TYPE_ID) : undefined,
           REFERENCE_TYPE_NAME: p.REFERENCE_TYPE_NAME || "",
-          REFERENCE_NO: p.REFERENCE_NO || "",
+          /* The reference belongs to the request line, not to whoever quotes it.
+             Take the request's own ref no, and fall back to the request number so a
+             line always traces back to where it came from - the request's ref no is
+             optional and in practice usually blank. The backend re-derives this the
+             same way, so a hand-crafted request body cannot change it. */
+          REFERENCE_NO: (p.REFERENCE_NO || "").trim() || reqNo,
           LINE_NO: 0,
           SOURCE_LINE_NO: p.LINE_NO != null ? Number(p.LINE_NO) : undefined,
           MAIN_CATEGORY_ID: p.MAIN_CATEGORY_ID != null ? Number(p.MAIN_CATEGORY_ID) : undefined,
@@ -534,9 +638,9 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
           TOTAL_QUANTITY_SRC: p.Total_Quantity ?? "",
           RATE: "",
           DISCOUNT_PERCENTAGE: "",
-          TAX_ID: undefined,
-          TAX_PERCENTAGE: "",
-          ADDITIONAL_COST_AMOUNT_LC: "",
+          TAX_ID: hasDef ? Number(defTax.TAX_ID) : undefined,
+          TAX_NAME: hasDef ? defTax.TAX_NAME || "" : "",
+          TAX_PERCENTAGE: hasDef ? taxPct(defTax) : "",
           REQUIRED_DATE: fmtDate(p.REQUIRED_DATE) || form.DELIVERY_DATE || "",
           REASON: p.REASON || "",
           REMARKS: "",
@@ -546,21 +650,32 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
 
       /* append, then renumber the whole detail list from 1 */
       setDtls((prev) => renumberDtls([...prev, ...newRows]));
+      if (queuedForTax.length) {
+        pendingTaxDefaults.current = new Set([...pendingTaxDefaults.current, ...queuedForTax]);
+      }
 
       added = newRows.length;
       if (!added) {
         toast({
+          /* "added", not "quoted": the dedupe only knows about this quotation, so
+             naming it "quoted" would overstate what was checked. */
           title: skipped > 0
-            ? "All lines of this Purchase Request are already quoted"
+            ? "All lines of this Purchase Request are already added to this quotation"
             : "This Purchase Request has no detail lines",
           variant: "destructive",
           duration: DEFAULT_TOAST_DURATION,
         });
       } else {
         toast({
-          title: `${added} line(s) added from ${reqNo}${skipped ? ` - ${skipped} already quoted` : ""}`,
+          title: `${added} line(s) added from ${reqNo}${skipped ? ` - ${skipped} already added` : ""}`,
           duration: DEFAULT_TOAST_DURATION,
         });
+        /* Every remaining line of this request is now on the quotation, so it
+           drops out of the dropdown. Clearing the selection keeps the trigger
+           from holding a value the list no longer offers: left in place it would
+           show blank while the Add button stayed enabled, and pressing it again
+           would only repeat the "already added" refusal. */
+        setReqNo("");
       }
     } catch (e: any) {
       toast({
@@ -587,6 +702,9 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
 
   const openEdit = async (item: any) => {
     setEditing(item);
+    /* The lines of the quotation being opened decide which requests the
+       dropdown offers, so the previous selection is meaningless here. */
+    setReqNo("");
     try {
       const refNo = item.purchaseQuotationNo ?? item.PURCHASE_QUOTATION_NO;
       const hdr: any = await dispatch(fetchPurchaseQuotationHdr(refNo)).unwrap();
@@ -648,7 +766,6 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
         TAX_ID: d.TAX_ID != null ? Number(d.TAX_ID) : undefined,
         TAX_NAME: d.TAX_NAME || "",
         TAX_PERCENTAGE: d.TAX_PERCENTAGE ?? "",
-        ADDITIONAL_COST_AMOUNT_LC: d.ADDITIONAL_COST_AMOUNT_LC ?? "",
         EXCHANGE_RATE: d.EXCHANGE_RATE ?? "",
         REQUIRED_DATE: fmtDate(d.REQUIRED_DATE),
         REASON: d.REASON || "",
@@ -695,7 +812,15 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
         const n = Number(v);
         return isNaN(n) ? null : n;
       };
-      const sum = rollup(dtls.map((r: any) => calcLine(r, form.EXCHANGE_RATE)));
+      /* rollup also reports the rate set, but only so the UI can display it. The
+         header rate in the payload has to stay the one typed on the form, so keep
+         those two display-only fields out of the spread - otherwise a quotation
+         whose lines carry differing rates would report EXCHANGE_RATE 0. */
+      const { EXCHANGE_RATE: _shownRate, EXCHANGE_RATE_VALUES: _shownRates, ...sums } = rollup(
+        dtls.map((r: any) => calcLine(r, form.EXCHANGE_RATE)),
+      );
+      void _shownRate;
+      void _shownRates;
 
       const payload: Record<string, any> = {
         PURCHASE_QUOTATION_NO: editing
@@ -721,7 +846,7 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
         DELIVERY_LOCATION_ID: nOrNull(form.DELIVERY_LOCATION_ID),
         CURRENCY_ID: nOrNull(form.CURRENCY_ID),
         EXCHANGE_RATE: nOrNull(form.EXCHANGE_RATE),
-        ...sum,
+        ...sums,
         QUOTATION_STATUS_ID: nOrNull(form.QUOTATION_STATUS_ID),
         REMARKS: form.REMARKS?.trim() || null,
         STATUS_ENTRY: form.STATUS_ENTRY || "CF",
@@ -756,7 +881,6 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
             EXCHANGE_RATE: c.EXCHANGE_RATE,
             SUB_TOTAL_AMOUNT_LC: c.SUB_TOTAL_AMOUNT_LC,
             DISCOUNT_AMOUNT_LC: c.DISCOUNT_AMOUNT_LC,
-            ADDITIONAL_COST_AMOUNT_LC: c.ADDITIONAL_COST_AMOUNT_LC,
             TOTAL_PRODUCT_AMOUNT_LC: c.TOTAL_PRODUCT_AMOUNT_LC,
             TAX_AMOUNT_LC: c.TAX_AMOUNT_LC,
             FINAL_AMOUNT_LC: c.FINAL_AMOUNT_LC,
@@ -916,7 +1040,12 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
       title: "Quantity & Pricing",
       fields: [
         { key: "LINE_NO", label: "Line No", kind: "computed", hint: "auto", display: (r: any) => r.LINE_NO ?? "-" },
-        { key: "REFERENCE_NO", label: "Reference No", kind: "text", maxLength: 50, placeholder: "Ref no" },
+        { key: "REFERENCE_NO", label: "Reference No", kind: "text", maxLength: 50, placeholder: "Ref no",
+          /* Locked when the line came from a request, because the value is the
+             request's. A line added by hand has no request to trace, so it stays
+             typeable. */
+          disabled: (r: any) => r.PURCHASE_REQUEST_DTL_ID != null || !!r.PURCHASE_REQUEST_NO,
+          hint: "from request" },
         { key: "TOTAL_QUANTITY", label: "Quantity", kind: "number", required: true, min: 0, transform: clampNonNegative },
         { key: "TOTAL_PACKING", label: "Total Packing", kind: "computed", display: (r: any) => (r.TOTAL_PACKING === "" || r.TOTAL_PACKING == null ? "Auto" : r.TOTAL_PACKING) },
         { key: "RATE", label: "Rate", kind: "number", required: true, min: 0, placeholder: "0.000", transform: clampNonNegative },
@@ -937,14 +1066,23 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
           placeholder: "Tax",
           transform: (v: string) => (v ? Number(v) : undefined),
         },
-        { key: "TAX_PERCENTAGE", label: "Tax %", kind: "number", min: 0, transform: clampNonNegative },
+        {
+          key: "TAX_PERCENTAGE",
+          label: "Tax %",
+          /* Derived from the tax picked above, never typed. updateDtl fills this
+             from the tax master whenever TAX_ID changes, so an editable box here
+             would only let the percentage and the chosen tax disagree. The value
+             still saves - the payload reads it from row state, not from here. */
+          kind: "computed",
+          display: (r: any) =>
+            r.TAX_PERCENTAGE === "" || r.TAX_PERCENTAGE == null ? "-" : `${r.TAX_PERCENTAGE}%`,
+        },
         { key: "TAX_AMOUNT_FC", label: "Tax Amt FC", kind: "computed", display: (r: any) => money(r.TAX_AMOUNT_FC) },
       ],
     },
     {
       title: "Additional",
       fields: [
-        { key: "ADDITIONAL_COST_AMOUNT_LC", label: "Addl Cost LC", kind: "number", min: 0, placeholder: "0.000", hint: "entered in LC", transform: clampNonNegative },
         { key: "REQUIRED_DATE", label: "Required Date", kind: "date" },
         { key: "REASON", label: "Reason", kind: "text", maxLength: 500 },
         { key: "REMARKS", label: "Remarks", kind: "text", maxLength: 500 },
@@ -953,6 +1091,9 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
     {
       title: "Totals in LC",
       fields: [
+        /* The rate that produced every LC figure below, so a line never has to
+           be back-calculated to find out which rate was used on it. */
+        { key: "EXCHANGE_RATE", label: "Exchange Rate", kind: "computed", display: (r: any) => rate6(r.EXCHANGE_RATE) },
         { key: "SUB_TOTAL_AMOUNT_LC", label: "Sub Total LC", kind: "computed", display: (r: any) => money(r.SUB_TOTAL_AMOUNT_LC) },
         { key: "DISCOUNT_AMOUNT_LC", label: "Disc Amt LC", kind: "computed", display: (r: any) => money(r.DISCOUNT_AMOUNT_LC) },
         { key: "TOTAL_PRODUCT_AMOUNT_LC", label: "Total Prod LC", kind: "computed", display: (r: any) => money(r.TOTAL_PRODUCT_AMOUNT_LC) },
@@ -1361,6 +1502,13 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
                     ))}
                   </SelectContent>
                 </Select>
+                {requestOptions.length === 0 && prOptions && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {allRequestsFullyImported
+                      ? "Every eligible Purchase Request is already on this quotation"
+                      : "No Purchase Request is available to quote"}
+                  </p>
+                )}
               </div>
               <Button
                 variant="outline"
@@ -1391,7 +1539,7 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
             </p>
           ) : (
             <div className="space-y-3">
-              {dtls.map((row: any) => (
+              {computed.map((row: any) => (
                 <DetailLineCard
                   key={row.key}
                   anchor={lineStepKey(row.key)}
@@ -1424,6 +1572,7 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
             headerLabels={headerLabels}
             totals={totals}
             money={money}
+            rate6={rate6}
           />
         </WizardSection>
       </WizardShell>

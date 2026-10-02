@@ -38,7 +38,6 @@ export interface PurchaseQuotationDtl {
   EXCHANGE_RATE?: any;
   SUB_TOTAL_AMOUNT_LC?: any;
   DISCOUNT_AMOUNT_LC?: any;
-  ADDITIONAL_COST_AMOUNT_LC?: any;
   TOTAL_PRODUCT_AMOUNT_LC?: any;
   TAX_AMOUNT_LC?: any;
   FINAL_AMOUNT_LC?: any;

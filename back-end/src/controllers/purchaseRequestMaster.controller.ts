@@ -11,12 +11,44 @@ import {
   deletePurchaseRequestDtlService,
   deletePurchaseRequestHdrService,
   loadPurchaseRequestOptionsService,
+  submitPurchaseRequestService,
   PurchaseRequestData
 } from "../services/purchaseRequestMaster.services";
 
 const toPositiveInt = (v: any): number | null => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+};
+
+/**
+ * Stamps the requester from the verified session and reports whether the caller
+ * has a usable identity.
+ *
+ * The requester is whoever is logged in, so it must never be taken from the body -
+ * that would let anyone raise a request in a colleague's name. It has to resolve to
+ * a *name*, but deliberately not to an employee id: a login with no employee record
+ * is still allowed to raise a request and is stored with a null id plus its login
+ * name. An access token issued before this change carries no employee block, so a
+ * missing session is reported rather than silently trusted from the client.
+ */
+const applySessionRequester = (
+  req: Request,
+  res: Response,
+  data: PurchaseRequestData
+): boolean => {
+  const sessionEmployee = (req as any).user?.employee ?? null;
+  const empName = String(sessionEmployee?.empName ?? "").trim();
+
+  if (!empName) {
+    res.status(401).json({
+      success: false,
+      message: "Your login could not be resolved to a requester. Please sign in again.",
+    });
+    return false;
+  }
+
+  data.sessionEmployee = { empId: sessionEmployee?.empId ?? null, empName };
+  return true;
 };
 
 export const getAllPurchaseRequest = async (req: Request, res: Response): Promise<void> => {
@@ -96,14 +128,15 @@ export const getPurchaseRequestDtl = async (req: Request, res: Response): Promis
 };
 
 export const getPurchaseRequestLoad = async (req: Request, res: Response): Promise<void> => {
-  const { companyId, statusEntry, approvalStatus, includeInactive } = req.query;
+  const { companyId, statusEntry, approvalStatus, includeInactive, finalResponseStatus } = req.query;
 
   try {
     const options = await loadPurchaseRequestOptionsService(
       toPositiveInt(companyId),
       typeof statusEntry === "string" ? statusEntry || null : null,
       typeof approvalStatus === "string" ? approvalStatus || null : null,
-      includeInactive === "true" || includeInactive === "1"
+      includeInactive === "true" || includeInactive === "1",
+      typeof finalResponseStatus === "string" ? finalResponseStatus || null : null
     );
     res.json({ success: true, count: options.length, data: options });
   } catch (error: any) {
@@ -119,10 +152,7 @@ export const savePurchaseRequest = async (req: Request, res: Response): Promise<
     res.status(400).json({ success: false, message: "Purchase Request Date is required" });
     return;
   }
-  if (!data.REQUESTED_BY_EMP_ID) {
-    res.status(400).json({ success: false, message: "Requested By Employee is required" });
-    return;
-  }
+  if (!applySessionRequester(req, res, data)) return;
   if (!data.COMPANY_ID) {
     res.status(400).json({ success: false, message: "Company is required" });
     return;
@@ -158,10 +188,7 @@ export const updatePurchaseRequest = async (req: Request, res: Response): Promis
     res.status(400).json({ success: false, message: "Purchase Request Date is required" });
     return;
   }
-  if (!data.REQUESTED_BY_EMP_ID) {
-    res.status(400).json({ success: false, message: "Requested By Employee is required" });
-    return;
-  }
+  if (!applySessionRequester(req, res, data)) return;
   if (!data.COMPANY_ID) {
     res.status(400).json({ success: false, message: "Company is required" });
     return;
@@ -223,6 +250,40 @@ export const deletePurchaseRequestHdr = async (req: Request, res: Response): Pro
     res.json({ success: true, message: result.message || "Purchase Request deleted successfully" });
   } catch (error: any) {
     console.error("DeletePurchaseRequestHdr error:", error);
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};
+
+export const submitPurchaseRequest = async (req: Request, res: Response): Promise<void> => {
+  const { refNo } = req.params;
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  const statusId = toPositiveInt(req.body?.statusId);
+
+  if (!refNo) {
+    res.status(400).json({ success: false, message: "Purchase Request no is required" });
+    return;
+  }
+
+  if (!statusId) {
+    res.status(400).json({ success: false, message: "statusId is required to submit" });
+    return;
+  }
+
+  try {
+    const result = await submitPurchaseRequestService(
+      refNo as string,
+      statusId,
+      USER || "Admin",
+      MAC_ADDRESS || "WEB"
+    );
+    res.json({
+      success: true,
+      message: result.message,
+      changed: result.changed,
+      purchaseRequest: result.purchaseRequest,
+    });
+  } catch (error: any) {
+    console.error("SubmitPurchaseRequest error:", error);
     res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

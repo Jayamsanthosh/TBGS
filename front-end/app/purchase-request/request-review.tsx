@@ -35,7 +35,7 @@ export default function RequestReview({
     { label: "Status", value: headerLabels.STATUS_ID },
     { label: "Delivery Location", value: headerLabels.DELIVERY_LOCATION_ID },
     { label: "Required Date", value: form.REQUIRED_DATE },
-    { label: "Status Entry", value: form.STATUS_ENTRY },
+    { label: "Status Entry", value: headerLabels.STATUS_ENTRY },
     { label: "Reason", value: form.REASON },
     { label: "Remarks", value: form.REMARKS },
   ].filter((f) => shown(f.value) !== "");
@@ -53,7 +53,6 @@ export default function RequestReview({
     { label: "Packing", render: (r) => num(r.Total_Packing), numeric: true },
     { label: "Truck", render: (r) => r.TRUCK_NAME || r.TRUCK_ID || "-" },
     { label: "Required Date", render: (r) => r.REQUIRED_DATE || "-" },
-    { label: "Status", render: (r) => r.STATUS_ENTRY || "-" },
   ];
 
   return (
