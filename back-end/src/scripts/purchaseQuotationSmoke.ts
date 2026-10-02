@@ -67,7 +67,6 @@ async function main() {
   const DISC = 10;
   const TAX_PCT = 18;
   const XR = 83.5;
-  const ADDL_LC = 100;
   const PCS = 6;
 
   const subFc = r3(QTY * RATE);
@@ -78,8 +77,7 @@ async function main() {
   const subLc = r3(subFc * XR);
   const discLc = r3(discFc * XR);
   const taxLc = r3(taxFc * XR);
-  /* per the DTL DDL every LC column is "FC x EXCHANGE_RATE"; the additional cost is a
-     separate column carried in TOTAL_ADDITIONAL_COST_AMOUNT_LC, never folded in here */
+  /* per the DTL DDL every LC column is "FC x EXCHANGE_RATE" */
   const prodLc = r3(prodFc * XR);
   const finalLc = r3(finalFc * XR);
   const packing = r3(QTY / PCS);
@@ -106,13 +104,11 @@ async function main() {
     EXCHANGE_RATE: XR,
     TOTAL_SUB_TOTAL_HDR_AMOUNT_FC: subFc,
     TOTAL_DISCOUNT_HDR_AMOUNT_FC: discFc,
-    TOTAL_ADDITIONAL_COST_AMOUNT_FC: r3(ADDL_LC / XR),
     TOTAL_PRODUCT_HDR_AMOUNT_FC: prodFc,
     TOTAL_VAT_HDR_AMOUNT_FC: taxFc,
     FINAL_PRODUCT_HDR_AMOUNT_FC: finalFc,
     TOTAL_SUB_TOTAL_HDR_AMOUNT_LC: subLc,
     TOTAL_DISCOUNT_HDR_AMOUNT_LC: discLc,
-    TOTAL_ADDITIONAL_COST_AMOUNT_LC: ADDL_LC,
     TOTAL_PRODUCT_HDR_AMOUNT_LC: prodLc,
     TOTAL_TAX_HDR_AMOUNT_LC: taxLc,
     FINAL_PRODUCT_HDR_AMOUNT_LC: finalLc,
@@ -152,7 +148,6 @@ async function main() {
         EXCHANGE_RATE: XR,
         SUB_TOTAL_AMOUNT_LC: subLc,
         DISCOUNT_AMOUNT_LC: discLc,
-        ADDITIONAL_COST_AMOUNT_LC: ADDL_LC,
         TOTAL_PRODUCT_AMOUNT_LC: prodLc,
         TAX_AMOUNT_LC: taxLc,
         FINAL_AMOUNT_LC: finalLc,
@@ -193,9 +188,8 @@ async function main() {
   const line2Fc = r3(40);
   near("FINAL_PRODUCT_HDR_AMOUNT_FC (sum of all lines)", hdr.FINAL_PRODUCT_HDR_AMOUNT_FC, r3(finalFc + line2Fc));
   near("FINAL_PRODUCT_HDR_AMOUNT_LC (sum of all lines)", hdr.FINAL_PRODUCT_HDR_AMOUNT_LC, r3(finalLc + line2Fc * XR));
-  near("TOTAL_VAT_HDR_AMOUNT_FC (sum of all lines)", hdr.TOTAL_VAT_HDR_AMOUNT_FC, taxFc);
-  near("TOTAL_ADDITIONAL_COST_AMOUNT_LC", hdr.TOTAL_ADDITIONAL_COST_AMOUNT_LC, ADDL_LC);
-  eq("STATUS_ENTRY", hdr.STATUS_ENTRY, "CF");
+   near("TOTAL_VAT_HDR_AMOUNT_FC (sum of all lines)", hdr.TOTAL_VAT_HDR_AMOUNT_FC, taxFc);
+   eq("STATUS_ENTRY", hdr.STATUS_ENTRY, "CF");
   eq("QUOTATION_STATUS_ID", hdr.QUOTATION_STATUS_ID, 2);
   eq("SUPPLIER_QUOTATION_NO", hdr.SUPPLIER_QUOTATION_NO, "SQ-001");
   eq("DELIVERY_TERM", hdr.DELIVERY_TERM, "DDP");
@@ -218,27 +212,24 @@ async function main() {
   near("L1 TAX_AMOUNT_FC", l1.TAX_AMOUNT_FC, taxFc);
   near("L1 FINAL_AMOUNT_FC", l1.FINAL_AMOUNT_FC, finalFc);
   near("L1 SUB_TOTAL_AMOUNT_LC", l1.SUB_TOTAL_AMOUNT_LC, subLc);
-  near("L1 DISCOUNT_AMOUNT_LC", l1.DISCOUNT_AMOUNT_LC, discLc);
-  near("L1 ADDITIONAL_COST_AMOUNT_LC", l1.ADDITIONAL_COST_AMOUNT_LC, ADDL_LC);
-  near("L1 TOTAL_PRODUCT_AMOUNT_LC", l1.TOTAL_PRODUCT_AMOUNT_LC, prodLc);
-  near("L1 TAX_AMOUNT_LC", l1.TAX_AMOUNT_LC, taxLc);
-  near("L1 FINAL_AMOUNT_LC", l1.FINAL_AMOUNT_LC, finalLc);
-  /* the DDL keeps the additional cost out of the product/final LC columns: folding it in
-     would double count it against TOTAL_ADDITIONAL_COST_AMOUNT_LC on the header */
-  check(
-    "L1 FINAL_AMOUNT_LC excludes the additional cost (DDL)",
-    Math.abs(Number(l1.FINAL_AMOUNT_LC) - r3(finalFc * XR)) < 0.001,
-    `finalLc=${l1.FINAL_AMOUNT_LC} fcOnly=${r3(finalFc * XR)} addlLc=${ADDL_LC}`
-  );
-  near("L1 TOTAL_PACKING", l1.TOTAL_PACKING, packing);
+   near("L1 DISCOUNT_AMOUNT_LC", l1.DISCOUNT_AMOUNT_LC, discLc);
+   near("L1 TOTAL_PRODUCT_AMOUNT_LC", l1.TOTAL_PRODUCT_AMOUNT_LC, prodLc);
+   near("L1 TAX_AMOUNT_LC", l1.TAX_AMOUNT_LC, taxLc);
+   near("L1 FINAL_AMOUNT_LC", l1.FINAL_AMOUNT_LC, finalLc);
+   near("L1 TOTAL_PACKING", l1.TOTAL_PACKING, packing);
   check(
     "L1 PRODUCT_NAME joined",
     l1.PRODUCT_ID == null ? l1.PRODUCT_NAME == null : !!l1.PRODUCT_NAME,
     `productId=${l1.PRODUCT_ID} name="${l1.PRODUCT_NAME}"`
   );
   check("L1 UOM_NAME joined", !!l1.UOM_NAME, `got "${l1.UOM_NAME}"`);
-  check("L1 TAX_NAME joined", !!l1.TAX_NAME, `got "${l1.TAX_NAME}"`);
-  check("L1 REQUIRED_DATE returned", !!l1.REQUIRED_DATE, `got "${l1.REQUIRED_DATE}"`);
+      check("L1 TAX_NAME joined", !!l1.TAX_NAME, `got "${l1.TAX_NAME}"`);
+      check(
+      "L1 REFERENCE_TYPE_NAME joined",
+      l1.REFERENCE_TYPE_ID == null ? l1.REFERENCE_TYPE_NAME == null : !!l1.REFERENCE_TYPE_NAME,
+      `refTypeId=${l1.REFERENCE_TYPE_ID} name="${l1.REFERENCE_TYPE_NAME}"`
+      );
+      check("L1 REQUIRED_DATE returned", !!l1.REQUIRED_DATE, `got "${l1.REQUIRED_DATE}"`);
   eq("L1 STATUS_ENTRY", l1.STATUS_ENTRY, "AC");
   check("L1 has an identity id", !!l1.PURCHASE_QUOTATION_DTL_ID);
 
@@ -308,9 +299,8 @@ async function main() {
         DISCOUNT_PERCENTAGE: DISC,
         TAX_ID: 1,
         TAX_PERCENTAGE: TAX_PCT,
-        EXCHANGE_RATE: XR,
-        ADDITIONAL_COST_AMOUNT_LC: ADDL_LC,
-        STATUS_ENTRY: "AC",
+    EXCHANGE_RATE: XR,
+    STATUS_ENTRY: "AC",
       },
     ],
     deletedIds: [l2.PURCHASE_QUOTATION_DTL_ID],

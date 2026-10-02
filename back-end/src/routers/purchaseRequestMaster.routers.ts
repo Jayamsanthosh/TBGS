@@ -8,7 +8,8 @@ import {
   savePurchaseRequest,
   updatePurchaseRequest,
   deletePurchaseRequestDtl,
-  deletePurchaseRequestHdr
+  deletePurchaseRequestHdr,
+  submitPurchaseRequest
 } from "../controllers/purchaseRequestMaster.controller";
 
 const PurchaseRequestMasterRouter = express.Router();
@@ -19,6 +20,9 @@ PurchaseRequestMasterRouter.get("/hdr/:refNo", getPurchaseRequestHdr);
 PurchaseRequestMasterRouter.get("/dtls/:refNo", getPurchaseRequestDtls);
 PurchaseRequestMasterRouter.get("/dtl/:id", getPurchaseRequestDtl);
 PurchaseRequestMasterRouter.post("/", savePurchaseRequest);
+/* Declared before the "/:refNo" wildcard so the literal "submit" segment is
+   never swallowed as a ref number. */
+PurchaseRequestMasterRouter.put("/:refNo/submit", submitPurchaseRequest);
 PurchaseRequestMasterRouter.put("/:refNo", updatePurchaseRequest);
 PurchaseRequestMasterRouter.delete("/dtl/:id", deletePurchaseRequestDtl);
 PurchaseRequestMasterRouter.delete("/hdr/:refNo", deletePurchaseRequestHdr);

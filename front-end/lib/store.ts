@@ -69,6 +69,7 @@ import massagerMasterReducer from "./massagerMasterSlice";
 import creditLimitPaymentModeMasterReducer from "./creditLimitPaymentModeMasterSlice";
 import changePasswordReducer from "./changePasswordSlice";
 import companyDepartmentDesignationMappingReducer from "./companyDepartmentDesignationMappingSlice";
+import companyBranchMappingReducer from "./companyBranchMappingSlice";
 import companyCampStoreMappingReducer from "./companyCampStoreMappingSlice";
 import designationGroupMasterReducer from "./designationGroupMasterSlice";
 import newSalaryScaleReducer from "./newSalaryScaleSlice";
@@ -220,8 +221,9 @@ export const store = configureStore({
     companyBankAccount: companyBankAccountReducer,
     videographerMaster: videographerMasterReducer,
     massagerMaster: massagerMasterReducer,
-    companyDepartmentDesignationMapping: companyDepartmentDesignationMappingReducer,
-    companyCampStoreMapping: companyCampStoreMappingReducer,
+  companyDepartmentDesignationMapping: companyDepartmentDesignationMappingReducer,
+  companyBranchMapping: companyBranchMappingReducer,
+  companyCampStoreMapping: companyCampStoreMappingReducer,
     designationGroupMaster: designationGroupMasterReducer,
     newSalaryScale: newSalaryScaleReducer,
     animalPartsMaster: animalPartsMasterReducer,

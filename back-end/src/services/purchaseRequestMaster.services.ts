@@ -26,6 +26,14 @@ export interface PurchaseRequestData {
   PURCHASE_REQUEST_NO?: string;
   PURCHASE_REQUEST_DATE?: string;
   REQUESTED_BY_EMP_ID?: number;
+  /** Name captured at save time, so a login without an employee row still shows. */
+  REQUESTED_BY_NAME?: string;
+  /* Employee identity taken from the verified session, injected by the controller.
+     Authoritative for the requester: the client cannot choose it. */
+  sessionEmployee?: {
+    empId?: number | null;
+    empName?: string | null;
+  } | null;
   COMPANY_ID?: number;
   BRANCH_ID?: number;
   PO_STORE_ID?: number;
@@ -86,6 +94,34 @@ const numOrNull = (v: any): number | null =>
 
 const toNullablePage = (v: number | null | undefined): number | null =>
   v == null || !Number.isFinite(v) || v < 1 ? null : Math.floor(v);
+
+/**
+ * Resolves who is raising this purchase request.
+ *
+ * The requester is the logged-in user, so the identity comes from the verified
+ * JWT session rather than the request body - a caller cannot raise a request in
+ * someone else's name. The client's values are only a fallback for a session that
+ * carries no employee block (an older access token issued before this change).
+ *
+ * The id is dropped rather than passed through whenever it is not backed by a real
+ * employee row, because REQUESTED_BY_EMP_ID is a foreign key: 'sri' maps to
+ * EMP_ID 102, which does not exist, and saving it would fail the insert. The name
+ * survives that case, so the request still shows 'sri' instead of a blank.
+ */
+const resolveRequester = (data: PurchaseRequestData) => {
+  const sessionEmployee = data.sessionEmployee ?? null;
+
+  const sessionEmpId = numOrNull(sessionEmployee?.empId);
+  const sessionName = String(sessionEmployee?.empName ?? "").trim();
+
+  if (sessionEmpId != null || sessionName) {
+    return { empId: sessionEmpId, name: sessionName };
+  }
+
+  /* No employee in session - fall back to what the client sent, but only if it
+     is a plausible id. Anything else would risk a foreign-key failure. */
+  return { empId: numOrNull(data.REQUESTED_BY_EMP_ID), name: "" };
+};
 
 export const getPurchaseRequestListService = async (
   filter: PurchaseRequestListFilter = {}
@@ -267,12 +303,15 @@ export const savePurchaseRequestCombinedService = async (data: PurchaseRequestDa
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
+  const requester = resolveRequester(data);
+
   try {
     const hdrResult = await pool
       .request()
       .input("PURCHASE_REQUEST_NO", sql.VarChar(50), "")
       .input("PURCHASE_REQUEST_DATE", sql.DateTime, dateOrNull(data.PURCHASE_REQUEST_DATE))
-      .input("REQUESTED_BY_EMP_ID", sql.Int, numOrNull(data.REQUESTED_BY_EMP_ID))
+      .input("REQUESTED_BY_EMP_ID", sql.Int, requester.empId)
+      .input("REQUESTED_BY_NAME", sql.VarChar(200), requester.name || null)
       .input("COMPANY_ID", sql.Int, numOrNull(data.COMPANY_ID))
       .input("BRANCH_ID", sql.Int, numOrNull(data.BRANCH_ID))
       .input("PO_STORE_ID", sql.Int, numOrNull(data.PO_STORE_ID))
@@ -337,12 +376,15 @@ export const updatePurchaseRequestCombinedService = async (data: PurchaseRequest
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
+  const requester = resolveRequester(data);
+
   try {
     const hdrResult = await pool
       .request()
       .input("PURCHASE_REQUEST_NO", sql.VarChar(50), data.PURCHASE_REQUEST_NO || null)
       .input("PURCHASE_REQUEST_DATE", sql.DateTime, dateOrNull(data.PURCHASE_REQUEST_DATE))
-      .input("REQUESTED_BY_EMP_ID", sql.Int, numOrNull(data.REQUESTED_BY_EMP_ID))
+      .input("REQUESTED_BY_EMP_ID", sql.Int, requester.empId)
+      .input("REQUESTED_BY_NAME", sql.VarChar(200), requester.name || null)
       .input("COMPANY_ID", sql.Int, numOrNull(data.COMPANY_ID))
       .input("BRANCH_ID", sql.Int, numOrNull(data.BRANCH_ID))
       .input("PO_STORE_ID", sql.Int, numOrNull(data.PO_STORE_ID))
@@ -485,7 +527,8 @@ export const loadPurchaseRequestOptionsService = async (
   companyId?: number | null,
   statusEntry?: string | null,
   approvalStatus?: string | null,
-  includeInactive = false
+  includeInactive = false,
+  finalResponseStatus?: string | null
 ) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
@@ -497,11 +540,74 @@ export const loadPurchaseRequestOptionsService = async (
       .input("StatusEntry", sql.VarChar(20), statusEntry || null)
       .input("ApprovalStatus", sql.VarChar(20), approvalStatus || null)
       .input("IncludeInactive", sql.Bit, includeInactive ? 1 : 0)
+      /* Only the FINAL level. Read through approvalStatus instead and a single
+         section-head sign-off would count as quotable. */
+      .input("FinalResponseStatus", sql.VarChar(20), finalResponseStatus || null)
       .execute("VPurchase.LOAD_PURCHASE_REQUEST_HDR");
 
     return (result.recordset || []).map((r: any) => ({ ...r, id: r.purchaseRequestNo }));
   } catch (error) {
     console.error("LOAD_PURCHASE_REQUEST_HDR SP error:", error);
+    throw error;
+  }
+};
+
+/* --------------------------------------------------------------- submit */
+/* Moves a saved purchase request to the given status without touching anything
+   else. The dedicated SP only writes STATUS_ID, STATUS_ENTRY and the audit
+   columns, because UPDATE_PURCHASE_REQUEST_HDR is a full overwrite and would
+   wipe the requester, dates and the whole SECTION_HEAD_RESPONSE_* /
+   RESPONSE_1_* / RESPONSE_2_* / FINAL_RESPONSE_* approval history.
+
+   Mirrors submitPurchaseQuotationService so the two screens behave the same:
+   status and entry move together, and re-submitting reports 0 rather than
+   failing. */
+export const submitPurchaseRequestService = async (
+  refNo: string,
+  statusId: number,
+  user = "Admin",
+  macAddress = "WEB"
+) => {
+  const pool = getPool();
+  if (!pool) throw new Error("Database not connected");
+
+  if (!Number.isFinite(Number(statusId))) {
+    const error = new Error("A target purchase request status id is required to submit.") as Error & {
+      httpStatus?: number;
+    };
+    error.httpStatus = 400;
+    throw error;
+  }
+
+  try {
+    const result = await pool
+      .request()
+      .input("PURCHASE_REQUEST_NO", sql.VarChar(50), refNo)
+      .input("STATUS_ID", sql.Int, Number(statusId))
+      .input("USER", sql.VarChar(50), user)
+      .input("MAC_ADDRESS", sql.VarChar(50), macAddress)
+      .output("OUT_ROWCOUNT", sql.Int)
+      .execute("VPurchase.SUBMIT_PURCHASE_REQUEST");
+
+    const row = result.recordset?.[0] || null;
+    const changed = Number(result.output?.OUT_ROWCOUNT ?? 0);
+
+    return {
+      message: changed > 0
+        ? `Purchase Request ${refNo} submitted for approval`
+        : `Purchase Request ${refNo} was already submitted for approval`,
+      changed,
+      purchaseRequest: row
+        ? {
+            purchaseRequestNo: row.PURCHASE_REQUEST_NO,
+            statusId: row.STATUS_ID,
+            statusEntry: row.STATUS_ENTRY,
+            finalResponseStatus: row.FINAL_RESPONSE_STATUS,
+          }
+        : null,
+    };
+  } catch (error) {
+    console.error("SUBMIT_PURCHASE_REQUEST error:", error);
     throw error;
   }
 };

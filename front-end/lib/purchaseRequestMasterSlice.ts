@@ -314,6 +314,37 @@ export const deletePurchaseRequestHdr = createAsyncThunk(
   }
 );
 
+/* Advances a saved purchase request to PENDING FOR APPROVAL and sets Status
+   Entry to CL. Uses the dedicated /submit endpoint rather than the record PUT,
+   because the update SP is a full overwrite and would clear the requester,
+   dates and the whole approval history. */
+export const submitPurchaseRequest = createAsyncThunk(
+  "purchaseRequestMaster/submit",
+  async (arg: { refNo: string | number; statusId: number }, { rejectWithValue, getState }) => {
+    try {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+      const MAC_ADDRESS = authUser?.macAddress || "WEB";
+      const response = await fetch(
+        `${API_URL}/purchase-request/${encodeURIComponent(String(arg.refNo))}/submit`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ statusId: arg.statusId, USER, MAC_ADDRESS }),
+        }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return rejectWithValue(errorData.message || "Failed to submit purchase request");
+      }
+      return await response.json();
+    } catch (error: any) {
+      return rejectWithValue(error.message || "Failed to submit purchase request");
+    }
+  }
+);
+
 const purchaseRequestMasterSlice = createSlice({
   name: "purchaseRequestMaster",
   initialState,

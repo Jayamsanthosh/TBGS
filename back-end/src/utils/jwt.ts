@@ -16,6 +16,27 @@ export interface JwtCompanyInfo {
   companyName: string;
   shortCode: string;
   yearCode: string;
+  /** Branch this company is mapped to; null when it has no active mapping. */
+  branchId: number | null;
+  branchName: string | null;
+}
+
+export interface JwtEmployeeInfo {
+  /**
+   * Employee id for the login, or null when the login is not an employee - it has
+   * no EMP_ID, or the mapped employee row does not exist. Callers must not write a
+   * null-backed id anywhere foreign keyed; the id is only ever set when a real
+   * employee row backs it.
+   */
+  empId: number | null;
+  /** Employee full name, falling back to the login name. Never empty. */
+  empName: string;
+  /** Employee's own company/camp/store defaults, used to stamp new documents. */
+  companyId: number | null;
+  /** Branch mapped to companyId above, not to the login's mapped company. */
+  branchId: number | null;
+  campId: number | null;
+  storeId: number | null;
 }
 
 export interface JwtPayload {
@@ -25,6 +46,11 @@ export interface JwtPayload {
   roleId: number;        // ROLE_ID - the ONLY value used for authorization
   /** Company context resolved from the user's store mapping. */
   companies?: JwtCompanyInfo[];
+  /** Branch of the active (first) company, hoisted for screens that read one. */
+  branchId?: number | null;
+  branchName?: string | null;
+  /** Employee identity of the login, so screens can stamp themselves. */
+  employee?: JwtEmployeeInfo;
 }
 
 export interface RefreshPayload {

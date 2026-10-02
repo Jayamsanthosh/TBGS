@@ -31,6 +31,8 @@ const Field = ({
   invalid?: boolean;
 }) => {
   const border = invalid ? "border-destructive ring-1 ring-destructive/30" : "";
+  /* Per-line lock, resolved once here so every editable kind below honours it. */
+  const locked = typeof field.disabled === "function" ? !!field.disabled(row) : !!field.disabled;
 
   const label = (
     <Label className={labelCls}>
@@ -74,16 +76,17 @@ const Field = ({
     );
   }
 
-  if (field.kind === "select") {
+if (field.kind === "select") {
     const options = resolveOptions(field.options, row);
     return (
       <div className="flex flex-col gap-1">
         {label}
         <Select
           value={row[field.key] == null ? "" : String(row[field.key])}
-          onValueChange={(v) => onChange(field.key, field.transform ? field.transform(v) : v)}
+          onValueChange={(v) => { if (!locked) onChange(field.key, field.transform ? field.transform(v) : v); }}
+          disabled={locked}
         >
-          <SelectTrigger className={cn(boxCls, "w-full", border)}>
+          <SelectTrigger className={cn(boxCls, "w-full", border, locked && "opacity-70")}>
             <SelectValue placeholder={field.placeholder || `Select ${field.label}`} />
           </SelectTrigger>
           <SelectContent>
@@ -104,8 +107,9 @@ const Field = ({
         {label}
         <DatePicker
           value={row[field.key] || ""}
-          onChange={(v) => onChange(field.key, v)}
+          onChange={(v) => { if (!locked) onChange(field.key, v); }}
           placeholder={field.placeholder}
+          disabled={locked}
           className={border || undefined}
         />
       </div>
@@ -118,10 +122,11 @@ const Field = ({
         {label}
         <Textarea
           value={row[field.key] || ""}
-          onChange={(e) => onChange(field.key, field.transform ? field.transform(e.target.value) : e.target.value)}
+          onChange={(e) => { if (!locked) onChange(field.key, field.transform ? field.transform(e.target.value) : e.target.value); }}
           placeholder={field.placeholder}
           maxLength={field.maxLength}
-          className={cn("text-xs min-h-16 py-1.5", border)}
+          disabled={locked}
+          className={cn("text-xs min-h-16 py-1.5", border, locked && "opacity-70")}
         />
       </div>
     );
@@ -134,13 +139,14 @@ const Field = ({
       <Input
         type={isNumber ? "number" : "text"}
         value={row[field.key] ?? ""}
-        onChange={(e) => onChange(field.key, field.transform ? field.transform(e.target.value) : e.target.value)}
+        onChange={(e) => { if (!locked) onChange(field.key, field.transform ? field.transform(e.target.value) : e.target.value); }}
         placeholder={field.placeholder}
         maxLength={field.maxLength}
         min={field.min}
         max={field.max}
         step={field.step ?? (isNumber ? "any" : undefined)}
-        className={cn(boxCls, border)}
+        disabled={locked}
+        className={cn(boxCls, border, locked && "opacity-70")}
       />
     </div>
   );
