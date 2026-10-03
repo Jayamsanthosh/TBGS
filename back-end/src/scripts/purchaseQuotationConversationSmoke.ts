@@ -55,13 +55,28 @@ async function main() {
   );
   const countBefore = Number(before.recordset[0].n);
 
-  /* Uses a real quotation so the FK and the SAVE guard are both exercised. */
+  /* Uses a real quotation so the FK and the SAVE guard are both exercised. Two
+     filters matter, and both were learned the hard way:
+       - the quotation must not be submitted. DELETE_PURCHASE_QUOTATION_CONVERSATION_DTL
+         refuses once the parent is 'CL', so a submitted quotation made every
+         delete assertion below fail;
+       - it must have no conversation rows already. Cleanup deletes by SNO, so a
+         shared quotation risks touching someone else's entry.
+     Ordering by quotation number simply makes the pick repeatable. */
   const q = await pool.request().query(
-    `SELECT TOP 1 PURCHASE_QUOTATION_NO FROM VPurchase.TBL_PURCHASE_QUOTATION_HDR
-     WHERE PURCHASE_QUOTATION_NO NOT LIKE '%SMOKE%' AND PURCHASE_QUOTATION_NO NOT LIKE '%DBG%'
-     ORDER BY PURCHASE_QUOTATION_NO`
+    `SELECT TOP 1 H.PURCHASE_QUOTATION_NO FROM VPurchase.TBL_PURCHASE_QUOTATION_HDR H
+      WHERE H.PURCHASE_QUOTATION_NO NOT LIKE '%SMOKE%' AND H.PURCHASE_QUOTATION_NO NOT LIKE '%DBG%'
+        AND UPPER(LTRIM(RTRIM(ISNULL(H.STATUS_ENTRY, '')))) <> 'CL'
+        AND NOT EXISTS (
+              SELECT 1 FROM VPurchase.TBL_PURCHASE_QUOTATION_CONVERSATION_DTL C
+               WHERE C.PURCHASE_QUOTATION_NO = H.PURCHASE_QUOTATION_NO)
+      ORDER BY H.PURCHASE_QUOTATION_NO`
   );
+  if (!q.recordset.length) {
+    throw new Error("No draft purchase quotation without conversation rows exists to test against");
+  }
   const refNo: string = q.recordset[0].PURCHASE_QUOTATION_NO;
+  console.log(`  (using quotation ${refNo})`);
   const missingRef = "CONV-NOT-A-REAL-QUOTATION";
 
   const emp = await pool.request().query(

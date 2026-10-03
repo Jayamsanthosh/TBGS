@@ -2,6 +2,7 @@ import "dotenv/config";
 import * as fs from "fs";
 import * as path from "path";
 import { connectDB, getPool } from "../config/db";
+import { patchRequestedByReadSprocs } from "./patchRequestedByReadSprocs";
 
 /* Deploys stored procedures from src/SPs.
 
@@ -83,6 +84,14 @@ const paramCount = (def: string) => {
         : `${f}\n  -> WARNING: applied, but VPurchase.${procName} not found afterwards`
     );
   }
+
+  /* GET_PURCHASE_REQUEST_HDR and GET_APPROVAL_LIST_PURCHASE_REQUEST have no file
+     in src/SPs, so nothing above can correct their requester-name block. Run the
+     patcher last so a fresh database, or one whose procedures were rebuilt some
+     other way, ends up with the same fix as this one. It is a no-op when the
+     procedures are already correct. */
+  console.log("requested-by read procs");
+  await patchRequestedByReadSprocs();
 
   process.exit(0);
 })().catch((e) => {
