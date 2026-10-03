@@ -15,9 +15,11 @@ const resolveOptions = (
 ): WizardOption[] => (typeof options === "function" ? options(row) : options ?? []);
 
 /* Labels and controls are deliberately tight so a whole detail line fits on one
-   screen instead of running down two. */
+   screen instead of running down two. The Input and SelectTrigger primitives hardcode
+   h-10, so the !h-8 here is what actually delivers the 32px box the line is built
+   around; without it the boxes would sit at two different heights. */
 const labelCls = "text-[10px] leading-tight";
-const boxCls = "h-8 gap-1 text-xs";
+const boxCls = "!h-8 gap-1 text-xs";
 
 const Field = ({
   field,
@@ -110,7 +112,7 @@ if (field.kind === "select") {
           onChange={(v) => { if (!locked) onChange(field.key, v); }}
           placeholder={field.placeholder}
           disabled={locked}
-          className={border || undefined}
+          className={cn("!h-8", border) || undefined}
         />
       </div>
     );
@@ -126,7 +128,9 @@ if (field.kind === "select") {
           placeholder={field.placeholder}
           maxLength={field.maxLength}
           disabled={locked}
-          className={cn("text-xs min-h-16 py-1.5", border, locked && "opacity-70")}
+          /* The shared Textarea carries min-h-[80px], and a min-height always beats the
+             h-8 in boxCls, so it has to be cleared explicitly. */
+          className={cn(boxCls, "!min-h-0 resize-none !px-2 py-1", border, locked && "opacity-70")}
         />
       </div>
     );
