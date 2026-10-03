@@ -7,6 +7,9 @@ import QuotationReview from "./quotation-review";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
 import DetailLineCard from "@/components/wizard/DetailLineCard";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import AttachmentsPanel from "@/components/AttachmentsPanel";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import {
   HDR_STEP,
   DTL_STEP,
@@ -47,6 +50,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Skeleton } from "@/components/ui/skeleton";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
+
+/* The form itself is one scrolling page; Documents is the only side tab, so a
+   validation jump only ever has to come back to the form. */
+const QUOTATION_TAB = "quotation";
+const DOCUMENTS_TAB = "documents";
 
 /* Status Entry is owned by the workflow, not the user: CF (Pending for
    Submitted) until the row is submitted, then CL (Submitted). It is displayed
@@ -220,6 +228,17 @@ export default function PurchaseQuotationPage() {
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [reqNo, setReqNo] = useState<string>("");
   const [loadingReq, setLoadingReq] = useState(false);
+  const [activeTab, setActiveTab] = useState(QUOTATION_TAB);
+
+  const linkPagesId = useLinkPagesId(0);
+  const currentQuotationNo =
+    form.PURCHASE_QUOTATION_NO ||
+    editing?.purchaseQuotationNo ||
+    editing?.PURCHASE_QUOTATION_NO ||
+    "";
+
+  /* Header, lines and review stay on one scrolling page, so every validation
+     anchor lives on the same tab and only the Documents tab sits beside it. */
 
   const role = useMemo(() => {
     if (typeof window !== "undefined") {
@@ -815,6 +834,9 @@ const requestOptions = useMemo(
     setLineFieldErrors(invalidFields);
     const firstBad = SECTION_ORDER.find((k) => (stepErrors[k]?.length ?? 0) > 0);
     if (firstBad) {
+      /* The failing section sits on the other tab, so the form is revealed before
+         the shell scrolls to the anchor. */
+      setActiveTab(QUOTATION_TAB);
       /* Jump to the first failing line when the detail section is at fault. */
       const firstLine = Object.keys(lineErrors)[0];
       focusOn(firstBad === DTL_STEP && firstLine ? lineStepKey(firstLine) : firstBad);
@@ -1434,25 +1456,44 @@ const requestOptions = useMemo(
             setLineErrors({});
             setFocusRequest(null);
           }
+          if (v) {
+            setActiveTab(QUOTATION_TAB);
+          }
           setDialogOpen(v);
         }}
         title={
-          editing
-            ? `Edit Purchase Quotation (${editing.purchaseQuotationNo ?? editing.PURCHASE_QUOTATION_NO})`
-            : "Add Purchase Quotation"
-        }
-        errors={stepErrors}
-        saving={saving}
-        saveLabel={editing ? "Update" : "Create"}
-        saveClassName={
-          editing
-            ? "bg-info text-info-foreground hover:bg-info/90"
-            : "bg-primary text-primary-foreground hover:bg-primary/90"
-        }
-        onSave={handleSave}
-        focusStep={focusRequest}
-        footerNote={`${dtls.length} line${dtls.length === 1 ? "" : "s"}`}
-      >
+        editing
+          ? `Edit Purchase Quotation (${editing.purchaseQuotationNo ?? editing.PURCHASE_QUOTATION_NO})`
+          : "Add Purchase Quotation"
+      }
+      errors={stepErrors}
+      saving={saving}
+      saveLabel={editing ? "Update" : "Create"}
+      saveClassName={
+        editing
+          ? "bg-info text-info-foreground hover:bg-info/90"
+          : "bg-primary text-primary-foreground hover:bg-primary/90"
+      }
+      onSave={handleSave}
+      focusStep={focusRequest}
+      footerNote={`${dtls.length} line${dtls.length === 1 ? "" : "s"}`}
+    >
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="mb-4">
+          <TabsList className="w-full flex-wrap">
+            <TabsTrigger value={QUOTATION_TAB}>Quotation</TabsTrigger>
+            <TabsTrigger value={DOCUMENTS_TAB}>
+              Documents
+              {currentQuotationNo && (
+                <span className="ml-1.5 text-[9px] font-semibold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">
+                  {currentQuotationNo}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value={QUOTATION_TAB} className="space-y-6 mt-0">
         <WizardSection
           stepKey={HDR_STEP}
           title="Quotation Header Information"
@@ -1506,15 +1547,22 @@ const requestOptions = useMemo(
             {renderField("REMARKS", "Remarks", "text", undefined, false, "Additional notes")}
           </div>
           {renderField("SHIPMENT_REMARKS", "Shipment Remarks", "textarea", undefined, false, "Shipment notes...")}
-          <div className="rounded-lg border border-border p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              Lines from Purchase Request
-            </p>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="flex flex-col gap-1.5 w-72">
+          <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <h4 className="text-xs font-semibold text-foreground">Lines from Purchase Request</h4>
+              </div>
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                {dtls.length} line{dtls.length === 1 ? "" : "s"} added
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <div className="flex flex-col gap-1.5 w-full sm:w-80">
                 <Label className="text-xs">Purchase Request</Label>
                 <Select value={reqNo} onValueChange={setReqNo}>
-                  <SelectTrigger className="h-9 text-xs">
+                  <SelectTrigger className="!h-9 text-xs">
                     <SelectValue placeholder="Select purchase request" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1523,28 +1571,26 @@ const requestOptions = useMemo(
                     ))}
                   </SelectContent>
                 </Select>
-                {requestOptions.length === 0 && prOptions && (
-                  <p className="text-[11px] text-muted-foreground">
-                    {allRequestsFullyQuoted
-                      ? "Every eligible Purchase Request is already quoted"
-                      : "No Purchase Request is available to quote"}
-                  </p>
-                )}
               </div>
               <Button
-                variant="outline"
+                variant="default"
                 size="sm"
                 onClick={addLinesFromRequest}
                 disabled={loadingReq || !reqNo}
-                className="h-9 text-xs"
+                className="h-9 shrink-0 text-xs"
               >
                 {loadingReq ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1" />}
                 {loadingReq ? "Loading..." : "Add Lines from Request"}
               </Button>
-              <span className="text-[11px] text-muted-foreground pb-2">
-                {dtls.length} line{dtls.length === 1 ? "" : "s"} added
-              </span>
             </div>
+
+            <p className="text-[11px] text-muted-foreground">
+              {requestOptions.length === 0 && prOptions
+                ? allRequestsFullyQuoted
+                  ? "Every eligible Purchase Request is already quoted"
+                  : "No Purchase Request is available to quote"
+                : "Only approved Purchase Requests that are not fully quoted are listed"}
+            </p>
           </div>
         </WizardSection>
 
@@ -1556,7 +1602,8 @@ const requestOptions = useMemo(
         >
           {dtls.length === 0 ? (
             <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
-              No lines yet. Pick a Purchase Request above and use Add Lines from Request.
+              No lines yet. Select a Purchase Request in the Lines from Purchase Request panel
+              above, then use Add Lines from Request.
             </p>
           ) : (
             <div className="space-y-3">
@@ -1596,7 +1643,24 @@ const requestOptions = useMemo(
             rate6={rate6}
           />
         </WizardSection>
-      </WizardShell>
+        </TabsContent>
+
+        <TabsContent value={DOCUMENTS_TAB} className="space-y-6 mt-0">
+          <div className="rounded-lg border p-4 bg-card">
+            <AttachmentsPanel
+              linkPagesId={linkPagesId}
+              entityRefNo={currentQuotationNo}
+              entityLabel="Purchase Quotation"
+              title="Documents / Attachments"
+              emptyMessage="No documents attached to this Purchase Quotation"
+              allowUpload={!!currentQuotationNo}
+              allowEdit={!!currentQuotationNo}
+              allowDelete={!!currentQuotationNo && isAdmin}
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
+    </WizardShell>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

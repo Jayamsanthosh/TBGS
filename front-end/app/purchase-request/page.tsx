@@ -824,7 +824,6 @@ export default function PurchaseRequestPage() {
           key: "DESCRIPTION",
           label: "Description",
           kind: "textarea",
-          colSpan: true,
           placeholder: "Description",
         },
       ],
