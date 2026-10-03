@@ -212,7 +212,10 @@ export default function PurchaseQuotationPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [submittingRef, setSubmittingRef] = useState<string | null>(null);
-  const [conversationFor, setConversationFor] = useState<string | null>(null);
+  /* The quotation's status travels with it: the server refuses to delete a
+     conversation entry once the quotation is submitted, so the dialog needs to
+     know rather than discover it after the click. */
+  const [conversationFor, setConversationFor] = useState<{ no: string; statusEntry?: string } | null>(null);
   const [dtls, setDtls] = useState<any[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [reqNo, setReqNo] = useState<string>("");
@@ -381,36 +384,53 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
     return counts;
   }, [dtls]);
 
-  /* A request drops out of the dropdown once every one of its lines is already
-     on this quotation: there is nothing left to take from it, and picking it
-     again only produced an "already added" refusal.
+/* A request drops out of the dropdown once every one of its lines is already
+     quoted. Two independent ways that can happen:
+
+       a) all of its lines are on the quotation being edited now, so there is
+          nothing left to take from it - and picking it again only produced an
+          "already added" refusal;
+       b) all of its lines are already in another SUBMITTED quotation, so it has
+          been priced for real and is not offered again.
+
+     Draft quotations deliberately do not count for (b). A draft is somebody's
+     unfinished work, not a decision, so it must not hide a request from anyone
+     else - nor stop a second supplier being asked to quote the same request,
+     which is how prices get compared.
 
      Comparing against the request's own detailLineCount is what makes this
      exact. Counting the imported rows alone cannot tell a fully quoted request
      from a partly used one, so a request whose lines were pulled in two goes
      would still be offered even with nothing left to add.
 
-     detailLineCount is only present on rows loaded after the column was added,
-     so a missing value means "unknown" and the request is left in the list
-     rather than wrongly hidden. A request with no lines keeps a count of 0 and
-     stays listed, so selecting it still reports that it has no detail lines. */
-  const isFullyImported = (r: any) => {
+     Both counts come from the grid read. A value that is missing - a row from a
+     build before the columns existed - means "unknown" and the request is left
+     in the list rather than wrongly hidden. A request with no lines keeps a
+     count of 0 and stays listed, so selecting it still reports that it has no
+     detail lines. */
+  const isFullyQuoted = (r: any) => {
     const no = String(r.purchaseRequestNo ?? "").trim();
     if (!no) return false;
     const total = Number(r.detailLineCount);
     if (!Number.isFinite(total) || total <= 0) return false;
-    return (importedCountByRequest.get(no) ?? 0) >= total;
+    /* (a) taken by this quotation. Derived from the live rows, so removing a
+           line puts the request back in the list. */
+    if ((importedCountByRequest.get(no) ?? 0) >= total) return true;
+    /* (b) taken by a submitted quotation elsewhere. */
+    const inSubmitted = Number(r.quotedLineCountSubmitted);
+    if (!Number.isFinite(inSubmitted) || inSubmitted < 0) return false;
+    return inSubmitted >= total;
   };
 
 /* True only when there really were eligible requests and the only reason the
-     list is empty is that all of them are already on this quotation. This keeps
-     the empty-list message honest: a list emptied by the rejected/approved
-     filter, or by the request not having arrived yet, is a different thing. */
-  const allRequestsFullyImported = useMemo(() => {
+   list is empty is that all of them are already quoted. This keeps the
+   empty-list message honest: a list emptied by the rejected filter, or by the
+   request not having arrived yet, is a different thing. */
+  const allRequestsFullyQuoted = useMemo(() => {
     const eligible = (Array.isArray(prOptions) ? prOptions : []).filter(
       (r: any) => !/reject/i.test(String(r.finalResponseStatus ?? ""))
     );
-    return eligible.length > 0 && eligible.every((r: any) => isFullyImported(r));
+    return eligible.length > 0 && eligible.every((r: any) => isFullyQuoted(r));
   }, [prOptions, importedCountByRequest]);
 
   /* Rejected requests are hidden here as well as by STATUS_ENTRY, because a
@@ -419,7 +439,7 @@ const requestOptions = useMemo(
     () =>
       (Array.isArray(prOptions) ? prOptions : [])
         .filter((r: any) => !/reject/i.test(String(r.finalResponseStatus ?? "")))
-        .filter((r: any) => !isFullyImported(r))
+        .filter((r: any) => !isFullyQuoted(r))
         .map((r: any) => ({
         value: String(r.purchaseRequestNo ?? ""),
         label: r.displayText || r.purchaseRequestNo || "",
@@ -1327,8 +1347,9 @@ const requestOptions = useMemo(
                     <td className="p-3 flex gap-2">
                       <button onClick={() => openEdit(item)} className="p-1.5 rounded hover:bg-muted transition-colors"><Pencil className="w-4 h-4 text-muted-foreground" /></button>
                       <button
-                        onClick={() => setConversationFor(refNo)}
+                        onClick={() => setConversationFor({ no: refNo, statusEntry: item.statusEntry })}
                         title="Conversation"
+                        aria-label={`Conversation for ${refNo}`}
                         className="p-1.5 rounded hover:bg-muted transition-colors"
                       >
                         <MessageSquare className="w-4 h-4 text-muted-foreground" />
@@ -1504,8 +1525,8 @@ const requestOptions = useMemo(
                 </Select>
                 {requestOptions.length === 0 && prOptions && (
                   <p className="text-[11px] text-muted-foreground">
-                    {allRequestsFullyImported
-                      ? "Every eligible Purchase Request is already on this quotation"
+                    {allRequestsFullyQuoted
+                      ? "Every eligible Purchase Request is already quoted"
                       : "No Purchase Request is available to quote"}
                   </p>
                 )}
@@ -1595,7 +1616,8 @@ const requestOptions = useMemo(
       <ConversationDialog
         open={!!conversationFor}
         onOpenChange={(v) => !v && setConversationFor(null)}
-        purchaseQuotationNo={conversationFor ?? ""}
+        purchaseQuotationNo={conversationFor?.no ?? ""}
+        statusEntry={conversationFor?.statusEntry}
       />
     </div>
   );

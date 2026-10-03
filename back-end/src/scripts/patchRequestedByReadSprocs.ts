@@ -45,7 +45,12 @@ const NEW_APPR = `            A.REQUESTED_BY_NAME AS requestedByName,
                 ELSE ''
             END AS requestedBy,`;
 
-(async () => {
+/* Two read procedures have no .sql file in src/SPs - they exist only in the
+   database - so there is nothing for deployProcs to redeploy and their text has
+   to be corrected in place. exportPatchRequestedByReadSprocs is imported by
+   deployProcs so every deploy re-asserts the fix instead of leaving it to
+   whoever notices a blank requester first. */
+export async function patchRequestedByReadSprocs() {
   await connectDB();
   const p: any = getPool();
 
@@ -83,6 +88,14 @@ const NEW_APPR = `            A.REQUESTED_BY_NAME AS requestedByName,
     await p.request().batch(def);
     console.log(name + ": patched and applied");
   }
+}
 
-  process.exit(0);
-})();
+/* Still runnable on its own: npx tsx src/scripts/patchRequestedByReadSprocs.ts */
+if (require.main === module) {
+  patchRequestedByReadSprocs()
+    .then(() => process.exit(0))
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    });
+}

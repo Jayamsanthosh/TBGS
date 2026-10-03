@@ -65,13 +65,24 @@ async function main() {
   const before = await pool.request().query(`SELECT COUNT(*) n FROM ${TABLE}`);
   const startCount = Number(before.recordset[0].n);
 
-  /* Only work against a quotation that really exists. */
+  /* Only work against a quotation that really exists, and pick one the delete
+     permission assertions can actually act on: the delete route refuses when
+     the parent quotation is submitted ('CL'), and cleanup must never be able to
+     reach someone else's conversation row. */
   const ref = await pool.request().query(
-    `SELECT TOP 1 PURCHASE_QUOTATION_NO FROM [VPurchase].[TBL_PURCHASE_QUOTATION_HDR]
-     WHERE PURCHASE_QUOTATION_NO IS NOT NULL ORDER BY PURCHASE_QUOTATION_NO`
+    `SELECT TOP 1 H.PURCHASE_QUOTATION_NO FROM [VPurchase].[TBL_PURCHASE_QUOTATION_HDR] H
+      WHERE H.PURCHASE_QUOTATION_NO IS NOT NULL
+        AND UPPER(LTRIM(RTRIM(ISNULL(H.STATUS_ENTRY, '')))) <> 'CL'
+        AND NOT EXISTS (
+              SELECT 1 FROM [VPurchase].[TBL_PURCHASE_QUOTATION_CONVERSATION_DTL] C
+               WHERE C.PURCHASE_QUOTATION_NO = H.PURCHASE_QUOTATION_NO)
+      ORDER BY H.PURCHASE_QUOTATION_NO`
   );
-  if (!ref.recordset.length) throw new Error("No purchase quotation exists to test against");
+  if (!ref.recordset.length) {
+    throw new Error("No draft purchase quotation without conversation rows exists to test against");
+  }
   const refNo: string = ref.recordset[0].PURCHASE_QUOTATION_NO;
+  console.log(`  (using quotation ${refNo})`);
 
   const emp = await pool.request().query(
     `SELECT TOP 1 EMP_ID FROM [VPayEntries].[NEW_EMPLOYEE_DATABASE] ORDER BY EMP_ID`
