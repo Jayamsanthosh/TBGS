@@ -30,6 +30,7 @@ export type FieldKind =
   | "number"
   | "date"
   | "select"
+  | "searchable"
   | "textarea"
   | "readOnly"
   | "computed";

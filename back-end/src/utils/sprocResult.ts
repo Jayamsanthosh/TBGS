@@ -27,13 +27,49 @@ export const readSprocResult = (row?: any): SprocResult => {
     if (named !== undefined) return named;
     if (row[String(index)] !== undefined && row[String(index)] !== null) return row[String(index)];
     if (row[index] !== undefined && row[index] !== null) return row[index];
-    return cells ? cells[index] : undefined;
+    if (cells) return cells[index];
+    /* Some procs return the value column without an alias (e.g. `SELECT '',
+       'msg', @ref`); node-mssql then exposes a single anonymous value as a
+       scalar under the empty key instead of an ordered cell array. */
+    if (index === 2) {
+      const anon = row[""];
+      if (anon !== undefined && anon !== null && !Array.isArray(anon)) return anon;
+    }
+    return undefined;
   };
   return {
     status: String(get(0, ["STATUS", "STATUS_MASTER", "status", "status_master"]) ?? ""),
     message: String(get(1, ["MESSAGE", "MESSAGE_MASTER", "message", "message_master"]) ?? ""),
     data: get(2, ["DATA", "data"]),
   };
+};
+
+/* A proc can emit more than one result set when it internally EXECs another
+   proc that SELECTs (e.g. SAVE_PURCHASE_GRN_HDR calls the ref-no generator,
+   whose row lands first). node-mssql exposes only the first set via
+   `result.recordset`, so callers must pick the STATUS/MESSAGE/DATA row. This
+   prefers the last set that looks like a standard result row, falling back to
+   the last (then first) set. */
+export const pickResultRow = (result: any): any => {
+  const sets: any[][] = Array.isArray(result?.recordsets)
+    ? result.recordsets
+    : result?.recordset
+      ? [result.recordset]
+      : [];
+  if (!sets.length) return undefined;
+  const looksLikeResult = (row: any): boolean =>
+    !!row &&
+    ("STATUS" in row ||
+      "status" in row ||
+      "MESSAGE" in row ||
+      "message" in row ||
+      "DATA" in row ||
+      "data" in row);
+  for (let i = sets.length - 1; i >= 0; i--) {
+    const row = sets[i]?.[0];
+    if (looksLikeResult(row)) return row;
+  }
+  return sets[sets.length - 1]?.[0];
 };
 
 export const isSprocError = (result: SprocResult): boolean => {

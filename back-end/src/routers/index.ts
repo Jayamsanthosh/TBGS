@@ -160,6 +160,9 @@ import ShipmentModeMasterRouter from "./shipmentModeMaster.routers";
 import PurchaseRequestMasterRouter from "./purchaseRequestMaster.routers";
 import AdditionalChargeTypeMasterRouter from "./additionalChargeTypeMaster.routers";
 import PurchaseQuotationMasterRouter from "./purchaseQuotationMaster.routers";
+import PurchaseOrderMasterRouter from "./purchaseOrderMaster.routers";
+import OpeningStockMasterRouter from "./openingStockMaster.routers";
+import PurchaseGrnMasterRouter from "./purchaseGrnMaster.routers";
 
 const Router = express.Router()
 
@@ -351,6 +354,24 @@ Router.use("/additional-charge-type-master", authenticate, AdditionalChargeTypeM
 // (menu placement TBD). Re-enable checkPermission("/purchase-quotation") once a
 // Link record is seeded for this route.
 Router.use("/purchase-quotation", authenticate, PurchaseQuotationMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Purchase Order
+// (HDR + DTL) module has no TBL_LINKS_AND_PAGES / role-mapping entry yet
+// (menu placement TBD). Re-enable checkPermission("/purchase-order") once a
+// Link record is seeded for this route.
+Router.use("/purchase-order", authenticate, PurchaseOrderMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Opening Stock
+// (HDR + DTL) module has no TBL_LINKS_AND_PAGES / role-mapping entry yet
+// (menu placement TBD). Re-enable checkPermission("/opening-stock") once a
+// Link record is seeded for this route.
+Router.use("/opening-stock", authenticate, OpeningStockMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Purchase GRN
+// (HDR + DTL) module has no TBL_LINKS_AND_PAGES / role-mapping entry yet
+// (menu placement TBD). Re-enable checkPermission("/purchase-grn") once a
+// Link record is seeded for this route.
+Router.use("/purchase-grn", authenticate, PurchaseGrnMasterRouter);
 Router.use("/holiday-entries", authenticate, checkPermission("/holidays"), HolidayEntriesRouter);
 Router.use("/employee-database", authenticate, checkPermission("/employee-database"), EmployeeDatabaseRouter);
 Router.use("/dms", authenticate, checkPermission(["/dms", "/truck-master", "/driver-master", "/trailer-master"]), DMSRouter);

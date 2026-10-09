@@ -226,6 +226,35 @@ export const getPurchaseRequestDtlService = async (id: number) => {
   }
 };
 
+/**
+ * Distinct reference numbers, optionally scoped to a reference type.
+ *
+ * There is no reference-number master table; the values offered in the
+ * Reference No dropdown are the REFERENCE_NO strings already saved against
+ * purchase request detail lines, grouped by REFERENCE_TYPE_ID.
+ */
+export const getPurchaseRequestRefNumbersService = async (referenceTypeId?: number | null) => {
+  const pool = getPool();
+  if (!pool) throw new Error("Database not connected");
+
+  try {
+    const req = pool
+      .request()
+      .input("REFERENCE_TYPE_ID", sql.Int, referenceTypeId ?? null);
+    const result = await req.query(
+      `SELECT DISTINCT REFERENCE_TYPE_ID, REFERENCE_NO
+       FROM [VPurchase].[TBL_PURCHASE_REQUEST_DTL]
+       WHERE REFERENCE_NO IS NOT NULL AND LTRIM(RTRIM(REFERENCE_NO)) <> ''
+         AND (@REFERENCE_TYPE_ID IS NULL OR REFERENCE_TYPE_ID = @REFERENCE_TYPE_ID)
+       ORDER BY REFERENCE_NO`
+    );
+    return result.recordset || [];
+  } catch (error) {
+    console.error("GET_PURCHASE_REQUEST_REF_NUMBERS error:", error);
+    throw error;
+  }
+};
+
 const savePurchaseRequestDtlService = async (
   refNo: string,
   dtl: PurchaseRequestDtl,
@@ -523,6 +552,99 @@ export const deletePurchaseRequestHdrService = async (
   }
 };
 
+/* How many request lines a dropdown summary may show before folding the rest
+   into "+N more", so a long request never blows the option open. */
+const MAX_SUMMARY_LINES = 4;
+
+/* A stored quantity like 50.000 must read as "50" in the summary. */
+const fmtQty = (v: any): string => {
+  if (v === "" || v === null || v === undefined) return "";
+  const n = Number(v);
+  if (Number.isNaN(n)) return "";
+  return n.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+};
+
+/* Folds a request's detail lines into a one-line item summary for the Purchase
+   Quotation dropdown - product, quantity, reference type, truck and delivery
+   location are all in there, so a user can tell what a request wants before
+   picking it. The delivery location lives on the header and is the same for
+   every line, so it leads the string; each line then reads like
+   "Rice 50 KG · Ref: Store · Truck: TR-5". */
+const buildRequestItemSummaries = async (
+  requestNos: string[]
+): Promise<Map<string, string>> => {
+  const pool = getPool();
+  if (!pool) return new Map();
+
+  const result = await pool
+    .request()
+    .input("IDS", sql.VarChar(4000), requestNos.join(","))
+    .query(
+      `SELECT
+          D.PURCHASE_REQUEST_NO,
+          D.PRODUCT_ID,
+          ISNULL(P.PRODUCT_NAME, D.DESCRIPTION) AS ITEM_NAME,
+          D.Total_Quantity,
+          ISNULL(U.UOM_NAME, '') AS UOM_NAME,
+          ISNULL(RT.REFERENCE_TYPE_NAME, '') AS REFERENCE_TYPE_NAME,
+          ISNULL(TR.TRUCK_NO, '') AS TRUCK_NO,
+          ISNULL(L.LOCATION_NAME, '') AS DELIVERY_LOCATION_NAME
+       FROM [VPurchase].[TBL_PURCHASE_REQUEST_DTL] D
+       JOIN [VPurchase].[TBL_PURCHASE_REQUEST_HDR] H
+         ON H.PURCHASE_REQUEST_NO = D.PURCHASE_REQUEST_NO
+       LEFT JOIN [VMaster].[TBL_PRODUCT_MASTER] P
+         ON P.PRODUCT_ID = D.PRODUCT_ID
+       LEFT JOIN [VMaster].[TBL_UOM_MASTER] U
+         ON U.UOM_ID = D.UOM_ID
+       LEFT JOIN [VMaster].[TBL_REFERENCE_TYPE_MASTER] RT
+         ON RT.REFERENCE_TYPE_ID = D.REFERENCE_TYPE_ID
+       LEFT JOIN [VMaster].[TBL_TRUCK_MASTER_hdr] TR
+         ON TR.TRUCK_ID = D.TRUCK_ID
+       LEFT JOIN [VMaster].[TBL_LOCATION_MASTER] L
+         ON L.LOCATION_ID = H.DELIVERY_LOCATION_ID
+      WHERE D.PURCHASE_REQUEST_NO IN (SELECT [value] FROM STRING_SPLIT(@IDS, ','))
+      ORDER BY D.PURCHASE_REQUEST_NO, D.LINE_NO`
+    );
+
+  const linesByRequest = new Map<string, string[]>();
+  const deliveryByRequest = new Map<string, string>();
+
+  for (const r of result.recordset || []) {
+    const no = String(r.PURCHASE_REQUEST_NO ?? "").trim();
+    if (!no) continue;
+
+    const delivery = String(r.DELIVERY_LOCATION_NAME ?? "").trim();
+    if (delivery && !deliveryByRequest.has(no)) deliveryByRequest.set(no, delivery);
+
+    const name =
+      String(r.ITEM_NAME ?? "").trim() ||
+      (r.PRODUCT_ID != null ? `Product #${r.PRODUCT_ID}` : "Unnamed item");
+    const qty = fmtQty(r.Total_Quantity);
+    const uom = String(r.UOM_NAME ?? "").trim();
+    const refType = String(r.REFERENCE_TYPE_NAME ?? "").trim();
+    const truck = String(r.TRUCK_NO ?? "").trim();
+
+    let entry = name;
+    if (qty) entry += ` ${qty}${uom ? " " + uom : ""}`;
+    if (refType) entry += ` · Ref: ${refType}`;
+    if (truck) entry += ` · Truck: ${truck}`;
+
+    const lines = linesByRequest.get(no) ?? [];
+    lines.push(entry);
+    linesByRequest.set(no, lines);
+  }
+
+  const out = new Map<string, string>();
+  for (const [no, lines] of linesByRequest) {
+    const head = deliveryByRequest.has(no) ? [`Deliver: ${deliveryByRequest.get(no)}`] : [];
+    const shown = lines.slice(0, MAX_SUMMARY_LINES);
+    const rest = lines.length - shown.length;
+    if (rest > 0) shown.push(`+${rest} more`);
+    out.set(no, [...head, ...shown].join(" · "));
+  }
+  return out;
+};
+
 export const loadPurchaseRequestOptionsService = async (
   companyId?: number | null,
   statusEntry?: string | null,
@@ -545,7 +667,23 @@ export const loadPurchaseRequestOptionsService = async (
       .input("FinalResponseStatus", sql.VarChar(20), finalResponseStatus || null)
       .execute("VPurchase.LOAD_PURCHASE_REQUEST_HDR");
 
-    return (result.recordset || []).map((r: any) => ({ ...r, id: r.purchaseRequestNo }));
+    const rows = (result.recordset || []).map((r: any) => ({ ...r, id: r.purchaseRequestNo }));
+
+    /* Fold the request lines into the one-line item summary, one query for the
+       whole set rather than a round-trip per request. A request with no lines
+       keeps no summary; the dropdown already counts 0 lines elsewhere. */
+    const requestNos = rows
+      .map((r: any) => r.purchaseRequestNo)
+      .filter((n: any) => n != null && String(n).trim() !== "");
+    if (requestNos.length > 0) {
+      const summaries = await buildRequestItemSummaries(requestNos);
+      for (const row of rows) {
+        const summary = summaries.get(String(row.purchaseRequestNo));
+        if (summary) row.itemSummary = summary;
+      }
+    }
+
+    return rows;
   } catch (error) {
     console.error("LOAD_PURCHASE_REQUEST_HDR SP error:", error);
     throw error;

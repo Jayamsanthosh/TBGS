@@ -6,6 +6,7 @@ import {
   getPurchaseRequestHdrService,
   getPurchaseRequestDtlsService,
   getPurchaseRequestDtlService,
+  getPurchaseRequestRefNumbersService,
   savePurchaseRequestCombinedService,
   updatePurchaseRequestCombinedService,
   deletePurchaseRequestDtlService,
@@ -141,6 +142,18 @@ export const getPurchaseRequestLoad = async (req: Request, res: Response): Promi
     res.json({ success: true, count: options.length, data: options });
   } catch (error: any) {
     console.error("GetPurchaseRequestLoad error:", error);
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};
+
+export const getPurchaseRequestRefNumbers = async (req: Request, res: Response): Promise<void> => {
+  const { referenceTypeId } = req.query;
+
+  try {
+    const data = await getPurchaseRequestRefNumbersService(toPositiveInt(referenceTypeId));
+    res.json({ success: true, count: data.length, data });
+  } catch (error: any) {
+    console.error("GetPurchaseRequestRefNumbers error:", error);
     res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

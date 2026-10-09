@@ -27,7 +27,7 @@ export default function RequestReview({
     { label: "Requested By", value: headerLabels.REQUESTED_BY_EMP_ID },
     { label: "Company", value: headerLabels.COMPANY_ID },
     { label: "Branch", value: headerLabels.BRANCH_ID },
-    { label: "PO Store", value: headerLabels.PO_STORE_ID },
+    { label: "PURCHASE STORE", value: headerLabels.PO_STORE_ID },
     { label: "Camp", value: headerLabels.CAMP_ID },
     { label: "Request Store", value: headerLabels.REQUEST_STORE_ID },
     { label: "Request Type", value: headerLabels.REQUEST_TYPE_ID },

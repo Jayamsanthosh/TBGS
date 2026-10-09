@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
 import { installAuthFetchInterceptor, resetAuthExpiredFlag } from "@/lib/httpInterceptor";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { hydrateFromStorage, loginUser, logoutUser, logoutUserThunk, updateUserCompany, type UserData, type UserCompanyInfo } from "@/lib/authSlice";
+import { hydrateFromStorage, loginUser, logoutUser, logoutUserThunk, updateUserCompany, setSessionContext, type UserData, type UserCompanyInfo, type SessionContext } from "@/lib/authSlice";
 
 export interface AuthUser {
   id: number | string;
@@ -40,6 +40,9 @@ interface AuthContextValue {
   refreshPermissions: () => Promise<void>;
   /** true if the caller's role is permitted to access `pathname` */
   hasPermission: (pathname: string) => boolean;
+  updateUserCompanies: (companies: UserCompanyInfo[]) => void;
+  updateSessionContext: (context: SessionContext | null) => void;
+  setSessionContext: (context: SessionContext | null) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -186,6 +189,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await dispatch(logoutUserThunk());
   }, [dispatch]);
 
+  /** Updates the active session context (company/branch/camp/store) */
+  const updateSessionContext = useCallback((context: SessionContext | null) => {
+    dispatch(setSessionContext(context));
+  }, [dispatch]);
+
+  /** Updates the list of available companies for the current user */
+  const updateUserCompanies = useCallback((companies: UserCompanyInfo[]) => {
+    dispatch(updateUserCompany(companies));
+  }, [dispatch]);
+
   const hasPermission = useCallback(
     (pathname: string) => {
       const target = normalizePath(pathname);
@@ -210,8 +223,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       refreshPermissions,
       hasPermission,
+      updateUserCompanies,
+      updateSessionContext,
+      setSessionContext: updateSessionContext,
     }),
-    [user, permissions, isLoading, login, logout, refreshPermissions, hasPermission]
+    [user, permissions, isLoading, login, logout, refreshPermissions, hasPermission, updateUserCompanies, updateSessionContext]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
