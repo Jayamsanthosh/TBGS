@@ -31,6 +31,27 @@ export interface UserEmployeeInfo {
   storeId?: number | null;
 }
 
+/**
+ * The company / branch / camp / store the user picked on the login screen.
+ *
+ * The backend re-validated this against the user's mapping before minting the
+ * token, so unlike `companies` (everything the user *could* switch to) this is
+ * the one they actually chose, and it is what screens should stamp.
+ *
+ * Every id but companyId may be null: a mapping row can carry only a company,
+ * and a company with no active branch mapping is a normal state, not an error.
+ */
+export interface SessionContext {
+  companyId: number;
+  companyName: string;
+  branchId?: number | null;
+  branchName?: string | null;
+  campId?: number | null;
+  campName?: string | null;
+  storeId?: number | null;
+  storeName?: string | null;
+}
+
 export interface UserData {
   id: number | string;
   loginName: string;
@@ -46,6 +67,9 @@ export interface UserData {
   /* Branch of the active company, hoisted by the backend from companies[0]. */
   branchId?: number | null;
   branchName?: string | null;
+  /* The pick made on the login screen. Null only for a session whose token was
+     minted before the dropdowns existed - derive it from companies[0] then. */
+  context?: SessionContext | null;
   /* Employee behind this login, resolved by the backend at login time. */
   employee?: UserEmployeeInfo | null;
   LOGIN_NAME?: string;
@@ -66,6 +90,21 @@ interface LoginApiResponse {
   user: Record<string, unknown>;
 }
 
+/**
+ * The company/branch/camp/store chosen on the login screen.
+ *
+ * Optional as a whole: a client that posts bare credentials gets the backend's
+ * default (the login's first mapped company) instead. When a company IS sent,
+ * the backend validates the whole set against the user's mapping and rejects
+ * the login outright on a mismatch - so these are never trusted as-is.
+ */
+export interface LoginContextSelection {
+  COMPANY_ID?: number | null;
+  CAMP_ID?: number | null;
+  STORE_ID?: number | null;
+  BRANCH_ID?: number | null;
+}
+
 interface AuthState {
   user: UserData | null;
   accessToken: string | null;
@@ -84,14 +123,28 @@ const initialState: AuthState = {
 
 export const loginUser = createAsyncThunk<
   LoginApiResponse,
-  { LOGIN_NAME: string; PASSWORD: string },
+  { LOGIN_NAME: string; PASSWORD: string } & LoginContextSelection,
   { rejectValue: string }
->("auth/loginUser", async ({ LOGIN_NAME, PASSWORD }, { rejectWithValue }) => {
+>("auth/loginUser", async ({ LOGIN_NAME, PASSWORD, COMPANY_ID, CAMP_ID, STORE_ID, BRANCH_ID }, { rejectWithValue }) => {
   const response = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
     credentials: "include", // required so the backend's Set-Cookie (access_token) sticks
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ LOGIN_NAME, PASSWORD }),
+    body: JSON.stringify({
+      LOGIN_NAME,
+      PASSWORD,
+      /* Sent only when a company was actually picked. A camp/store/branch on
+         its own cannot be validated, so the backend ignores them without a
+         company rather than trusting them. */
+      ...(COMPANY_ID != null
+        ? {
+            COMPANY_ID,
+            CAMP_ID: CAMP_ID ?? null,
+            STORE_ID: STORE_ID ?? null,
+            BRANCH_ID: BRANCH_ID ?? null,
+          }
+        : {}),
+    }),
   });
 
   const data = await response.json();
@@ -153,21 +206,61 @@ const toBranchId = (v: unknown): number | null => {
   return v === "" || v === null || v === undefined || isNaN(n) || n <= 0 ? null : n;
 };
 
+/* Names are kept even when the id is null so the UI can still say "No branch
+   mapped" rather than rendering a blank line. */
+const toName = (v: unknown, fallback = ""): string => {
+  const s = String(v ?? "").trim();
+  return s || fallback;
+};
+
+/**
+ * The pick made on the login screen, normalized.
+ *
+ * Null when the token carries no context - i.e. it was minted before the login
+ * screen had these dropdowns. Callers must then fall back to companies[0] rather
+ * than read a half-built object, which is why this returns null instead of an
+ * object full of nulls.
+ */
+const normalizeContext = (raw: unknown): SessionContext | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const src = raw as Record<string, unknown>;
+  const companyId = toBranchId(src.companyId);
+  /* Without a company there is nothing to scope a session to. Treat it as
+     absent so the companies[0] fallback takes over. */
+  if (companyId === null) return null;
+
+  return {
+    companyId,
+    companyName: toName(src.companyName, `Company ${companyId}`),
+    branchId: toBranchId(src.branchId),
+    branchName: toName(src.branchName) || null,
+    campId: toBranchId(src.campId),
+    campName: toName(src.campName) || null,
+    storeId: toBranchId(src.storeId),
+    storeName: toName(src.storeName) || null,
+  };
+};
+
 function normalizeUser(serverUser: Record<string, unknown>): UserData {
   const loginName = String(serverUser.loginName ?? serverUser.LOGIN_NAME ?? "");
   const companies = Array.isArray(serverUser.companies)
     ? (serverUser.companies as UserCompanyInfo[])
     : [];
-  /* The active company is the first one, so the session branch is that
-     company's branch. The backend hoists it to the top level too; prefer it
-     and fall back to the per-company value so a hydrate from an older cached
-     session still picks the branch up. */
-  const activeCompany = companies[0];
-  const branchId = toBranchId(serverUser.branchId ?? activeCompany?.branchId);
+  const context = normalizeContext(serverUser.context);
+
+  /* The active company is the chosen one when there is a context, else the
+     first one. Same for the session branch: prefer the explicit pick, then the
+     hoisted top-level value, then the per-company value, so a hydrate from an
+     older cached session still picks the branch up. */
+  const activeCompany = context
+    ? companies.find((c) => Number(c.companyId) === context.companyId) ?? companies[0]
+    : companies[0];
+  const branchId = context?.branchId ?? toBranchId(serverUser.branchId ?? activeCompany?.branchId);
   const branchName =
-    (serverUser.branchName === "" || serverUser.branchName === undefined
+    context?.branchName ??
+    ((serverUser.branchName === "" || serverUser.branchName === undefined
       ? activeCompany?.branchName
-      : (serverUser.branchName as string)) ?? null;
+      : (serverUser.branchName as string)) ?? null);
 
   /* Employee identity of the login. Normalized so a sparse payload (an access token
      minted before this existed) yields null rather than a half-built object, and so
@@ -197,7 +290,8 @@ function normalizeUser(serverUser: Record<string, unknown>): UserData {
     monthProcess: String(serverUser.monthProcess ?? serverUser.MONTH_PROCESS ?? ""),
     yearProcess: String(serverUser.yearProcess ?? serverUser.YEAR_PROCESS ?? ""),
     companies,
-    companyName: activeCompany?.companyName ?? "",
+    context,
+    companyName: context?.companyName ?? activeCompany?.companyName ?? "",
     branchId,
     branchName,
     employee,
@@ -247,20 +341,71 @@ const authSlice = createSlice({
       }
       clearPersistedAuth();
     },
+    /**
+     * Replaces the list of companies the login may switch between.
+     *
+     * Refreshing this list must NOT reset an explicit login-screen choice back
+     * to companies[0] - the whole point of the dropdowns is that the user's pick
+     * survives. So when a context is present the active company is located
+     * inside the new list and the context is re-based onto it; only a session
+     * with no context at all (an older token) falls back to the first company.
+     */
     updateUserCompany(state, action: PayloadAction<UserCompanyInfo[]>) {
       if (!state.user) return;
       const companies = Array.isArray(action.payload) ? action.payload : [];
       if (companies.length === 0) return;
-      /* Switching the active company switches the branch with it - the branch is
-         per company, so keeping the old one would show a branch that does not
-         belong to the newly selected company. */
-      const activeCompany = companies[0];
+
+      const context = state.user.context ?? null;
+      const activeCompany = context
+        ? companies.find((c) => Number(c.companyId) === context.companyId)
+        : companies[0];
+
+      /* The chosen company is no longer in the list - the mapping was revoked
+         while the session is alive. Fall back to the first company rather than
+         keeping a context that points at nothing. */
+      if (context && !activeCompany) {
+        const fallback = companies[0];
+        state.user = {
+          ...state.user,
+          companies,
+          context: null,
+          companyName: fallback?.companyName ?? "",
+          branchId: toBranchId(fallback?.branchId),
+          branchName: fallback?.branchName ?? null,
+        };
+      } else if (activeCompany) {
+        /* Switching the active company switches the branch with it - the branch
+           is per company, so keeping the old one would show a branch that does
+           not belong to the newly selected company. */
+        state.user = {
+          ...state.user,
+          companies,
+          companyName: context?.companyName ?? activeCompany.companyName ?? "",
+          branchId: context?.branchId ?? toBranchId(activeCompany.branchId),
+          branchName: context?.branchName ?? activeCompany.branchName ?? null,
+        };
+      } else {
+        state.user = { ...state.user, companies };
+      }
+
+      try {
+        localStorage.setItem("user", JSON.stringify(state.user));
+      } catch {}
+    },
+    /** Replaces the active company/branch/camp/store, e.g. after a re-login. */
+    setSessionContext(state, action: PayloadAction<SessionContext | null>) {
+      if (!state.user) return;
+      const context = normalizeContext(action.payload);
+      const activeCompany = context
+        ? state.user.companies?.find((c) => Number(c.companyId) === context.companyId)
+        : state.user.companies?.[0];
+
       state.user = {
         ...state.user,
-        companies,
-        companyName: activeCompany?.companyName ?? state.user.companyName ?? "",
-        branchId: toBranchId(activeCompany?.branchId),
-        branchName: activeCompany?.branchName ?? null,
+        context,
+        companyName: context?.companyName ?? activeCompany?.companyName ?? state.user.companyName ?? "",
+        branchId: context?.branchId ?? toBranchId(activeCompany?.branchId),
+        branchName: context?.branchName ?? activeCompany?.branchName ?? null,
       };
       try {
         localStorage.setItem("user", JSON.stringify(state.user));
@@ -294,5 +439,11 @@ const authSlice = createSlice({
   },
 });
 
-export const { logoutUser, hydrateFromStorage, clearAuthError, updateUserCompany } = authSlice.actions;
+export const {
+  logoutUser,
+  hydrateFromStorage,
+  clearAuthError,
+  updateUserCompany,
+  setSessionContext,
+} = authSlice.actions;
 export default authSlice.reducer;

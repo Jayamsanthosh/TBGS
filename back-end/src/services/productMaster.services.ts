@@ -31,12 +31,31 @@ export const getAllProductMasterService = async () => {
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const result = await pool
-      .request()
-      .execute("VMaster.SHOW_PRODUCT_MASTER");
+    /* Direct SELECT instead of SHOW_PRODUCT_MASTER: the deployed SP predates
+       the TRUCK_ID column and omits it, which silently broke the purchase
+       request's Truck auto-fill (product rows carried no TRUCK_ID). */
+    const result = await pool.request().query(
+      `SELECT
+          PRODUCT_ID,
+          PRODUCT_NAME,
+          MAIN_CATEGORY_ID,
+          SUB_CATEGORY_ID,
+          UOM_ID,
+          NO_OF_PCS_PER_PACKING,
+          ALTERNATE_UOM_ID,
+          COST_CENTRE_ID,
+          COMPANY_ID,
+          TRUCK_ID,
+          PRODUCTION_COST,
+          VAT_PERCENTAGE,
+          REMARKS,
+          STATUS_MASTER
+       FROM [VMaster].[TBL_PRODUCT_MASTER]
+       ORDER BY PRODUCT_NAME;`
+    );
     return result.recordset || [];
   } catch (error) {
-    console.error("SHOW_PRODUCT_MASTER SP error:", error);
+    console.error("SHOW_PRODUCT_MASTER error:", error);
     throw error;
   }
 };

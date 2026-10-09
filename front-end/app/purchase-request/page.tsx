@@ -14,6 +14,8 @@ import {
   SECTION_ORDER,
   type FieldGroup,
   type StepErrors,
+  type WizardOption,
+  type FieldDescriptor,
 } from "@/components/wizard/types";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import {
@@ -126,7 +128,7 @@ export default function PurchaseRequestPage() {
   /* The login's mapped (active) company and its branch, from the session. These are
      only a fallback for a login with no employee record. Note an employee's own
      company can differ from the company the login is mapped to. */
-  const activeCompanyId = user?.companies?.[0]?.companyId ?? null;
+  const activeCompanyId = user?.context?.companyId ?? user?.companies?.[0]?.companyId ?? null;
 
   const fetchList = async (url: string) => {
     const res = await fetch(url);
@@ -150,6 +152,51 @@ export default function PurchaseRequestPage() {
   const { data: products } = useApiQuery("pr-master-products", () => fetchList(`${API_URL}/product-master`));
   const { data: uoms } = useApiQuery("pr-master-uoms", () => fetchList(`${API_URL}/uom-master`));
   const { data: trucks } = useApiQuery("pr-master-trucks", () => fetchList(`${API_URL}/truck-master?status=AC`));
+
+  /* Distinct REFERENCE_NO values already saved on purchase request detail lines,
+     grouped by REFERENCE_TYPE_ID. These power the Reference No dropdown once a
+     Reference Type is picked. */
+  const { data: refNumberPairs } = useApiQuery("pr-ref-numbers", () => fetchList(`${API_URL}/purchase-requests/reference-numbers`));
+
+  /* Reference No options per reference type. The row's own value is merged back
+     in so an already-saved line always shows its stored number even before the
+     list finishes loading (or if that number was later removed from the data). */
+  const referenceNoOptionsByType = useMemo(() => {
+    const map: Record<string, WizardOption[]> = {};
+    (Array.isArray(refNumberPairs) ? refNumberPairs : []).forEach((p: any) => {
+      const id = String(p.REFERENCE_TYPE_ID ?? "");
+      const no = String(p.REFERENCE_NO ?? "").trim();
+      if (!id || !no) return;
+      if (!map[id]) map[id] = [];
+      map[id].push({ value: no, label: no });
+    });
+    Object.keys(map).forEach((id) => {
+      const seen = new Set<string>();
+      map[id] = map[id].filter((o) => {
+        if (seen.has(o.value)) return false;
+        seen.add(o.value);
+        return true;
+      });
+    });
+    return map;
+  }, [refNumberPairs]);
+
+  const refNoOptionsFor = (row: any) => {
+    const typeKey = String(row?.REFERENCE_TYPE_ID ?? "");
+    const options = [...(typeKey ? referenceNoOptionsByType[typeKey] ?? [] : [])];
+    const own = String(row?.REFERENCE_NO ?? "").trim();
+    if (own && !options.some((o) => o.value === own)) options.unshift({ value: own, label: own });
+    return options;
+  };
+
+  /* The truck list only holds active trucks; an auto-filled (or saved) truck
+     that is no longer active must still be visible in its select. */
+  const truckOptionsFor = (row: any) => {
+    const options = [...truckOptions];
+    const own = row?.TRUCK_ID != null ? String(row.TRUCK_ID) : "";
+    if (own && !options.some((o) => o.value === own)) options.unshift({ value: own, label: own });
+    return options;
+  };
 
   const opt = (rows: any[] | undefined, valueKey: string, labelKey: string) =>
     (Array.isArray(rows) ? rows : []).map((r: any) => ({
@@ -340,14 +387,16 @@ export default function PurchaseRequestPage() {
        login that is not an employee, which is allowed - the request is still raised
        under that login's name, just with a null employee id. */
     REQUESTED_BY_EMP_ID: sessionRequesterEmpId,
-    /* Company / Branch / PO Store / Camp are the logged-in user's, so they are filled
-       from the session rather than picked. Each stays empty when the session has no
-       value for it (e.g. an employee with no camp), which is a valid state. */
+    /* Company / Branch / Request Store / Camp are the logged-in user's, so they are
+       filled from the session rather than picked. Each stays empty when the session
+       has no value for it (e.g. an employee with no camp), which is a valid state.
+       PO Store is a fixed destination - it only ever reads as "PURCHASE STORE" and
+       carries no selectable value of its own. */
     COMPANY_ID: sessionEmployeeDefaults.companyId != null ? String(sessionEmployeeDefaults.companyId) : "",
     BRANCH_ID: sessionEmployeeDefaults.branchId != null ? String(sessionEmployeeDefaults.branchId) : "",
-    PO_STORE_ID: sessionEmployeeDefaults.storeId != null ? String(sessionEmployeeDefaults.storeId) : "",
+    PO_STORE_ID: "",
     CAMP_ID: sessionEmployeeDefaults.campId != null ? String(sessionEmployeeDefaults.campId) : "",
-    REQUEST_STORE_ID: "",
+    REQUEST_STORE_ID: sessionEmployeeDefaults.storeId != null ? String(sessionEmployeeDefaults.storeId) : "",
     REQUEST_TYPE_ID: "",
     PRIORITY_ID: "",
     REQUIRED_DATE: "",
@@ -388,15 +437,16 @@ export default function PurchaseRequestPage() {
   const sessionEmployeeDefaults = useMemo(
     () => ({
       companyId: sessionEmployee?.companyId ?? activeCompanyId ?? null,
-      branchId: sessionEmployee?.branchId ?? user?.companies?.[0]?.branchId ?? null,
-      campId: sessionEmployee?.campId ?? null,
-      storeId: sessionEmployee?.storeId ?? null,
+      branchId: sessionEmployee?.branchId ?? user?.context?.branchId ?? user?.companies?.[0]?.branchId ?? null,
+      campId: sessionEmployee?.campId ?? user?.context?.campId ?? null,
+      storeId: sessionEmployee?.storeId ?? user?.context?.storeId ?? null,
     }),
     [
       sessionEmployee?.companyId,
       sessionEmployee?.branchId,
       sessionEmployee?.campId,
       sessionEmployee?.storeId,
+      user?.context,
       activeCompanyId,
       user?.companies,
     ]
@@ -415,7 +465,7 @@ export default function PurchaseRequestPage() {
       BRANCH_ID:
         sessionEmployeeDefaults.branchId != null ? String(sessionEmployeeDefaults.branchId) : "",
       CAMP_ID: sessionEmployeeDefaults.campId != null ? String(sessionEmployeeDefaults.campId) : "",
-      PO_STORE_ID: sessionEmployeeDefaults.storeId != null ? String(sessionEmployeeDefaults.storeId) : "",
+      REQUEST_STORE_ID: sessionEmployeeDefaults.storeId != null ? String(sessionEmployeeDefaults.storeId) : "",
     }));
   };
 
@@ -423,6 +473,13 @@ export default function PurchaseRequestPage() {
     setDtls((prev) =>
       prev.map((r) => {
         if (r.key !== key) return r;
+        if (field === "REFERENCE_TYPE_ID") {
+          /* The Reference No dropdown is scoped to the selected Reference Type,
+             so a number from another type no longer belongs and is cleared. */
+          const list = referenceNoOptionsByType[String(value ?? "")] ?? [];
+          const stays = list.some((o) => o.value === String(r.REFERENCE_NO ?? "").trim());
+          return { ...r, REFERENCE_TYPE_ID: value, REFERENCE_NO: stays ? r.REFERENCE_NO : "" };
+        }
         if (field === "MAIN_CATEGORY_ID") {
           return { ...r, MAIN_CATEGORY_ID: value, SUB_CATEGORY_ID: undefined, PRODUCT_ID: undefined };
         }
@@ -437,6 +494,7 @@ export default function PurchaseRequestPage() {
             NO_OF_PCS_PER_PACKING: p.NO_OF_PCS_PER_PACKING != null && p.NO_OF_PCS_PER_PACKING !== "" ? String(p.NO_OF_PCS_PER_PACKING) : r.NO_OF_PCS_PER_PACKING,
             UOM_ID: p.UOM_ID != null ? Number(p.UOM_ID) : r.UOM_ID,
             ALT_UOM_ID: p.ALTERNATE_UOM_ID != null ? Number(p.ALTERNATE_UOM_ID) : r.ALT_UOM_ID,
+            TRUCK_ID: p.TRUCK_ID != null ? Number(p.TRUCK_ID) : r.TRUCK_ID,
             DESCRIPTION: r.DESCRIPTION || p.PRODUCT_NAME || r.DESCRIPTION,
           };
         }
@@ -497,18 +555,19 @@ export default function PurchaseRequestPage() {
            the field would show the original requester right up until the save
            silently changed it. The stored name is still what the grid shows. */
         REQUESTED_BY_EMP_ID: sessionRequesterEmpId,
-        /* Company / Branch / PO Store / Camp are session-owned too, so load them from
-           the session for the same reason: otherwise the form would show the stored
-           values while the save stamps the session's. */
+        /* Company / Branch / Request Store / Camp are session-owned too, so load them
+           from the session for the same reason: otherwise the form would show the
+           stored values while the save stamps the session's. PO Store is a fixed
+           "PURCHASE STORE" and never carries a selectable value. */
         COMPANY_ID:
           sessionEmployeeDefaults.companyId != null ? String(sessionEmployeeDefaults.companyId) : "",
         BRANCH_ID:
           sessionEmployeeDefaults.branchId != null ? String(sessionEmployeeDefaults.branchId) : "",
-        PO_STORE_ID:
-          sessionEmployeeDefaults.storeId != null ? String(sessionEmployeeDefaults.storeId) : "",
+        PO_STORE_ID: "",
         CAMP_ID:
           sessionEmployeeDefaults.campId != null ? String(sessionEmployeeDefaults.campId) : "",
-        REQUEST_STORE_ID: toStr(hdr.REQUEST_STORE_ID),
+        REQUEST_STORE_ID:
+          sessionEmployeeDefaults.storeId != null ? String(sessionEmployeeDefaults.storeId) : "",
         REQUEST_TYPE_ID: toStr(hdr.REQUEST_TYPE_ID),
         PRIORITY_ID: toStr(hdr.PRIORITY_ID),
         REQUIRED_DATE: fmtDate(hdr.REQUIRED_DATE),
@@ -767,6 +826,16 @@ export default function PurchaseRequestPage() {
     );
   };
 
+  const productField: FieldDescriptor = {
+    key: "PRODUCT_ID",
+    label: "Product",
+    kind: "searchable",
+    required: true,
+    options: (row: any) => productOptionsFor(form.COMPANY_ID, row.MAIN_CATEGORY_ID),
+    transform: (v) => Number(v),
+    placeholder: "Search & select product",
+  };
+
   /* ------------------------------------------------- wizard line groups --- */
   const lineGroups = (): FieldGroup[] => [
     {
@@ -781,7 +850,13 @@ export default function PurchaseRequestPage() {
           transform: (v) => Number(v),
           placeholder: "Select ref type",
         },
-        { key: "REFERENCE_NO", label: "Reference No", kind: "text", placeholder: "Reference no" },
+        {
+          key: "REFERENCE_NO",
+          label: "Reference No",
+          kind: "select",
+          options: (row: any) => refNoOptionsFor(row),
+          placeholder: "Select ref no",
+        },
         {
           key: "LINE_NO",
           label: "Line No",
@@ -810,15 +885,6 @@ export default function PurchaseRequestPage() {
           options: (row: any) => subCategoryOptionsFor(row.MAIN_CATEGORY_ID),
           transform: (v) => Number(v),
           placeholder: "Select sub category",
-        },
-        {
-          key: "PRODUCT_ID",
-          label: "Product",
-          kind: "select",
-          required: true,
-          options: (row: any) => productOptionsFor(form.COMPANY_ID, row.MAIN_CATEGORY_ID),
-          transform: (v) => Number(v),
-          placeholder: "Select product",
         },
         {
           key: "DESCRIPTION",
@@ -872,7 +938,7 @@ export default function PurchaseRequestPage() {
           key: "TRUCK_ID",
           label: "Truck",
           kind: "select",
-          options: truckOptions,
+          options: (row: any) => truckOptionsFor(row),
           transform: (v) => Number(v),
           placeholder: "Select truck",
         },
@@ -907,7 +973,8 @@ export default function PurchaseRequestPage() {
       REQUESTED_BY_EMP_ID: sessionRequesterName,
       COMPANY_ID: labelOf(companyOptions, form.COMPANY_ID),
       BRANCH_ID: labelOf(branchOptions, form.BRANCH_ID),
-      PO_STORE_ID: labelOf(storeOptions, form.PO_STORE_ID),
+      /* PO Store is a fixed destination - it always reads "PURCHASE STORE". */
+      PO_STORE_ID: "PURCHASE STORE",
       CAMP_ID: labelOf(campOptions, form.CAMP_ID),
       REQUEST_STORE_ID: labelOf(storeOptions, form.REQUEST_STORE_ID),
       REQUEST_TYPE_ID: labelOf(requestTypeOptions, form.REQUEST_TYPE_ID),
@@ -1014,7 +1081,7 @@ export default function PurchaseRequestPage() {
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Requested By</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Company</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Branch</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">PO Store</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">PURCHASE STORE</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Camp</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Req Type</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Required Date</th>
@@ -1059,7 +1126,7 @@ export default function PurchaseRequestPage() {
                     <td className="p-3">{(item.requestedBy || "-")}{item.requestedByEmpId ? ` (#${item.requestedByEmpId})` : ""}</td>
                     <td className="p-3">{item.companyName || "-"}</td>
                     <td className="p-3">{item.branchName || "-"}</td>
-                    <td className="p-3">{item.poStoreName || "-"}</td>
+                    <td className="p-3">PURCHASE STORE</td>
                     <td className="p-3">{item.campName || "-"}</td>
                     <td className="p-3">{item.requestTypeName || "-"}</td>
                     <td className="p-3">{formatDate(item.requiredDate)}</td>
@@ -1166,11 +1233,19 @@ export default function PurchaseRequestPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               {renderField("BRANCH_ID", "Branch", "select", branchOptions, false, "No branch mapped to your login", true, "from your login")}
-              {renderField("PO_STORE_ID", "PO Store", "select", storeOptions, false, "No PO store for your employee", true, "from your login")}
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs">
+                  PO Store
+                  <span className="text-muted-foreground font-normal ml-1">(fixed)</span>
+                </Label>
+                <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-xs font-medium">
+                  PURCHASE STORE
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               {renderField("CAMP_ID", "Camp", "select", campOptions, false, "No camp for your employee", true, "from your login")}
-              {renderField("REQUEST_STORE_ID", "Request Store", "select", storeOptions, false, "Select request store")}
+              {renderField("REQUEST_STORE_ID", "Request Store", "select", storeOptions, false, "No store for your employee", true, "from your login")}
             </div>
             <div className="grid grid-cols-2 gap-4">
               {renderField("REQUEST_TYPE_ID", "Request Type", "select", requestTypeOptions, false, "Select request type")}
@@ -1225,6 +1300,7 @@ export default function PurchaseRequestPage() {
                   }
                   groups={lineGroups()}
                   row={row}
+                  primaryField={productField}
                   errors={lineErrors[row.key]}
                   onChange={(field, value) => updateDtl(row.key, field, value)}
                   onRemove={() => removeDtl(row.key)}

@@ -19,6 +19,13 @@ import {
   updatePurchaseQuotationConversation,
   deletePurchaseQuotationConversation
 } from "../controllers/purchaseQuotationConversation.controller";
+import {
+  getPurchaseQuotationAdditionalCharges,
+  getPurchaseQuotationAdditionalCharge,
+  savePurchaseQuotationAdditionalCharge,
+  updatePurchaseQuotationAdditionalCharge,
+  deletePurchaseQuotationAdditionalCharge
+} from "../controllers/purchaseQuotationAdditionalCharge.controller";
 
 const PurchaseQuotationMasterRouter = express.Router();
 
@@ -30,6 +37,14 @@ PurchaseQuotationMasterRouter.get("/conversation-row/:sno", getPurchaseQuotation
 PurchaseQuotationMasterRouter.post("/conversation", savePurchaseQuotationConversation);
 PurchaseQuotationMasterRouter.put("/conversation/:sno", updatePurchaseQuotationConversation);
 PurchaseQuotationMasterRouter.delete("/conversation/:sno", deletePurchaseQuotationConversation);
+
+/* Additional charges routes use literal segments ("charge"/"charges") before
+   the "/:refNo" wildcard, so they are never read as a reference number. */
+PurchaseQuotationMasterRouter.get("/charges/:refNo", getPurchaseQuotationAdditionalCharges);
+PurchaseQuotationMasterRouter.get("/charge/:id", getPurchaseQuotationAdditionalCharge);
+PurchaseQuotationMasterRouter.post("/charge", savePurchaseQuotationAdditionalCharge);
+PurchaseQuotationMasterRouter.put("/charge/:id", updatePurchaseQuotationAdditionalCharge);
+PurchaseQuotationMasterRouter.delete("/charge/:id", deletePurchaseQuotationAdditionalCharge);
 
 PurchaseQuotationMasterRouter.get("/", getAllPurchaseQuotation);
 PurchaseQuotationMasterRouter.get("/load", getPurchaseQuotationLoad);

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import type { FieldDescriptor, FieldGroup, WizardOption } from "./types";
 
 const resolveOptions = (
@@ -78,7 +79,24 @@ const Field = ({
     );
   }
 
-if (field.kind === "select") {
+if (field.kind === "searchable") {
+    const options = resolveOptions(field.options, row);
+    return (
+      <div className="flex flex-col gap-1">
+        {label}
+        <SearchableSelect
+          value={row[field.key] == null ? "" : String(row[field.key])}
+          onChange={(v) => { if (!locked) onChange(field.key, field.transform ? field.transform(v) : v); }}
+          options={options}
+          placeholder={field.placeholder || `Search & select ${field.label}`}
+          disabled={locked}
+          className={cn(boxCls, border, locked && "opacity-70")}
+        />
+      </div>
+    );
+  }
+
+  if (field.kind === "select") {
     const options = resolveOptions(field.options, row);
     return (
       <div className="flex flex-col gap-1">
@@ -171,6 +189,7 @@ export default function DetailLineCard({
   errors,
   anchor,
   invalidFieldKeys,
+  primaryField,
 }: {
   title: string;
   subtitle?: string;
@@ -186,6 +205,7 @@ export default function DetailLineCard({
      next to the message. Optional: callers that don't validate per field simply
      omit it and only the banner shows. */
   invalidFieldKeys?: string[];
+  primaryField?: FieldDescriptor;
 }) {
   const invalidSet = new Set(invalidFieldKeys ?? []);
   return (
@@ -193,10 +213,22 @@ export default function DetailLineCard({
       data-anchor={anchor}
       className="scroll-mt-4 overflow-hidden rounded-lg border border-border bg-card"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
-        <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-foreground">{title}</p>
-          {subtitle ? <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p> : null}
+<div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold text-foreground">{title}</p>
+            {subtitle ? <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p> : null}
+          </div>
+          {primaryField ? (
+            <div className="w-[240px] max-w-[45vw] shrink-0">
+              <Field
+                field={primaryField}
+                row={row}
+                onChange={onChange}
+                invalid={invalidSet.has(primaryField.key)}
+              />
+            </div>
+          ) : null}
         </div>
         {onRemove ? (
           <button

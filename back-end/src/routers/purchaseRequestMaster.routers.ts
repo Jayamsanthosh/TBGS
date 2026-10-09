@@ -5,6 +5,7 @@ import {
   getPurchaseRequestDtls,
   getPurchaseRequestDtl,
   getPurchaseRequestLoad,
+  getPurchaseRequestRefNumbers,
   savePurchaseRequest,
   updatePurchaseRequest,
   deletePurchaseRequestDtl,
@@ -16,6 +17,7 @@ const PurchaseRequestMasterRouter = express.Router();
 
 PurchaseRequestMasterRouter.get("/", getAllPurchaseRequest);
 PurchaseRequestMasterRouter.get("/load", getPurchaseRequestLoad);
+PurchaseRequestMasterRouter.get("/reference-numbers", getPurchaseRequestRefNumbers);
 PurchaseRequestMasterRouter.get("/hdr/:refNo", getPurchaseRequestHdr);
 PurchaseRequestMasterRouter.get("/dtls/:refNo", getPurchaseRequestDtls);
 PurchaseRequestMasterRouter.get("/dtl/:id", getPurchaseRequestDtl);

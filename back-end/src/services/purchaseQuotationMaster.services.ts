@@ -221,13 +221,48 @@ export const getPurchaseQuotationListService = async (
       .execute("VPurchase.GET_PURCHASE_QUOTATION_HDR");
 
     const recordsets = (result.recordsets || []) as any[][];
+    let rows: any[];
+    let total: number;
     if (recordsets.length >= 2) {
-      const rows = (recordsets[1] || []).map((r: any) => ({ ...r, id: r.sno }));
-      const total = Number(recordsets[0]?.[0]?.Total ?? rows.length);
-      return { total, rows };
+      rows = recordsets[1] || [];
+      total = Number(recordsets[0]?.[0]?.Total ?? rows.length);
+    } else {
+      rows = recordsets[0] || [];
+      total = rows.length;
     }
-    const rows = (recordsets[0] || []).map((r: any) => ({ ...r, id: r.sno }));
-    return { total: rows.length, rows };
+
+    /* SUBMIT_PURCHASE_QUOTATION only advances a quotation that has a document
+       uploaded against it. The list reports which rows already have one (single
+       pass over the document table, never CONTENT_DATA) so the UI can enable or
+       block Submit up front instead of only finding out on click. */
+    const refs = rows
+      .map((r: any) => r?.PURCHASE_QUOTATION_NO ?? r?.purchaseQuotationNo)
+      .filter((v: any): v is string => typeof v === "string" && v.trim() !== "");
+
+    const withDocs = new Set<string>();
+    if (refs.length > 0) {
+      const req = pool.request();
+      refs.forEach((r, i) => req.input(`r${i}`, sql.VarChar(50), r));
+      const docRows = await req.query(
+        `SELECT DISTINCT LTRIM(RTRIM(PAGE_REF_NO)) AS PAGE_REF_NO
+         FROM VMaster.TBL_DOCUMENT_MANAGEMENT_SYSTEM
+         WHERE PAGE_REF_NO IN (${refs.map((_, i) => `@r${i}`).join(",")})`
+      );
+      for (const d of docRows.recordset || []) {
+        if (d?.PAGE_REF_NO != null) withDocs.add(String(d.PAGE_REF_NO).trim().toLowerCase());
+      }
+    }
+
+    return {
+      total,
+      rows: rows.map((r: any) => ({
+        ...r,
+        id: r.sno,
+        hasDocument: withDocs.has(
+          String(r?.PURCHASE_QUOTATION_NO ?? r?.purchaseQuotationNo ?? "").trim().toLowerCase()
+        ),
+      })),
+    };
   } catch (error) {
     console.error("GET_PURCHASE_QUOTATION_HDR SP error:", error);
     throw error;
@@ -763,7 +798,33 @@ export const submitPurchaseQuotationService = async (
     throw error;
   }
 
+  const badRequest = (message: string) => {
+    const err = new Error(message) as Error & { httpStatus?: number };
+    err.httpStatus = 400;
+    return err;
+  };
+
   try {
+    /* SUBMIT_PURCHASE_QUOTATION refuses (silently) to advance a quotation that
+       has no document uploaded against it - it runs a plain SELECT and returns
+       without touching the row, which would otherwise make OUT_ROWCOUNT = 0 look
+       like "already submitted". The gate is mirrored here so the caller gets a
+       real reason instead of a misleading success message. */
+    const doc = await pool
+      .request()
+      .input("PURCHASE_QUOTATION_NO", sql.VarChar(50), refNo)
+      .query(
+        `SELECT CASE WHEN EXISTS(
+              SELECT 1 FROM VMaster.TBL_DOCUMENT_MANAGEMENT_SYSTEM
+              WHERE PAGE_REF_NO = @PURCHASE_QUOTATION_NO
+            ) THEN 1 ELSE 0 END AS FOUND`
+      );
+    if (Number(doc.recordset?.[0]?.FOUND ?? 0) !== 1) {
+      throw badRequest(
+        `Purchase Quotation ${refNo} cannot be submitted until a document is uploaded against it. Add one in the Documents tab and try again.`
+      );
+    }
+
     const result = await pool
       .request()
       .input("PURCHASE_QUOTATION_NO", sql.VarChar(50), refNo)
@@ -776,12 +837,19 @@ export const submitPurchaseQuotationService = async (
     const row = result.recordset?.[0] || null;
     const changed = Number(result.output?.OUT_ROWCOUNT ?? 0);
 
+    /* The SP's document-missing branch selects a 4-column placeholder row that
+       carries no SNO. With the pre-check above that branch is unreachable, but
+       a returned row without SNO must still never be read as a submitted row. */
+    const looksLikeQuotation = row != null && row.SNO !== undefined && row.SNO !== null;
+
     return {
       message: changed > 0
         ? `Purchase Quotation ${refNo} submitted for approval`
-        : `Purchase Quotation ${refNo} was already submitted for approval`,
+        : looksLikeQuotation
+        ? `Purchase Quotation ${refNo} was already submitted for approval`
+        : `Purchase Quotation ${refNo} could not be submitted.`,
       changed,
-      quotation: row
+      quotation: row && looksLikeQuotation
         ? {
             purchaseQuotationNo: row.PURCHASE_QUOTATION_NO,
             quotationStatusId: row.QUOTATION_STATUS_ID,
@@ -791,7 +859,9 @@ export const submitPurchaseQuotationService = async (
         : null,
     };
   } catch (error) {
-    console.error("SUBMIT_PURCHASE_QUOTATION error:", error);
+    if (!(error as Error & { httpStatus?: number })?.httpStatus) {
+      console.error("SUBMIT_PURCHASE_QUOTATION error:", error);
+    }
     throw error;
   }
 };

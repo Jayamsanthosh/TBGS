@@ -141,6 +141,16 @@ export function Header() {
                 {user?.companyName && (
                   <p className="text-[11px] text-primary truncate mt-0.5">{user.companyName}</p>
                 )}
+                {(user as any)?.context?.branchName && (
+                  <p className="text-[10px] text-slate-500 truncate">{(user as any).context.branchName}</p>
+                )}
+                {(user as any)?.context && ((user as any).context.campName || (user as any).context.storeName) && (
+                  <p className="text-[9px] text-slate-400 truncate">
+                    {(user as any).context.campName ? `${(user as any).context.campName}` : ''}
+                    {(user as any).context.campName && (user as any).context.storeName ? ' • ' : ''}
+                    {(user as any).context.storeName || ''}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => { setDropdownOpen(false); setChangePasswordOpen(true); }}
@@ -592,6 +602,17 @@ onClick={() => {
                 {user?.companyName && (
                   <p className="text-[10px] text-white/40 truncate mt-1">
                     {user.companyName}
+                  </p>
+                )}
+                {(user as any)?.context?.branchName && (
+                  <p className="text-[10px] text-white/40 truncate">
+                    Branch: {(user as any).context.branchName}
+                  </p>
+                )}
+                {(user as any)?.context && (
+                  <p className="text-[9px] text-white/40 truncate">
+                    {(user as any).context.campName ? `${(user as any).context.campName} • ` : ''}
+                    {(user as any).context.storeName || ''}
                   </p>
                 )}
               </div>

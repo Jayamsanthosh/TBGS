@@ -21,6 +21,27 @@ export interface JwtCompanyInfo {
   branchName: string | null;
 }
 
+/**
+ * The company/branch/camp/store the user actually picked on the login screen,
+ * validated against TBL_USER_TO_STORE_MAPPING before it was written here.
+ *
+ * This is the scope every screen should read. `companies` below is the full
+ * list of what the user MAY switch to; `context` is the one they DID choose.
+ * Any id is null when the login is not mapped to it - a company with no active
+ * branch mapping legitimately has a null branch, which is a valid state and
+ * never an error.
+ */
+export interface JwtSessionContext {
+  companyId: number;
+  companyName: string;
+  campId: number | null;
+  campName: string | null;
+  storeId: number | null;
+  storeName: string | null;
+  branchId: number | null;
+  branchName: string | null;
+}
+
 export interface JwtEmployeeInfo {
   /**
    * Employee id for the login, or null when the login is not an employee - it has
@@ -46,6 +67,13 @@ export interface JwtPayload {
   roleId: number;        // ROLE_ID - the ONLY value used for authorization
   /** Company context resolved from the user's store mapping. */
   companies?: JwtCompanyInfo[];
+  /**
+   * The active company/branch/camp/store, chosen at login and re-validated
+   * against the user's mapping. Optional because an access token minted before
+   * the login screen had these dropdowns has no such claim - consumers must
+   * fall back to `companies[0]` rather than assume it is present.
+   */
+  context?: JwtSessionContext;
   /** Branch of the active (first) company, hoisted for screens that read one. */
   branchId?: number | null;
   branchName?: string | null;

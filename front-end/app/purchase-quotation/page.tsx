@@ -9,6 +9,7 @@ import WizardSection from "@/components/wizard/WizardSection";
 import DetailLineCard from "@/components/wizard/DetailLineCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import AttachmentsPanel from "@/components/AttachmentsPanel";
+import AdditionalChargesPanel from "./additional-charges-panel";
 import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import {
   HDR_STEP,
@@ -55,6 +56,7 @@ const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
    validation jump only ever has to come back to the form. */
 const QUOTATION_TAB = "quotation";
 const DOCUMENTS_TAB = "documents";
+const CHARGES_TAB = "charges";
 
 /* Status Entry is owned by the workflow, not the user: CF (Pending for
    Submitted) until the row is submitted, then CL (Submitted). It is displayed
@@ -205,6 +207,38 @@ export default function PurchaseQuotationPage() {
   const { user } = useAppSelector((state) => state.auth);
   const { toast } = useToast();
 
+  /* The login's mapped (active) company and its branch, from the session. These are
+     only a fallback for a login with no employee record. Note an employee's own
+     company can differ from the company the login is mapped to. */
+  const activeCompanyId = user?.context?.companyId ?? user?.companies?.[0]?.companyId ?? null;
+
+  /* Company and Branch belong to the logged-in user, so the header takes them from
+     the session instead of asking.
+
+     Company is the employee's own company, falling back to the login's mapped company.
+     Branch comes from the session's employee block, the same pair the backend resolves
+     for the purchase request - so Company and Branch are always a real pair rather than
+     one company's id beside another company's branch. PO Store is a fixed destination -
+     it only ever reads "PURCHASE STORE" and never carries a selectable value. */
+  const sessionEmployee = user?.employee ?? null;
+  const sessionEmployeeDefaults = useMemo(
+    () => ({
+      companyId: sessionEmployee?.companyId ?? activeCompanyId ?? null,
+      branchId:
+        sessionEmployee?.branchId ??
+        user?.context?.branchId ??
+        user?.companies?.[0]?.branchId ??
+        null,
+    }),
+    [
+      sessionEmployee?.companyId,
+      sessionEmployee?.branchId,
+      user?.context,
+      user?.companies,
+      activeCompanyId,
+    ]
+  );
+
   const [search, setSearch] = useState("");
   const [finalStatusFilter, setFinalStatusFilter] = useState<string>("ALL");
   const [statusEntryFilter, setStatusEntryFilter] = useState<string>("ALL");
@@ -226,11 +260,23 @@ export default function PurchaseQuotationPage() {
   const [conversationFor, setConversationFor] = useState<{ no: string; statusEntry?: string } | null>(null);
   const [dtls, setDtls] = useState<any[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
+  /* Charges added while creating a brand-new quotation have no ref no yet, so
+     they are staged here and written after the header is created. */
+  const [stagedCharges, setStagedCharges] = useState<any[]>([]);
   const [reqNo, setReqNo] = useState<string>("");
   const [loadingReq, setLoadingReq] = useState(false);
+  /* The request picked in the dropdown is previewed beside it before any lines
+     are brought over, so the quote is only ever built from a request already
+     reviewed line by line. */
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHdr, setPreviewHdr] = useState<any>(null);
+  const [previewLines, setPreviewLines] = useState<any[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(QUOTATION_TAB);
 
-  const linkPagesId = useLinkPagesId(0);
+  /* 266 is the Purchase Quotation page id in TBL_LINKS_AND_PAGES; it is the
+     fallback so documents can always be attached even before nav data loads. */
+  const linkPagesId = useLinkPagesId(266);
   const currentQuotationNo =
     form.PURCHASE_QUOTATION_NO ||
     editing?.purchaseQuotationNo ||
@@ -261,7 +307,7 @@ export default function PurchaseQuotationPage() {
   const { data: companies } = useApiQuery("pq-master-companies", () => fetchList(`${API_URL}/company-master`));
   const { data: branches } = useApiQuery("pq-master-branches", () => fetchList(`${API_URL}/branch-master?status=AC`));
   const { data: stores } = useApiQuery("pq-master-stores", () => fetchList(`${API_URL}/store-master`));
-const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_URL}/camp-master`));
+  const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_URL}/camp-master`));
   const { data: locations } = useApiQuery("pq-master-locations", () => fetchList(`${API_URL}/location-master`));
   const { data: suppliers } = useApiQuery("pq-master-suppliers", () => fetchList(`${API_URL}/business-partner-master?status=AC`));
   const { data: paymentTerms } = useApiQuery("pq-master-payment-terms", () => fetchList(`${API_URL}/payment-term-master`));
@@ -269,6 +315,7 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
   const { data: shipmentModes } = useApiQuery("pq-master-shipment-modes", () => fetchList(`${API_URL}/shipment-mode-master/load`));
   const { data: taxes } = useApiQuery("pq-master-taxes", () => fetchList(`${API_URL}/tax-master`));
   const { data: currencies } = useApiQuery("pq-master-currencies", () => fetchList(`${API_URL}/currency-master`));
+  const { data: uoms } = useApiQuery("pq-master-uoms", () => fetchList(`${API_URL}/uom-master`));
   const { data: quoteStatuses } = useApiQuery("pq-master-quote-statuses", () => fetchList(`${API_URL}/status-master/load?includeInactive=false`));
   /* Only submitted requests may be quoted, so a draft cannot be priced by accident.
 
@@ -333,7 +380,6 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
 
   const companyOptions = useMemo(() => opt(companies, "COMPANY_ID", "COMPANY_NAME"), [companies]);
   const branchOptions = useMemo(() => opt(branches, "BRANCH_ID", "BRANCH_NAME"), [branches]);
-  const storeOptions = useMemo(() => opt(stores, "STORE_ID", "STORE_NAME"), [stores]);
 
   /* Camp and Request Store travel on the quotation detail line as bare ids picked
      from the purchase-request header, so the readable names are resolved here from
@@ -349,6 +395,16 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
   };
   const campNameMap = useMemo(() => nameMap(camps, "CAMP_ID", "CAMP_NAME"), [camps]);
   const storeNameMap = useMemo(() => nameMap(stores, "STORE_ID", "STORE_NAME"), [stores]);
+
+  /* UOM names do not leave the request SP for the alternate unit, so every Alt
+     UOM cell resolves its name from the master here instead of showing a bare id. */
+  const uomNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    (Array.isArray(uoms) ? uoms : []).forEach((u: any) => {
+      if (u.UOM_ID != null) m.set(String(u.UOM_ID), String(u.UOM_NAME ?? ""));
+    });
+    return m;
+  }, [uoms]);
 
   const locationOptions = useMemo(() => opt(locations, "LOCATION_ID", "LOCATION_NAME"), [locations]);
   const paymentTermOptions = useMemo(() => opt(paymentTerms, "PAYMENT_TERM_ID", "PAYMENT_TERM_NAME"), [paymentTerms]);
@@ -390,9 +446,9 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
     [suppliers]
   );
 
-/* How many lines this quotation has taken from each request, keyed by request
-     number. Counted from the detail rows themselves so it stays correct when a
-     line is removed again - the request then goes back into the dropdown. */
+  /* How many lines this quotation has taken from each request, keyed by request
+       number. Counted from the detail rows themselves so it stays correct when a
+       line is removed again - the request then goes back into the dropdown. */
   const importedCountByRequest = useMemo(() => {
     const counts = new Map<string, number>();
     for (const r of dtls as any[]) {
@@ -403,30 +459,30 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
     return counts;
   }, [dtls]);
 
-/* A request drops out of the dropdown once every one of its lines is already
-     quoted. Two independent ways that can happen:
-
-       a) all of its lines are on the quotation being edited now, so there is
-          nothing left to take from it - and picking it again only produced an
-          "already added" refusal;
-       b) all of its lines are already in another SUBMITTED quotation, so it has
-          been priced for real and is not offered again.
-
-     Draft quotations deliberately do not count for (b). A draft is somebody's
-     unfinished work, not a decision, so it must not hide a request from anyone
-     else - nor stop a second supplier being asked to quote the same request,
-     which is how prices get compared.
-
-     Comparing against the request's own detailLineCount is what makes this
-     exact. Counting the imported rows alone cannot tell a fully quoted request
-     from a partly used one, so a request whose lines were pulled in two goes
-     would still be offered even with nothing left to add.
-
-     Both counts come from the grid read. A value that is missing - a row from a
-     build before the columns existed - means "unknown" and the request is left
-     in the list rather than wrongly hidden. A request with no lines keeps a
-     count of 0 and stays listed, so selecting it still reports that it has no
-     detail lines. */
+  /* A request drops out of the dropdown once every one of its lines is already
+       quoted. Two independent ways that can happen:
+  
+         a) all of its lines are on the quotation being edited now, so there is
+            nothing left to take from it - and picking it again only produced an
+            "already added" refusal;
+         b) all of its lines are already in another SUBMITTED quotation, so it has
+            been priced for real and is not offered again.
+  
+       Draft quotations deliberately do not count for (b). A draft is somebody's
+       unfinished work, not a decision, so it must not hide a request from anyone
+       else - nor stop a second supplier being asked to quote the same request,
+       which is how prices get compared.
+  
+       Comparing against the request's own detailLineCount is what makes this
+       exact. Counting the imported rows alone cannot tell a fully quoted request
+       from a partly used one, so a request whose lines were pulled in two goes
+       would still be offered even with nothing left to add.
+  
+       Both counts come from the grid read. A value that is missing - a row from a
+       build before the columns existed - means "unknown" and the request is left
+       in the list rather than wrongly hidden. A request with no lines keeps a
+       count of 0 and stays listed, so selecting it still reports that it has no
+       detail lines. */
   const isFullyQuoted = (r: any) => {
     const no = String(r.purchaseRequestNo ?? "").trim();
     if (!no) return false;
@@ -441,10 +497,10 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
     return inSubmitted >= total;
   };
 
-/* True only when there really were eligible requests and the only reason the
-   list is empty is that all of them are already quoted. This keeps the
-   empty-list message honest: a list emptied by the rejected filter, or by the
-   request not having arrived yet, is a different thing. */
+  /* True only when there really were eligible requests and the only reason the
+     list is empty is that all of them are already quoted. This keeps the
+     empty-list message honest: a list emptied by the rejected filter, or by the
+     request not having arrived yet, is a different thing. */
   const allRequestsFullyQuoted = useMemo(() => {
     const eligible = (Array.isArray(prOptions) ? prOptions : []).filter(
       (r: any) => !/reject/i.test(String(r.finalResponseStatus ?? ""))
@@ -454,15 +510,23 @@ const { data: camps } = useApiQuery("pq-master-camps", () => fetchList(`${API_UR
 
   /* Rejected requests are hidden here as well as by STATUS_ENTRY, because a
    rejection leaves the entry at 'CL' and would otherwise still be quotable. */
-const requestOptions = useMemo(
+  const requestOptions = useMemo(
     () =>
       (Array.isArray(prOptions) ? prOptions : [])
         .filter((r: any) => !/reject/i.test(String(r.finalResponseStatus ?? "")))
         .filter((r: any) => !isFullyQuoted(r))
         .map((r: any) => ({
-        value: String(r.purchaseRequestNo ?? ""),
-        label: r.displayText || r.purchaseRequestNo || "",
-      }))
+          value: String(r.purchaseRequestNo ?? ""),
+          label: r.displayText || r.purchaseRequestNo || "",
+          /* Item summary folded by the backend ("Deliver: X · Rice 50 KG · ...").
+             Falls back to just the line count when the backend has not shipped it
+             yet, so the dropdown always shows something. */
+          summary:
+            r.itemSummary ||
+            (Number.isFinite(Number(r.detailLineCount)) && Number(r.detailLineCount) > 0
+              ? `${r.detailLineCount} item${Number(r.detailLineCount) === 1 ? "" : "s"}`
+              : ""),
+        }))
         .filter((o: any) => o.value),
     [prOptions, importedCountByRequest]
   );
@@ -533,9 +597,12 @@ const requestOptions = useMemo(
 
   const emptyForm = () => ({
     PURCHASE_QUOTATION_DATE: fmtDate(new Date()),
-    COMPANY_ID: "",
+    /* Company and Branch are taken from the session, never picked - a new quotation
+       starts with the logged-in user's values. PO Store stays empty: the header
+       stores no store id, it only ever reads "PURCHASE STORE". */
+    COMPANY_ID: sessionEmployeeDefaults.companyId != null ? String(sessionEmployeeDefaults.companyId) : "",
     SUPPLIER_BP_ID: "",
-    BRANCH_ID: "",
+    BRANCH_ID: sessionEmployeeDefaults.branchId != null ? String(sessionEmployeeDefaults.branchId) : "",
     PO_STORE_ID: "",
     SUPPLIER_QUOTATION_NO: "",
     SUPPLIER_QUOTATION_DATE: "",
@@ -674,6 +741,8 @@ const requestOptions = useMemo(
           UOM_ID: p.UOM_ID != null ? Number(p.UOM_ID) : undefined,
           UOM_NAME: p.UOM_NAME || "",
           ALT_UOM_ID: p.ALT_UOM_ID != null ? Number(p.ALT_UOM_ID) : undefined,
+          ALT_UOM_NAME: (p.ALT_UOM_NAME || "").trim()
+            || (p.ALT_UOM_ID != null ? uomNameById.get(String(Number(p.ALT_UOM_ID))) ?? "" : ""),
           TOTAL_QUANTITY_SRC: p.Total_Quantity ?? "",
           RATE: "",
           DISCOUNT_PERCENTAGE: "",
@@ -715,6 +784,9 @@ const requestOptions = useMemo(
            show blank while the Add button stayed enabled, and pressing it again
            would only repeat the "already added" refusal. */
         setReqNo("");
+        setPreviewOpen(false);
+        setPreviewHdr(null);
+        setPreviewLines([]);
       }
     } catch (e: any) {
       toast({
@@ -727,12 +799,66 @@ const requestOptions = useMemo(
     }
   };
 
+  const clearRequestSelection = () => {
+    setReqNo("");
+    setPreviewOpen(false);
+    setPreviewHdr(null);
+    setPreviewLines([]);
+  };
+
+  /* Selecting a request asks the backend for its header and lines on the spot,
+     so the "Review in Purchase Request" panel beside it stays live. */
+  const onReqNoChange = async (v: string) => {
+    if (!v) {
+      clearRequestSelection();
+      return;
+    }
+    setReqNo(v);
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    setPreviewHdr(null);
+    setPreviewLines([]);
+    try {
+      const [hdr, lines] = await Promise.all([
+        dispatch(fetchPurchaseRequestHdr(v)).unwrap(),
+        dispatch(fetchPurchaseRequestDtls(v)).unwrap(),
+      ]);
+      setPreviewHdr(hdr ?? null);
+      setPreviewLines(Array.isArray(lines) ? lines : []);
+    } catch (e: any) {
+      toast({
+        title: typeof e === "string" ? e : e?.message || "Failed to load request for review",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+      setPreviewHdr(null);
+      setPreviewLines([]);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  /* Delivery location lives on the request header - one value for the whole
+     request - so the review panel shows it once, beside the line list below. */
+  const previewDeliveryName = useMemo(() => {
+    const id = previewHdr?.DELIVERY_LOCATION_ID;
+    return id == null ? "" : (locationOptions.find((o: any) => o.value === String(id))?.label ?? "");
+  }, [previewHdr, locationOptions]);
+
+  const previewQty = (v: any) => {
+    if (v === "" || v === null || v === undefined) return "-";
+    const n = Number(v);
+    if (Number.isNaN(n)) return String(v);
+    return n.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  };
+
   const openAdd = () => {
     setEditing(null);
     setForm(emptyForm());
     setDtls([]);
     setDeletedIds([]);
-    setReqNo("");
+    setStagedCharges([]);
+    clearRequestSelection();
     setStepErrors({});
     setLineErrors({});
     setFocusRequest(null);
@@ -743,7 +869,7 @@ const requestOptions = useMemo(
     setEditing(item);
     /* The lines of the quotation being opened decide which requests the
        dropdown offers, so the previous selection is meaningless here. */
-    setReqNo("");
+    clearRequestSelection();
     try {
       const refNo = item.purchaseQuotationNo ?? item.PURCHASE_QUOTATION_NO;
       const hdr: any = await dispatch(fetchPurchaseQuotationHdr(refNo)).unwrap();
@@ -751,10 +877,13 @@ const requestOptions = useMemo(
       setForm({
         PURCHASE_QUOTATION_NO: hdr.PURCHASE_QUOTATION_NO || refNo || "",
         PURCHASE_QUOTATION_DATE: fmtDate(hdr.PURCHASE_QUOTATION_DATE),
-        COMPANY_ID: toStr(hdr.COMPANY_ID),
+        /* Company / Branch are session-owned, so an edit shows the session values
+           - the save stamps them the same way for every record. PO Store is a
+           fixed destination and never shows a stored id. */
+        COMPANY_ID: sessionEmployeeDefaults.companyId != null ? String(sessionEmployeeDefaults.companyId) : "",
         SUPPLIER_BP_ID: toStr(hdr.SUPPLIER_BP_ID),
-        BRANCH_ID: toStr(hdr.BRANCH_ID),
-        PO_STORE_ID: toStr(hdr.PO_STORE_ID),
+        BRANCH_ID: sessionEmployeeDefaults.branchId != null ? String(sessionEmployeeDefaults.branchId) : "",
+        PO_STORE_ID: "",
         SUPPLIER_QUOTATION_NO: hdr.SUPPLIER_QUOTATION_NO || "",
         SUPPLIER_QUOTATION_DATE: fmtDate(hdr.SUPPLIER_QUOTATION_DATE),
         VALID_FROM_DATE: fmtDate(hdr.VALID_FROM_DATE),
@@ -944,6 +1073,34 @@ const requestOptions = useMemo(
       } else {
         const res = await dispatch(addPurchaseQuotation(payload as PurchaseQuotationGridData)).unwrap();
         toast({ title: res?.message ?? "Purchase Quotation created successfully", duration: DEFAULT_TOAST_DURATION });
+        /* Charges staged in Add mode have no ref no, so they are written now the
+           header exists. Failures warn but never roll back the quotation. */
+        const newRefNo = res?.PURCHASE_QUOTATION_NO;
+        if (stagedCharges.length && newRefNo) {
+          const failed: string[] = [];
+          for (const c of stagedCharges) {
+            try {
+              const response = await fetch(`${API_URL}/purchase-quotation/charge`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...c, PURCHASE_QUOTATION_NO: newRefNo }),
+              });
+              const json = await response.json().catch(() => ({}));
+              if (!response.ok) failed.push(`Line ${c?.LINE_NO ?? "-"}: ${json?.message || "failed"}`);
+            } catch (err: any) {
+              failed.push(`Line ${c?.LINE_NO ?? "-"}: ${err?.message || "failed"}`);
+            }
+          }
+          if (failed.length) {
+            toast({
+              variant: "destructive",
+              title: `${failed.length} additional charge${failed.length === 1 ? "" : "s"} could not be saved.`,
+              description: failed.join(" · "),
+              duration: DEFAULT_TOAST_DURATION,
+            });
+          }
+          setStagedCharges([]);
+        }
       }
       setDialogOpen(false);
       setStepErrors({});
@@ -975,6 +1132,14 @@ const requestOptions = useMemo(
     const refNo = row?.purchaseQuotationNo ?? row?.PURCHASE_QUOTATION_NO;
     if (!refNo) return;
     if (submittingRef === refNo) return;
+    if (!row?.hasDocument) {
+      toast({
+        title: "Upload the purchase quotation document first (Documents tab).",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+      return;
+    }
     setSubmittingRef(refNo);
     try {
       const res = await dispatch(
@@ -1051,43 +1216,17 @@ const requestOptions = useMemo(
   /* ------------------------------------------------- wizard line groups --- */
   const lineGroups = (): FieldGroup[] => [
     {
-      title: "From Purchase Request",
-      fields: [
-        {
-          key: "PURCHASE_REQUEST_NO",
-          label: "Purchase Request",
-          kind: "readOnly",
-          display: (r: any) =>
-            r.PURCHASE_REQUEST_NO
-              ? `${r.PURCHASE_REQUEST_NO}${r.SOURCE_LINE_NO != null ? ` (line ${r.SOURCE_LINE_NO})` : ""}`
-              : "-",
-        },
-        { key: "CAMP", label: "Camp", kind: "readOnly", display: (r: any) => r.CAMP_NAME || (r.CAMP_ID ?? "-") },
-        { key: "REQUEST_STORE", label: "Req Store", kind: "readOnly", display: (r: any) => r.REQUEST_STORE_NAME || (r.REQUEST_STORE_ID ?? "-") },
-        { key: "REFERENCE_TYPE", label: "Ref Type", kind: "readOnly", display: (r: any) => r.REFERENCE_TYPE_NAME || (r.REFERENCE_TYPE_ID ?? "-") },
-      ],
-    },
-    {
-      title: "Item",
-      fields: [
-        { key: "MAIN_CATEGORY_ID", label: "Main Category", kind: "readOnly", display: (r: any) => r.MAIN_CATEGORY_NAME || (r.MAIN_CATEGORY_ID ?? "-") },
-        { key: "SUB_CATEGORY_ID", label: "Sub Category", kind: "readOnly", display: (r: any) => r.SUB_CATEGORY_NAME || (r.SUB_CATEGORY_ID ?? "-") },
-        { key: "PRODUCT_ID", label: "Product", kind: "readOnly", display: (r: any) => r.PRODUCT_NAME || (r.PRODUCT_ID ?? "-") },
-        { key: "NO_OF_PCS_PER_PACKING", label: "Pcs/Packing", kind: "readOnly", display: (r: any) => r.NO_OF_PCS_PER_PACKING || "From product" },
-        { key: "UOM", label: "UOM", kind: "readOnly", display: (r: any) => r.UOM_NAME || (r.UOM_ID ?? "-") },
-        { key: "ALT_UOM", label: "Alt UOM", kind: "readOnly", display: (r: any) => r.ALT_UOM_NAME || (r.ALT_UOM_ID ?? "-") },
-      ],
-    },
-    {
       title: "Quantity & Pricing",
       fields: [
         { key: "LINE_NO", label: "Line No", kind: "computed", hint: "auto", display: (r: any) => r.LINE_NO ?? "-" },
-        { key: "REFERENCE_NO", label: "Reference No", kind: "text", maxLength: 50, placeholder: "Ref no",
+        {
+          key: "REFERENCE_NO", label: "Reference No", kind: "text", maxLength: 50, placeholder: "Ref no",
           /* Locked when the line came from a request, because the value is the
              request's. A line added by hand has no request to trace, so it stays
              typeable. */
           disabled: (r: any) => r.PURCHASE_REQUEST_DTL_ID != null || !!r.PURCHASE_REQUEST_NO,
-          hint: "from request" },
+          hint: "from request"
+        },
         { key: "TOTAL_QUANTITY", label: "Quantity", kind: "number", required: true, min: 0, transform: clampNonNegative },
         { key: "TOTAL_PACKING", label: "Total Packing", kind: "computed", display: (r: any) => (r.TOTAL_PACKING === "" || r.TOTAL_PACKING == null ? "Auto" : r.TOTAL_PACKING) },
         { key: "RATE", label: "Rate", kind: "number", required: true, min: 0, placeholder: "0.000", transform: clampNonNegative },
@@ -1131,6 +1270,34 @@ const requestOptions = useMemo(
       ],
     },
     {
+      title: "From Purchase Request",
+      fields: [
+        {
+          key: "PURCHASE_REQUEST_NO",
+          label: "Purchase Request",
+          kind: "readOnly",
+          display: (r: any) =>
+            r.PURCHASE_REQUEST_NO
+              ? `${r.PURCHASE_REQUEST_NO}${r.SOURCE_LINE_NO != null ? ` (line ${r.SOURCE_LINE_NO})` : ""}`
+              : "-",
+        },
+        { key: "CAMP", label: "Camp", kind: "readOnly", display: (r: any) => r.CAMP_NAME || (r.CAMP_ID ?? "-") },
+        { key: "REQUEST_STORE", label: "Req Store", kind: "readOnly", display: (r: any) => r.REQUEST_STORE_NAME || (r.REQUEST_STORE_ID ?? "-") },
+        { key: "REFERENCE_TYPE", label: "Ref Type", kind: "readOnly", display: (r: any) => r.REFERENCE_TYPE_NAME || (r.REFERENCE_TYPE_ID ?? "-") },
+      ],
+    },
+    {
+      title: "Item",
+      fields: [
+        { key: "MAIN_CATEGORY_ID", label: "Main Category", kind: "readOnly", display: (r: any) => r.MAIN_CATEGORY_NAME || (r.MAIN_CATEGORY_ID ?? "-") },
+        { key: "SUB_CATEGORY_ID", label: "Sub Category", kind: "readOnly", display: (r: any) => r.SUB_CATEGORY_NAME || (r.SUB_CATEGORY_ID ?? "-") },
+        { key: "PRODUCT_ID", label: "Product", kind: "readOnly", display: (r: any) => r.PRODUCT_NAME || (r.PRODUCT_ID ?? "-") },
+        { key: "NO_OF_PCS_PER_PACKING", label: "Pcs/Packing", kind: "readOnly", display: (r: any) => r.NO_OF_PCS_PER_PACKING || "From product" },
+        { key: "UOM", label: "UOM", kind: "readOnly", display: (r: any) => r.UOM_NAME || (r.UOM_ID ?? "-") },
+        { key: "ALT_UOM", label: "Alt UOM", kind: "readOnly", display: (r: any) => r.ALT_UOM_NAME || (r.ALT_UOM_ID != null ? uomNameById.get(String(r.ALT_UOM_ID)) ?? "" : "") || (r.ALT_UOM_ID ?? "-") },
+      ],
+    },
+    {
       title: "Totals in LC",
       fields: [
         /* The rate that produced every LC figure below, so a line never has to
@@ -1152,7 +1319,8 @@ const requestOptions = useMemo(
       SUPPLIER_BP_ID: pick(supplierOptions, form.SUPPLIER_BP_ID),
       COMPANY_ID: pick(companyOptions, form.COMPANY_ID),
       BRANCH_ID: pick(branchOptions, form.BRANCH_ID),
-      PO_STORE_ID: pick(storeOptions, form.PO_STORE_ID),
+      /* PO Store is a fixed destination - it only ever reads "PURCHASE STORE". */
+      PO_STORE_ID: "PURCHASE STORE",
       QUOTATION_STATUS_ID: pick(quoteStatusOptions, form.QUOTATION_STATUS_ID),
       PAYMENT_TERM_ID: pick(paymentTermOptions, form.PAYMENT_TERM_ID),
       PAYMENT_MODE_ID: pick(paymentModeOptions, form.PAYMENT_MODE_ID),
@@ -1165,7 +1333,7 @@ const requestOptions = useMemo(
       STATUS_ENTRY: entryLabel(form.STATUS_ENTRY),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, supplierOptions, companyOptions, branchOptions, storeOptions, quoteStatusOptions, paymentTermOptions, paymentModeOptions, shipmentModeOptions, locationOptions, currencyOptions]);
+  }, [form, supplierOptions, companyOptions, branchOptions, quoteStatusOptions, paymentTermOptions, paymentModeOptions, shipmentModeOptions, locationOptions, currencyOptions]);
 
   /* Every rule the old step-1/step-2 gates enforced. Section problems land in
      stepErrors; per-line problems stay with the card so the user sees which
@@ -1349,7 +1517,7 @@ const requestOptions = useMemo(
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Supplier Quote No</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Company</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Branch</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">PO Store</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">PURCHASE STORE</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Valid To</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Final Amount (LC)</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Quotation Status</th>
@@ -1364,59 +1532,68 @@ const requestOptions = useMemo(
                   /* Submitting is one-way: once a row is pending the button stays
                      disabled. The status comes from the server row, not local state. */
                   const isPending = !!pendingStatusId && String(item.quotationStatusId ?? "") === pendingStatusId;
+                  /* SUBMIT_PURCHASE_QUOTATION refuses a quotation with no uploaded
+                     document, so the action is refused on click until one exists. The
+                     button itself stays enabled (a too-eager disable hid the reason). */
+                  const lacksDocument = !item.hasDocument;
                   return (
-                  <tr key={item.id || idx} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="p-3 flex gap-2">
-                      <button onClick={() => openEdit(item)} className="p-1.5 rounded hover:bg-muted transition-colors"><Pencil className="w-4 h-4 text-muted-foreground" /></button>
-                      <button
-                        onClick={() => setConversationFor({ no: refNo, statusEntry: item.statusEntry })}
-                        title="Conversation"
-                        aria-label={`Conversation for ${refNo}`}
-                        className="p-1.5 rounded hover:bg-muted transition-colors"
-                      >
-                        <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                      </button>
-                      {isAdmin && <button onClick={() => setDeleteId(refNo)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4 text-destructive" /></button>}
-                      <button
-                        onClick={() => handleSubmitRow(item)}
-                        disabled={isSubmitting || isPending}
-                        title={
-                          missingStatusMaster
-                            ? "Status Master is unavailable - PENDING_APPROVAL could not be resolved"
-                            : isPending
-                              ? "Already pending for approval"
-                              : "Submit for approval"
-                        }
-                        className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {isSubmitting ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-info" />
-                        ) : (
-                          <Send className="w-4 h-4 text-info" />
-                        )}
-                      </button>
-                    </td>
-                    <td className="p-3 font-medium">{item.purchaseQuotationNo || "-"}</td>
-                    <td className="p-3">{formatDate(item.purchaseQuotationDate)}</td>
-                    <td className="p-3">{item.supplierName || "-"}</td>
-                    <td className="p-3">{item.supplierQuotationNo || "-"}</td>
-                    <td className="p-3">{item.companyName || "-"}</td>
-                    <td className="p-3">{item.branchName || "-"}</td>
-                    <td className="p-3">{item.poStoreName || "-"}</td>
-                    <td className="p-3">{formatDate(item.validToDate)}</td>
-                    <td className="p-3 font-medium">{money(item.finalProductHdrAmountLc)}</td>
-                    <td className="p-3">{item.quotationStatusName || "-"}</td>
-                    <td className="p-3">
-                      <Badge variant="outline" className={`${finalBadgeClass(item.finalResponseStatus)} px-2 py-0.5 text-[10px] uppercase font-bold`}>
-                        {finalLabel(item.finalResponseStatus)}
-                      </Badge>
-                    </td>
-                    <td className="p-3">
-                      <Badge variant="outline" className={`${entryBadgeClass(item.statusEntry)} px-2 py-0.5 text-xs font-semibold whitespace-nowrap`}>
-                        {entryLabel(item.statusEntry)}
-                      </Badge>
-                    </td>
-                  </tr>
+                    <tr key={item.id || idx} className="border-b hover:bg-muted/30 transition-colors">
+                      <td className="p-3 flex gap-2">
+                        <button onClick={() => openEdit(item)} className="p-1.5 rounded hover:bg-muted transition-colors"><Pencil className="w-4 h-4 text-muted-foreground" /></button>
+                        <button
+                          onClick={() => setConversationFor({ no: refNo, statusEntry: item.statusEntry })}
+                          title="Conversation"
+                          aria-label={`Conversation for ${refNo}`}
+                          className="p-1.5 rounded hover:bg-muted transition-colors"
+                        >
+                          <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                        {isAdmin && <button onClick={() => setDeleteId(refNo)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4 text-destructive" /></button>}
+                        {/* Submitting is one-way: once a row is pending the button stays
+                          disabled. A missing document does NOT disable it - the click
+                          is refused with a message instead, so the user knows why. */}
+                        <button
+                          onClick={() => handleSubmitRow(item)}
+                          disabled={isSubmitting || isPending}
+                          title={
+                            missingStatusMaster
+                              ? "Status Master is unavailable - PENDING_APPROVAL could not be resolved"
+                              : lacksDocument
+                                ? "Upload the purchase quotation document first (Documents tab)"
+                                : isPending
+                                  ? "Already pending for approval"
+                                  : "Submit for approval"
+                          }
+                          className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-info" />
+                          ) : (
+                            <Send className="w-4 h-4 text-info" />
+                          )}
+                        </button>
+                      </td>
+                      <td className="p-3 font-medium">{item.purchaseQuotationNo || "-"}</td>
+                      <td className="p-3">{formatDate(item.purchaseQuotationDate)}</td>
+                      <td className="p-3">{item.supplierName || "-"}</td>
+                      <td className="p-3">{item.supplierQuotationNo || "-"}</td>
+                      <td className="p-3">{item.companyName || "-"}</td>
+                      <td className="p-3">{item.branchName || "-"}</td>
+                      <td className="p-3">PURCHASE STORE</td>
+                      <td className="p-3">{formatDate(item.validToDate)}</td>
+                      <td className="p-3 font-medium">{money(item.finalProductHdrAmountLc)}</td>
+                      <td className="p-3">{item.quotationStatusName || "-"}</td>
+                      <td className="p-3">
+                        <Badge variant="outline" className={`${finalBadgeClass(item.finalResponseStatus)} px-2 py-0.5 text-[10px] uppercase font-bold`}>
+                          {finalLabel(item.finalResponseStatus)}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="outline" className={`${entryBadgeClass(item.statusEntry)} px-2 py-0.5 text-xs font-semibold whitespace-nowrap`}>
+                          {entryLabel(item.statusEntry)}
+                        </Badge>
+                      </td>
+                    </tr>
                   );
                 })}
                 {paginated.length === 0 && (
@@ -1455,6 +1632,9 @@ const requestOptions = useMemo(
             setStepErrors({});
             setLineErrors({});
             setFocusRequest(null);
+            /* A cancelled/closed dialog must not leak staged charges into the
+               next open; a successful save already flushed and cleared them. */
+            setStagedCharges([]);
           }
           if (v) {
             setActiveTab(QUOTATION_TAB);
@@ -1462,205 +1642,315 @@ const requestOptions = useMemo(
           setDialogOpen(v);
         }}
         title={
-        editing
-          ? `Edit Purchase Quotation (${editing.purchaseQuotationNo ?? editing.PURCHASE_QUOTATION_NO})`
-          : "Add Purchase Quotation"
-      }
-      errors={stepErrors}
-      saving={saving}
-      saveLabel={editing ? "Update" : "Create"}
-      saveClassName={
-        editing
-          ? "bg-info text-info-foreground hover:bg-info/90"
-          : "bg-primary text-primary-foreground hover:bg-primary/90"
-      }
-      onSave={handleSave}
-      focusStep={focusRequest}
-      footerNote={`${dtls.length} line${dtls.length === 1 ? "" : "s"}`}
-    >
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="mb-4">
-          <TabsList className="w-full flex-wrap">
-            <TabsTrigger value={QUOTATION_TAB}>Quotation</TabsTrigger>
-            <TabsTrigger value={DOCUMENTS_TAB}>
-              Documents
-              {currentQuotationNo && (
-                <span className="ml-1.5 text-[9px] font-semibold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">
-                  {currentQuotationNo}
-                </span>
+          editing
+            ? `Edit Purchase Quotation (${editing.purchaseQuotationNo ?? editing.PURCHASE_QUOTATION_NO})`
+            : "Add Purchase Quotation"
+        }
+        errors={stepErrors}
+        saving={saving}
+        saveLabel={editing ? "Update" : "Create"}
+        saveClassName={
+          editing
+            ? "bg-info text-info-foreground hover:bg-info/90"
+            : "bg-primary text-primary-foreground hover:bg-primary/90"
+        }
+        onSave={handleSave}
+        focusStep={focusRequest}
+        footerNote={`${dtls.length} line${dtls.length === 1 ? "" : "s"}`}
+      >
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <div className="mb-4">
+            <TabsList className="w-full flex-wrap">
+              <TabsTrigger value={QUOTATION_TAB}>Quotation</TabsTrigger>
+              <TabsTrigger value={DOCUMENTS_TAB}>
+                Documents
+                {currentQuotationNo && (
+                  <span className="ml-1.5 text-[9px] font-semibold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">
+                    {currentQuotationNo}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value={CHARGES_TAB}>
+                Additional Charges
+                {currentQuotationNo && (
+                  <span className="ml-1.5 text-[9px] font-semibold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">
+                    {currentQuotationNo}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value={QUOTATION_TAB} className="space-y-6 mt-0">
+            <WizardSection
+              stepKey={HDR_STEP}
+              title="Quotation Header Information"
+              subtitle="Dates, supplier, currency and validity"
+              errors={stepErrors[HDR_STEP]}
+            >
+
+              <div className="grid grid-cols-2 gap-4">
+                {renderField("PURCHASE_QUOTATION_DATE", "Quotation Date", "date", undefined, true)}
+                {renderField("SUPPLIER_BP_ID", "Supplier", "select", supplierOptions, true, "Select supplier")}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {renderField("COMPANY_ID", "Company", "select", companyOptions, true, "No company mapped to your login", true, "from your login")}
+                {renderField("BRANCH_ID", "Branch", "select", branchOptions, false, "No branch mapped to your login", true, "from your login")}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs">
+                    PO Store
+                    <span className="text-muted-foreground font-normal ml-1">(fixed)</span>
+                  </Label>
+                  <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-xs font-medium">
+                    PURCHASE STORE
+                  </div>
+                </div>
+                {renderField("QUOTATION_STATUS_ID", "Quotation Status", "select", quoteStatusOptions, false, undefined, true, "set by the workflow")}
+              </div>
+              {renderField("SUPPLIER_QUOTATION_NO", "Supplier Quotation No", "text", undefined, false, "Supplier reference")}
+              <div className="grid grid-cols-2 gap-4">
+                {renderField("VALID_FROM_DATE", "Valid From", "date")}
+                {renderField("VALID_TO_DATE", "Valid To", "date")}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {renderField("PAYMENT_TERM_ID", "Payment Term", "select", paymentTermOptions, false, "Select payment term")}
+                {renderField("PAYMENT_MODE_ID", "Payment Mode", "select", paymentModeOptions, false, "Select payment mode")}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {renderField("SHIPMENT_MODE_ID", "Shipment Mode", "select", shipmentModeOptions, false, "Select shipment mode")}
+                {renderField("DELIVERY_LOCATION_ID", "Delivery Location", "select", locationOptions, false, "Select delivery location")}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {renderField("DELIVERY_DATE", "Delivery Date", "date", undefined, false, undefined, false, "default for lines")}
+                {renderField("DELIVERY_TERM", "Delivery Term", "text", undefined, false, "e.g. DDP")}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {renderField("CURRENCY_ID", "Currency", "select", currencyOptions, true, "Select currency", false, undefined, handleCurrencyChange)}
+                {renderField("EXCHANGE_RATE", "Exchange Rate", "number", undefined, true, "1.000000", false, "applies to all lines")}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs">
+                    Status Entry
+                    <span className="text-muted-foreground font-normal ml-1">(set by the workflow)</span>
+                  </Label>
+                  <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-xs font-medium">
+                    {entryLabel(form.STATUS_ENTRY)}
+                  </div>
+                </div>
+                {renderField("REMARKS", "Remarks", "text", undefined, false, "Additional notes")}
+              </div>
+              {renderField("SHIPMENT_REMARKS", "Shipment Remarks", "textarea", undefined, false, "Shipment notes...")}
+              <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <h4 className="text-xs font-semibold text-foreground">Lines from Purchase Request</h4>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                    {dtls.length} line{dtls.length === 1 ? "" : "s"} added
+                  </span>
+                </div>
+
+                <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+                  <div className="flex flex-col gap-2 w-full lg:w-80 shrink-0">
+                    <div className="flex flex-col gap-1.5 w-full">
+                      <Label className="text-xs">Purchase Request</Label>
+                      <Select value={reqNo} onValueChange={onReqNoChange}>
+                        <SelectTrigger className="!h-9 text-xs">
+                          <SelectValue placeholder="Select purchase request" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {requestOptions.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              <span className="block">{o.label}</span>
+                              {o.summary ? (
+                                <span className="mt-0.5 block w-full rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground leading-snug">
+                                  {o.summary}
+                                </span>
+                              ) : null}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={addLinesFromRequest}
+                      disabled={loadingReq || !reqNo}
+                      className="h-9 w-full text-xs"
+                    >
+                      {loadingReq ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1" />}
+                      {loadingReq ? "Loading..." : "Add Lines from Request"}
+                    </Button>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    {previewOpen ? (
+                      <div className="rounded-lg border bg-card shadow-sm">
+                        <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+                          <h5 className="text-xs font-semibold text-foreground">Review in Purchase Request</h5>
+                          {!previewLoading ? (
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                              {previewLines.length} line{previewLines.length === 1 ? "" : "s"}
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                              <Loader2 className="w-3 h-3 animate-spin" /> Loading...
+                            </span>
+                          )}
+                        </div>
+                        <div className="border-b px-3 py-1.5 text-[11px] text-muted-foreground">
+                          Delivery Location:{" "}
+                          <span className="font-medium text-foreground">{previewDeliveryName || "-"}</span>
+                        </div>
+                        {previewLoading ? (
+                          <div className="flex items-center justify-center gap-2 px-3 py-6 text-xs text-muted-foreground">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading request lines...
+                          </div>
+                        ) : previewLines.length === 0 ? (
+                          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                            This request has no detail lines.
+                          </p>
+                        ) : (
+                          <div className="max-h-72 overflow-auto">
+                            <table className="w-full text-[11px]">
+                              <thead className="sticky top-0 bg-muted/60 text-muted-foreground">
+                                <tr>
+                                  <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">Line</th>
+                                  <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">Ref Type</th>
+                                  <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">Main Category</th>
+                                  <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">Sub Category</th>
+                                  <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">Product</th>
+                                  <th className="px-2 py-1.5 text-right font-medium whitespace-nowrap">Qty</th>
+                                  <th className="px-2 py-1.5 text-right font-medium whitespace-nowrap">Pcs/Packing</th>
+                                  <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">UOM</th>
+                                  <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">Truck</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {previewLines.map((r: any, idx: number) => (
+                                  <tr key={String(r.ID ?? r.PURCHASE_REQUEST_DTL_ID ?? idx)} className="border-t">
+                                    <td className="px-2 py-1.5 whitespace-nowrap">{r.LINE_NO ?? "-"}</td>
+                                    <td className="px-2 py-1.5 whitespace-nowrap">{r.REFERENCE_TYPE_NAME || (r.REFERENCE_TYPE_ID ?? "-")}</td>
+                                    <td className="px-2 py-1.5 whitespace-nowrap">{r.MAIN_CATEGORY_NAME || (r.MAIN_CATEGORY_ID ?? "-")}</td>
+                                    <td className="px-2 py-1.5 whitespace-nowrap">{r.SUB_CATEGORY_NAME || (r.SUB_CATEGORY_ID ?? "-")}</td>
+                                    <td className="px-2 py-1.5 min-w-[120px]">{r.PRODUCT_NAME || (r.PRODUCT_ID ?? "-")}</td>
+                                    <td className="px-2 py-1.5 whitespace-nowrap text-right">{previewQty(r.Total_Quantity)}</td>
+                                    <td className="px-2 py-1.5 whitespace-nowrap text-right">{r.NO_OF_PCS_PER_PACKING ?? "-"}</td>
+                                    <td className="px-2 py-1.5 whitespace-nowrap">{r.UOM_NAME || (r.UOM_ID ?? "-")}</td>
+                                    <td className="px-2 py-1.5 whitespace-nowrap">{r.TRUCK_NO || (r.TRUCK_ID ?? "-")}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground">
+                  {requestOptions.length === 0 && prOptions
+                    ? allRequestsFullyQuoted
+                      ? "Every eligible Purchase Request is already quoted"
+                      : "No Purchase Request is available to quote"
+                    : "Only approved Purchase Requests that are not fully quoted are listed"}
+                </p>
+              </div>
+            </WizardSection>
+
+            <WizardSection
+              stepKey={DTL_STEP}
+              title="Quotation Lines"
+              subtitle="Pulled from the Purchase Request selected above. Line numbers are automatic."
+              errors={stepErrors[DTL_STEP]}
+            >
+              {dtls.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
+                  No lines yet. Select a Purchase Request in the Lines from Purchase Request panel
+                  above, then use Add Lines from Request.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {computed.map((row: any) => (
+                    <DetailLineCard
+                      key={row.key}
+                      anchor={lineStepKey(row.key)}
+                      title={`Line ${row.LINE_NO ?? "?"}${row.PRODUCT_NAME ? ` - ${row.PRODUCT_NAME}` : ""}`}
+                      subtitle={
+                        row.PURCHASE_REQUEST_NO
+                          ? `From ${row.PURCHASE_REQUEST_NO}${row.SOURCE_LINE_NO != null ? ` line ${row.SOURCE_LINE_NO}` : ""}`
+                          : "No linked request line"
+                      }
+                      groups={lineGroups()}
+                      row={row}
+                      errors={lineErrors[row.key]}
+                      invalidFieldKeys={lineFieldErrors[row.key]}
+                      onChange={(field, value) => updateDtl(row.key, field, value)}
+                      onRemove={() => removeDtl(row.key)}
+                    />
+                  ))}
+                </div>
               )}
-            </TabsTrigger>
-          </TabsList>
-        </div>
+            </WizardSection>
 
-        <TabsContent value={QUOTATION_TAB} className="space-y-6 mt-0">
-        <WizardSection
-          stepKey={HDR_STEP}
-          title="Quotation Header Information"
-          subtitle="Dates, supplier, currency and validity"
-          errors={stepErrors[HDR_STEP]}
-        >
+            <WizardSection
+              stepKey={REVIEW_STEP}
+              title="Review & Submit"
+              subtitle="Header and every detail line on one page"
+              errors={stepErrors[REVIEW_STEP]}
+            >
+              <QuotationReview
+                form={form}
+                headerLabels={headerLabels}
+                totals={totals}
+                money={money}
+                rate6={rate6}
+              />
+            </WizardSection>
+          </TabsContent>
 
-          <div className="grid grid-cols-2 gap-4">
-            {renderField("PURCHASE_QUOTATION_DATE", "Quotation Date", "date", undefined, true)}
-            {renderField("SUPPLIER_BP_ID", "Supplier", "select", supplierOptions, true, "Select supplier")}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {renderField("COMPANY_ID", "Company", "select", companyOptions, false, "Select company")}
-            {renderField("BRANCH_ID", "Branch", "select", branchOptions, false, "Select branch")}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {renderField("PO_STORE_ID", "PO Store", "select", storeOptions, false, "Select PO store")}
-            {renderField("QUOTATION_STATUS_ID", "Quotation Status", "select", quoteStatusOptions, false, undefined, true, "set by the workflow")}
-          </div>
-          {renderField("SUPPLIER_QUOTATION_NO", "Supplier Quotation No", "text", undefined, false, "Supplier reference")}
-          <div className="grid grid-cols-2 gap-4">
-            {renderField("VALID_FROM_DATE", "Valid From", "date")}
-            {renderField("VALID_TO_DATE", "Valid To", "date")}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {renderField("PAYMENT_TERM_ID", "Payment Term", "select", paymentTermOptions, false, "Select payment term")}
-            {renderField("PAYMENT_MODE_ID", "Payment Mode", "select", paymentModeOptions, false, "Select payment mode")}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {renderField("SHIPMENT_MODE_ID", "Shipment Mode", "select", shipmentModeOptions, false, "Select shipment mode")}
-            {renderField("DELIVERY_LOCATION_ID", "Delivery Location", "select", locationOptions, false, "Select delivery location")}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {renderField("DELIVERY_DATE", "Delivery Date", "date", undefined, false, undefined, false, "default for lines")}
-            {renderField("DELIVERY_TERM", "Delivery Term", "text", undefined, false, "e.g. DDP")}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {renderField("CURRENCY_ID", "Currency", "select", currencyOptions, true, "Select currency", false, undefined, handleCurrencyChange)}
-            {renderField("EXCHANGE_RATE", "Exchange Rate", "number", undefined, true, "1.000000", false, "applies to all lines")}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">
-                Status Entry
-                <span className="text-muted-foreground font-normal ml-1">(set by the workflow)</span>
-              </Label>
-              <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-xs font-medium">
-                {entryLabel(form.STATUS_ENTRY)}
-              </div>
+          <TabsContent value={DOCUMENTS_TAB} className="space-y-6 mt-0">
+            <div className="rounded-lg border p-4 bg-card">
+              <p className="text-xs text-muted-foreground mb-3">
+                A document is required before this quotation can be submitted for approval.
+              </p>
+              <AttachmentsPanel
+                linkPagesId={linkPagesId}
+                entityRefNo={currentQuotationNo}
+                entityLabel="Purchase Quotation"
+                title="Documents / Attachments"
+                emptyMessage="No documents attached to this Purchase Quotation"
+                allowUpload={!!currentQuotationNo}
+                allowEdit={!!currentQuotationNo}
+                allowDelete={!!currentQuotationNo && isAdmin}
+              />
             </div>
-            {renderField("REMARKS", "Remarks", "text", undefined, false, "Additional notes")}
-          </div>
-          {renderField("SHIPMENT_REMARKS", "Shipment Remarks", "textarea", undefined, false, "Shipment notes...")}
-          <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-                <h4 className="text-xs font-semibold text-foreground">Lines from Purchase Request</h4>
-              </div>
-              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                {dtls.length} line{dtls.length === 1 ? "" : "s"} added
-              </span>
+          </TabsContent>
+
+          <TabsContent value={CHARGES_TAB} className="space-y-6 mt-0">
+            <div className="rounded-lg border p-4 bg-card">
+              <p className="text-xs text-muted-foreground mb-3">
+                Non-product costs (freight, insurance, packing, customs, delivery) added to this
+                quotation. Amounts are recomputed from quantity, rate, tax and the exchange rate
+                when saved.
+              </p>
+              <AdditionalChargesPanel
+                entityRefNo={currentQuotationNo}
+                defaultExchangeRate={form.EXCHANGE_RATE}
+                isAdmin={isAdmin}
+                charges={stagedCharges}
+                onChargesChange={setStagedCharges}
+              />
             </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <div className="flex flex-col gap-1.5 w-full sm:w-80">
-                <Label className="text-xs">Purchase Request</Label>
-                <Select value={reqNo} onValueChange={setReqNo}>
-                  <SelectTrigger className="!h-9 text-xs">
-                    <SelectValue placeholder="Select purchase request" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {requestOptions.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={addLinesFromRequest}
-                disabled={loadingReq || !reqNo}
-                className="h-9 shrink-0 text-xs"
-              >
-                {loadingReq ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1" />}
-                {loadingReq ? "Loading..." : "Add Lines from Request"}
-              </Button>
-            </div>
-
-            <p className="text-[11px] text-muted-foreground">
-              {requestOptions.length === 0 && prOptions
-                ? allRequestsFullyQuoted
-                  ? "Every eligible Purchase Request is already quoted"
-                  : "No Purchase Request is available to quote"
-                : "Only approved Purchase Requests that are not fully quoted are listed"}
-            </p>
-          </div>
-        </WizardSection>
-
-        <WizardSection
-          stepKey={DTL_STEP}
-          title="Quotation Lines"
-          subtitle="Pulled from the Purchase Request selected above. Line numbers are automatic."
-          errors={stepErrors[DTL_STEP]}
-        >
-          {dtls.length === 0 ? (
-            <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
-              No lines yet. Select a Purchase Request in the Lines from Purchase Request panel
-              above, then use Add Lines from Request.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {computed.map((row: any) => (
-                <DetailLineCard
-                  key={row.key}
-                  anchor={lineStepKey(row.key)}
-                  title={`Line ${row.LINE_NO ?? "?"}${row.PRODUCT_NAME ? ` - ${row.PRODUCT_NAME}` : ""}`}
-                  subtitle={
-                    row.PURCHASE_REQUEST_NO
-                      ? `From ${row.PURCHASE_REQUEST_NO}${row.SOURCE_LINE_NO != null ? ` line ${row.SOURCE_LINE_NO}` : ""}`
-                      : "No linked request line"
-                  }
-                  groups={lineGroups()}
-                  row={row}
-                  errors={lineErrors[row.key]}
-                  invalidFieldKeys={lineFieldErrors[row.key]}
-                  onChange={(field, value) => updateDtl(row.key, field, value)}
-                  onRemove={() => removeDtl(row.key)}
-                />
-              ))}
-            </div>
-          )}
-        </WizardSection>
-
-        <WizardSection
-          stepKey={REVIEW_STEP}
-          title="Review & Submit"
-          subtitle="Header and every detail line on one page"
-          errors={stepErrors[REVIEW_STEP]}
-        >
-          <QuotationReview
-            form={form}
-            headerLabels={headerLabels}
-            totals={totals}
-            money={money}
-            rate6={rate6}
-          />
-        </WizardSection>
-        </TabsContent>
-
-        <TabsContent value={DOCUMENTS_TAB} className="space-y-6 mt-0">
-          <div className="rounded-lg border p-4 bg-card">
-            <AttachmentsPanel
-              linkPagesId={linkPagesId}
-              entityRefNo={currentQuotationNo}
-              entityLabel="Purchase Quotation"
-              title="Documents / Attachments"
-              emptyMessage="No documents attached to this Purchase Quotation"
-              allowUpload={!!currentQuotationNo}
-              allowEdit={!!currentQuotationNo}
-              allowDelete={!!currentQuotationNo && isAdmin}
-            />
-          </div>
-        </TabsContent>
-      </Tabs>
-    </WizardShell>
+          </TabsContent>
+        </Tabs>
+      </WizardShell>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

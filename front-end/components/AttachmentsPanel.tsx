@@ -55,6 +55,11 @@ interface PickedFile {
   sizeMB: string;
 }
 
+/* Renders image files (picked or reloaded) as a data-URL; anything else has no
+   preview and stays as a file entry. */
+const previewOf = (contentType?: string, data?: string | null): string | null =>
+  data && contentType && contentType.startsWith("image/") ? `data:${contentType};base64,${data}` : null;
+
 const readFileAsBase64 = (file: File): Promise<PickedFile> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -425,12 +430,34 @@ export default function AttachmentsPanel({
                   </button>
                 )}
               </div>
-              {(pickedFile || form.FILE_NAME) && (
-                <p className="text-[10px] text-muted-foreground truncate">
-                  Selected: {pickedFile?.name || form.FILE_NAME}
-                  {pickedFile && ` (${pickedFile.sizeMB} MB)`}
-                </p>
-              )}
+              {(pickedFile || form.FILE_NAME) && (() => {
+                const src = previewOf(
+                  pickedFile?.contentType || form.CONTENT_TYPE,
+                  pickedFile?.contentData || (editing ? form.CONTENT_DATA : null) || null
+                );
+                return (
+                  <div className="space-y-2">
+                    {src ? (
+                      <img
+                        src={src}
+                        alt={pickedFile?.name || form.FILE_NAME || "Attachment"}
+                        className="max-h-40 w-full object-contain rounded-md border bg-muted/30"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2 border rounded-md px-3 py-2 bg-muted/30">
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-xs text-muted-foreground truncate">
+                          {pickedFile?.name || form.FILE_NAME}
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      Selected: {pickedFile?.name || form.FILE_NAME}
+                      {pickedFile && ` (${pickedFile.sizeMB} MB)`}
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="space-y-2">
