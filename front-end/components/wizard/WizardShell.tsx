@@ -1,17 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { StepErrors } from "./types";
 
+/* An extra pane shown alongside the main form, e.g. the Batch tab. The main
+   form is always the first tab ("__form"); extra tabs are appended. */
+export interface WizardExtraTab {
+  key: string;
+  label: string;
+  content: ReactNode;
+  disabled?: boolean;
+}
+
 /* The wizard is one long scrolling page inside the existing modal: the header,
-   then every detail line, then the review. There are no step buttons - the
-   scrollbar is the only navigation - so the footer just carries Cancel/Save.
-   A step key can still be targeted directly (validation jumps, "edit this line")
-   through data-step-id / data-anchor. */
+   then every detail line, then the review. When `extraTabs` is provided a tab
+   strip is rendered above the scroll pane and the panes are toggled with CSS so
+   the main form keeps its state/refs while another tab is shown. Without
+   `extraTabs` the behaviour is exactly as before (single scrolling form). */
 export default function WizardShell({
   open,
   onOpenChange,
@@ -25,6 +34,9 @@ export default function WizardShell({
   children,
   footerNote,
   focusStep,
+  focusTab,
+  extraTabs,
+  formTabLabel = "Details",
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -40,8 +52,15 @@ export default function WizardShell({
   /* Lets the page jump anywhere on the page, e.g. the first thing that failed
      validation. Bump the nonce to request another scroll to the key. */
   focusStep?: { key: string; nonce: number } | null;
+  extraTabs?: WizardExtraTab[];
+  formTabLabel?: string;
+  /* Lets the page request a named tab (e.g. open the Batch tab from a detail
+     line). Bump the nonce to request it again. */
+  focusTab?: { key: string; nonce: number } | null;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
+  const hasTabs = !!(extraTabs && extraTabs.length);
+  const [activeTab, setActiveTab] = useState("__form");
 
   const scrollToStep = useCallback((key: string) => {
     const pane = contentRef.current;
@@ -56,14 +75,30 @@ export default function WizardShell({
     pane.scrollTo({ top: Math.max(top, 0), behavior: "smooth" });
   }, []);
 
-  /* An externally requested jump, e.g. save found an error further up. */
+  /* An externally requested jump, e.g. save found an error further up. The
+     form tab must be showing first, then the scroll runs on the next pass. */
   useEffect(() => {
-    if (focusStep && open) scrollToStep(focusStep.key);
-  }, [focusStep?.nonce, open, scrollToStep, focusStep]);
+    if (!open || !focusStep) return;
+    if (hasTabs && activeTab !== "__form") {
+      setActiveTab("__form");
+      return;
+    }
+    scrollToStep(focusStep.key);
+  }, [focusStep?.nonce, open, activeTab, hasTabs, scrollToStep, focusStep]);
 
-  /* Start every open at the top so a re-opened form is not left scrolled. */
+  /* An externally requested tab, e.g. a detail line's "Balance to Map" cell
+     opening the Batch tab. */
   useEffect(() => {
-    if (open && contentRef.current) contentRef.current.scrollTop = 0;
+    if (!open || !focusTab) return;
+    setActiveTab(focusTab.key);
+  }, [focusTab?.nonce, open, focusTab]);
+
+  /* Start every open at the top (and on the main form) so a re-opened record
+     is not left scrolled or on the Batch tab. */
+  useEffect(() => {
+    if (!open) return;
+    setActiveTab("__form");
+    if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [open]);
 
   const errorCount = Object.values(errors).reduce((n, list) => n + (list?.length ?? 0), 0);
@@ -75,11 +110,40 @@ export default function WizardShell({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
+        {hasTabs ? (
+          <div className="flex shrink-0 items-center gap-1 border-t border-border px-6 pt-3">
+            <TabButton active={activeTab === "__form"} onClick={() => setActiveTab("__form")}>
+              {formTabLabel}
+            </TabButton>
+            {(extraTabs || []).map((t) => (
+              <TabButton
+                key={t.key}
+                active={activeTab === t.key}
+                disabled={t.disabled}
+                onClick={() => !t.disabled && setActiveTab(t.key)}
+              >
+                {t.label}
+              </TabButton>
+            ))}
+          </div>
+        ) : null}
+
         <div
           ref={contentRef}
           className="wizard-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto border-t border-border px-6 py-4"
         >
-          {children}
+          {hasTabs ? (
+            <>
+              <div className={activeTab === "__form" ? undefined : "hidden"}>{children}</div>
+              {(extraTabs || []).map((t) => (
+                <div key={t.key} className={activeTab === t.key ? undefined : "hidden"}>
+                  {t.content}
+                </div>
+              ))}
+            </>
+          ) : (
+            children
+          )}
         </div>
 
         <div className="flex shrink-0 items-center justify-between gap-3 border-t bg-background px-6 py-4">
@@ -109,5 +173,33 @@ export default function WizardShell({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function TabButton({
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "relative -mb-px border-b-2 px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        active
+          ? "border-primary text-foreground"
+          : "border-transparent text-muted-foreground hover:text-foreground"
+      )}
+    >
+      {children}
+    </button>
   );
 }

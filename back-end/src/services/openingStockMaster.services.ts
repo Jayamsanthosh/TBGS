@@ -1,6 +1,6 @@
 import sql from "mssql";
 import { getPool } from "../config/db";
-import { parseSprocResult } from "../utils/sprocResult";
+import { parseSprocResult, pickResultRow } from "../utils/sprocResult";
 
 export interface OpeningStockDtl {
   OPENING_STOCK_DTL_ID?: number;
@@ -276,8 +276,9 @@ const saveOpeningStockDtlService = async (
     .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
     .execute("VInventory.SAVE_OPENING_STOCK_DTL");
 
-  parseSprocResult(result.recordset?.[0], "Failed to save opening stock detail");
-  return result.recordset?.[0];
+  const row = pickResultRow(result);
+  parseSprocResult(row, "Failed to save opening stock detail");
+  return row;
 };
 
 /* ------------------------------------------------------------ dtl update */
@@ -320,8 +321,9 @@ const updateOpeningStockDtlService = async (
     .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
     .execute("VInventory.UPDATE_OPENING_STOCK_DTL");
 
-  parseSprocResult(result.recordset?.[0], "Failed to update opening stock detail");
-  return result.recordset?.[0];
+  const row = pickResultRow(result);
+  parseSprocResult(row, "Failed to update opening stock detail");
+  return row;
 };
 
 /* -------------------------------------------------------- dtl deletion */
@@ -343,7 +345,7 @@ export const deleteOpeningStockDtlService = async (
       .input("MAC_ADDRESS", sql.VarChar(50), macAddress || "WEB")
       .execute("VInventory.DELETE_OPENING_STOCK_DTL");
 
-    const { message } = parseSprocResult(result.recordset?.[0], "Failed to delete opening stock detail");
+    const { message } = parseSprocResult(pickResultRow(result), "Failed to delete opening stock detail");
     return { message: message || "Opening Stock detail deleted successfully" };
   } catch (error) {
     console.error("DELETE_OPENING_STOCK_DTL SP error:", error);
@@ -383,7 +385,7 @@ export const saveOpeningStockCombinedService = async (data: OpeningStockData) =>
       .input("MAC_ADDRESS", sql.VarChar(50), header.MAC_ADDRESS || "WEB")
       .execute("VInventory.SAVE_OPENING_STOCK_HDR");
 
-    const hdrResponse = hdrResult.recordset?.[0];
+    const hdrResponse = pickResultRow(hdrResult);
     const { message, data: parsedData } = parseSprocResult(
       hdrResponse,
       "Failed to save opening stock header"
@@ -441,7 +443,7 @@ export const updateOpeningStockCombinedService = async (data: OpeningStockData) 
       .input("MAC_ADDRESS", sql.VarChar(50), header.MAC_ADDRESS || "WEB")
       .execute("VInventory.UPDATE_OPENING_STOCK_HDR");
 
-    const hdrResponse = hdrResult.recordset?.[0];
+    const hdrResponse = pickResultRow(hdrResult);
     const { message, data: parsedData } = parseSprocResult(
       hdrResponse,
       "Failed to update opening stock header"
@@ -501,7 +503,7 @@ export const deleteOpeningStockHdrService = async (
       .input("MAC_ADDRESS", sql.VarChar(50), macAddress || "WEB")
       .execute("VInventory.DELETE_OPENING_STOCK_HDR");
 
-    const msg = parseSprocResult(result.recordset?.[0], "Failed to delete opening stock");
+    const msg = parseSprocResult(pickResultRow(result), "Failed to delete opening stock");
     return { message: msg.message || "Data Deleted Successfully" };
   } catch (error) {
     console.error("DELETE_OPENING_STOCK_HDR SP error:", error);

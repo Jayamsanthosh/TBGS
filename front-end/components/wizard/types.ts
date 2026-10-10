@@ -51,6 +51,8 @@ export interface FieldDescriptor {
   options?: WizardOption[] | ((row: any) => WizardOption[]);
   /* How a readOnly/computed cell renders itself from the row. */
   display?: (row: any) => any;
+  /* Makes a readOnly/computed cell clickable (e.g. jump to the Batch tab). */
+  onClick?: (row: any) => void;
   /* Locks an editable cell. A function is used where the lock depends on the
      line, e.g. a reference that is only editable on lines with no source
      document. The value still renders, it just cannot be typed over. */
@@ -69,6 +71,8 @@ export interface ReviewColumn {
   render: (row: any) => any;
   numeric?: boolean;
   emphasis?: boolean;
+  /* Turns the cell into a link/button, e.g. jump to the Batch tab. */
+  onClick?: (row: any) => void;
 }
 
 export interface WizardSectionProps {

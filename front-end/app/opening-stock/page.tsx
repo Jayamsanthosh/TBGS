@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import OpeningStockReview from "./opening-stock-review";
+import BatchTab from "@/components/BatchTab";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
 import DetailLineCard from "@/components/wizard/DetailLineCard";
@@ -27,6 +28,7 @@ import {
   clearOpeningStockMasterError,
   OpeningStockGridData,
 } from "@/lib/openingStockMasterSlice";
+import { fetchBatchesBySource, addBatch, type BatchMasterData } from "@/lib/batchMasterSlice";
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { formatDate, clampNonNegative } from "@/lib/validation";
@@ -297,6 +299,9 @@ export default function OpeningStockPage() {
 
   const [dtls, setDtls] = useState<any[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
+  /* Create mode: batches are held here until the document is saved, because the
+     ref / detail ids do not exist yet. */
+  const [pendingBatches, setPendingBatches] = useState<BatchMasterData[]>([]);
 
   const emptyForm = () => ({
     OPENING_STOCK_REF_NO: "",
@@ -410,11 +415,13 @@ export default function OpeningStockPage() {
     setStepErrors({});
     setLineErrors({});
     setFocusRequest(null);
+    setPendingBatches([]);
     setDialogOpen(true);
   };
 
   const openEdit = async (item: any) => {
     setEditing(item);
+    setPendingBatches([]);
     try {
       const refNo = item.openingStockNo ?? item.OPENING_STOCK_REF_NO ?? item.refNo;
       const hdr = await dispatch(fetchOpeningStockHdr(refNo)).unwrap();
@@ -604,7 +611,40 @@ export default function OpeningStockPage() {
         toast({ title: res?.message ?? "Opening Stock updated successfully", duration: DEFAULT_TOAST_DURATION });
       } else {
         const res = await dispatch(addOpeningStock(payload as OpeningStockGridData)).unwrap();
+        /* Create mode: the header now exists, so its batches can be persisted
+           against the real reference + detail ids. Each line's LINE_NO was used
+           as the temporary batch key. */
+        const refNo = String(res?.OPENING_STOCK_REF_NO ?? "").trim();
+        if (refNo && pendingBatches.length > 0) {
+          try {
+            const savedDtls: any[] = await dispatch(fetchOpeningStockDtls(refNo)).unwrap();
+            const dtlByLine = new Map<number, any>();
+            (Array.isArray(savedDtls) ? savedDtls : []).forEach((d) => {
+              if (d?.LINE_NO != null) dtlByLine.set(Number(d.LINE_NO), d);
+            });
+            for (const b of pendingBatches) {
+              const line = dtlByLine.get(Number(b.BATCH_SOURCE_DTL_ID));
+              if (!line?.OPENING_STOCK_DTL_ID) continue;
+              await dispatch(
+                addBatch({
+                  ...b,
+                  BATCH_ID: undefined,
+                  BATCH_SOURCE_REF_NO: refNo,
+                  BATCH_SOURCE_DTL_ID: Number(line.OPENING_STOCK_DTL_ID),
+                })
+              ).unwrap();
+            }
+            dispatch(fetchBatchesBySource(refNo));
+          } catch (e: any) {
+            toast({
+              title: typeof e === "string" ? e : e?.message || "Opening Stock created but some batches failed to save",
+              variant: "destructive",
+              duration: DEFAULT_TOAST_DURATION,
+            });
+          }
+        }
         toast({ title: res?.message ?? "Opening Stock created successfully", duration: DEFAULT_TOAST_DURATION });
+        setPendingBatches([]);
       }
       setDialogOpen(false);
       setStepErrors({});
@@ -988,6 +1028,7 @@ export default function OpeningStockPage() {
             setStepErrors({});
             setLineErrors({});
             setFocusRequest(null);
+            setPendingBatches([]);
           }
           setDialogOpen(v);
         }}
@@ -1007,6 +1048,31 @@ export default function OpeningStockPage() {
         onSave={handleSave}
         focusStep={focusRequest}
         footerNote={`${dtls.length} line${dtls.length === 1 ? "" : "s"}`}
+        formTabLabel="Opening Stock"
+        extraTabs={[
+          {
+            key: "batch",
+            label: "Batch",
+            content: (
+              <BatchTab
+                refNo={editing ? String(editing.openingStockNo ?? editing.OPENING_STOCK_REF_NO ?? "") : ""}
+                lines={dtls}
+                header={{
+                  COMPANY_ID: form.COMPANY_ID,
+                  CAMP_ID: form.CAMP_ID,
+                  STORE_ID: form.STORE_ID,
+                  LINK_PAGES_ID: form.LINK_PAGES_ID,
+                }}
+                dtlIdKey="OPENING_STOCK_DTL_ID"
+                productOptions={opt(products, "PRODUCT_ID", "PRODUCT_NAME").filter((o) => o.value)}
+                uomOptions={uomOptions}
+                documentLabel="Opening Stock"
+                pendingBatches={editing ? undefined : pendingBatches}
+                onPendingBatchesChange={editing ? undefined : setPendingBatches}
+              />
+            ),
+          },
+        ]}
       >
         <WizardSection
           stepKey={HDR_STEP}

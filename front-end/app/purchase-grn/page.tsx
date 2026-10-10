@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Plus, Search, Pencil, Trash2, Download } from "lucide-react";
 import PurchaseGrnReview from "./purchase-grn-review";
+import BatchTab from "@/components/BatchTab";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
 import DetailLineCard from "@/components/wizard/DetailLineCard";
@@ -28,6 +29,7 @@ import {
   PurchaseGrnGridData,
 } from "@/lib/purchaseGrnMasterSlice";
 import { fetchPurchaseOrderHdr, fetchPurchaseOrderDtls } from "@/lib/purchaseOrderMasterSlice";
+import { fetchBatchesBySource, addBatch, type BatchMasterData } from "@/lib/batchMasterSlice";
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { formatDate, clampNonNegative } from "@/lib/validation";
@@ -104,6 +106,8 @@ export default function PurchaseGrnPage() {
   const [stepErrors, setStepErrors] = useState<StepErrors>({});
   const [lineErrors, setLineErrors] = useState<StepErrors>({});
   const [focusRequest, setFocusRequest] = useState<{ key: string; nonce: number } | null>(null);
+  const [batchDialogRequest, setBatchDialogRequest] = useState<{ dtlId: string; nonce: number } | null>(null);
+  const [pendingBatches, setPendingBatches] = useState<BatchMasterData[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -325,6 +329,8 @@ export default function PurchaseGrnPage() {
     REJECTION_REMARKS: "",
     REMARKS: "",
     STATUS_ENTRY: "CF",
+    BATCH_MAPPED_QUANTITY: 0,
+    BALANCE_TO_MAP_BATCH_QTY: "",
   });
 
   const [dtls, setDtls] = useState<any[]>([]);
@@ -420,6 +426,39 @@ export default function PurchaseGrnPage() {
 
   const renumberDtls = (rows: any[]) => rows.map((r, i) => ({ ...r, LINE_NO: i + 1 }));
 
+  /* The Batch tab reports the batches currently mapped for this document; the
+     mapped quantity per line and the balance still to map are mirrored onto the
+     detail rows so an Update persists them (BATCH_MAPPED_QUANTITY /
+     BALANCE_TO_MAP_BATCH_QTY). */
+  const syncBatchQty = useCallback((batches: any[]) => {
+    const mapped = new Map<string, number>();
+    (Array.isArray(batches) ? batches : []).forEach((b: any) => {
+      const id = b?.BATCH_SOURCE_DTL_ID;
+      if (id == null) return;
+      const k = String(id);
+      mapped.set(k, (mapped.get(k) || 0) + (Number(b.BATCH_QTY) || 0));
+    });
+    setDtls((prev) =>
+      prev.map((r: any) => {
+        const accepted = Math.max(
+          0,
+          (Number(r.RECEIVED_QUANTITY || 0) || 0) - (Number(r.REJECTED_QUANTITY || 0) || 0)
+        );
+        const m = r.PURCHASE_GRN_DTL_ID
+          ? mapped.get(String(r.PURCHASE_GRN_DTL_ID)) || 0
+          : mapped.get(String(r.LINE_NO)) || 0;
+        const balance = (accepted - m).toFixed(3);
+        if (
+          Number(r.BATCH_MAPPED_QUANTITY || 0) === m &&
+          String(r.BALANCE_TO_MAP_BATCH_QTY ?? "") === balance
+        ) {
+          return r;
+        }
+        return { ...r, BATCH_MAPPED_QUANTITY: m, BALANCE_TO_MAP_BATCH_QTY: balance };
+      })
+    );
+  }, []);
+
   const addDtl = () => {
     setDtls((prev) => renumberDtls([...prev, emptyDtl(prev.length + 1)]));
   };
@@ -500,6 +539,8 @@ export default function PurchaseGrnPage() {
           REJECTION_REMARKS: "",
           REMARKS: p.REMARKS || "",
           STATUS_ENTRY: "AC",
+          BATCH_MAPPED_QUANTITY: 0,
+          BALANCE_TO_MAP_BATCH_QTY: "",
         });
       }
 
@@ -542,6 +583,7 @@ export default function PurchaseGrnPage() {
     setStepErrors({});
     setLineErrors({});
     setFocusRequest(null);
+    setPendingBatches([]);
     setDialogOpen(true);
   };
 
@@ -603,6 +645,8 @@ export default function PurchaseGrnPage() {
         REJECTION_REMARKS: d.REJECTION_REMARKS || "",
         REMARKS: d.REMARKS || "",
         STATUS_ENTRY: d.STATUS_ENTRY || "CF",
+        BATCH_MAPPED_QUANTITY: toStr(d.BATCH_MAPPED_QUANTITY),
+        BALANCE_TO_MAP_BATCH_QTY: toStr(d.BALANCE_TO_MAP_BATCH_QTY),
       }));
       setDtls(renumberDtls(rows));
       setDeletedIds([]);
@@ -690,6 +734,33 @@ export default function PurchaseGrnPage() {
 
     const validRows = dtls.filter((r: any) => r.PRODUCT_ID || r.MAIN_CATEGORY_ID);
 
+    /* Create mode: every line must carry at least one batch before the GRN can
+       be created, and each line's mapped / balance quantities are derived from
+       those batches so the saved lines already reflect them. */
+    const mappedByLine = new Map<number, number>();
+    if (!editing) {
+      (pendingBatches || []).forEach((b: BatchMasterData) => {
+        const ln = Number(b.BATCH_SOURCE_DTL_ID);
+        if (!ln) return;
+        mappedByLine.set(ln, (mappedByLine.get(ln) || 0) + (Number(b.BATCH_QTY) || 0));
+      });
+      const missing = validRows.filter(
+        (r: any) =>
+          !(pendingBatches || []).some(
+            (b: BatchMasterData) => Number(b.BATCH_SOURCE_DTL_ID) === Number(r.LINE_NO)
+          )
+      );
+      if (missing.length > 0) {
+        toast({
+          title: "Add at least one batch for every line before creating the Purchase GRN",
+          variant: "destructive",
+          duration: DEFAULT_TOAST_DURATION,
+        });
+        setBatchDialogRequest({ dtlId: String(missing[0].LINE_NO), nonce: Date.now() });
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const toNum = (v: any) => {
@@ -716,7 +787,15 @@ export default function PurchaseGrnPage() {
         REMARKS: form.REMARKS?.trim() || null,
         LINK_PAGES_ID: toNum(form.LINK_PAGES_ID),
         STATUS_ENTRY: form.STATUS_ENTRY || "CF",
-        dtls: validRows.map((r: any) => ({
+        dtls: validRows.map((r: any) => {
+          const rowAccepted = Math.max(
+            0,
+            (toNum(r.RECEIVED_QUANTITY) || 0) - (toNum(r.REJECTED_QUANTITY) || 0)
+          );
+          const rowMapped = editing
+            ? toNum(r.BATCH_MAPPED_QUANTITY) ?? 0
+            : mappedByLine.get(Number(r.LINE_NO)) || 0;
+          return {
           PURCHASE_GRN_DTL_ID: r.PURCHASE_GRN_DTL_ID || undefined,
           PURCHASE_ORDER_NO: form.PURCHASE_ORDER_NO || r.PURCHASE_ORDER_NO || null,
           PURCHASE_ORDER_DTL_ID: toNum(r.PURCHASE_ORDER_DTL_ID),
@@ -731,6 +810,10 @@ export default function PurchaseGrnPage() {
           RECEIVED_QUANTITY: toNum(r.RECEIVED_QUANTITY),
           REJECTED_QUANTITY: toNum(r.REJECTED_QUANTITY) ?? 0,
           ACCEPTED_QUANTITY: toNum(r.ACCEPTED_QUANTITY),
+          BATCH_MAPPED_QUANTITY: rowMapped,
+          BALANCE_TO_MAP_BATCH_QTY: editing
+            ? toNum(r.BALANCE_TO_MAP_BATCH_QTY)
+            : Math.max(0, rowAccepted - rowMapped),
           UOM_ID: toNum(r.UOM_ID),
           ALT_QUANTITY: toNum(r.ALT_QUANTITY),
           ALT_UOM_ID: toNum(r.ALT_UOM_ID),
@@ -747,7 +830,8 @@ export default function PurchaseGrnPage() {
           REJECTION_REMARKS: r.REJECTION_REMARKS?.trim() || null,
           REMARKS: r.REMARKS?.trim() || null,
           STATUS_ENTRY: r.STATUS_ENTRY || "CF",
-        })),
+          };
+        }),
         deletedIds,
         USER: user?.loginName || "Admin",
         MAC_ADDRESS: "WEB",
@@ -759,7 +843,40 @@ export default function PurchaseGrnPage() {
         toast({ title: res?.message ?? "Purchase GRN updated successfully", duration: DEFAULT_TOAST_DURATION });
       } else {
         const res = await dispatch(addPurchaseGrn(payload as PurchaseGrnGridData)).unwrap();
+        /* Create mode: the header now exists, so its batches can be persisted
+           against the real reference + detail ids. Each line's LINE_NO was used
+           as the temporary batch key. */
+        const refNo = String(res?.PURCHASE_GRN_REF_NO ?? "").trim();
+        if (refNo && pendingBatches.length > 0) {
+          try {
+            const savedDtls: any[] = await dispatch(fetchPurchaseGrnDtls(refNo)).unwrap();
+            const dtlByLine = new Map<number, any>();
+            (Array.isArray(savedDtls) ? savedDtls : []).forEach((d) => {
+              if (d?.LINE_NO != null) dtlByLine.set(Number(d.LINE_NO), d);
+            });
+            for (const b of pendingBatches) {
+              const line = dtlByLine.get(Number(b.BATCH_SOURCE_DTL_ID));
+              if (!line?.PURCHASE_GRN_DTL_ID) continue;
+              await dispatch(
+                addBatch({
+                  ...b,
+                  BATCH_ID: undefined,
+                  BATCH_SOURCE_REF_NO: refNo,
+                  BATCH_SOURCE_DTL_ID: Number(line.PURCHASE_GRN_DTL_ID),
+                })
+              ).unwrap();
+            }
+            dispatch(fetchBatchesBySource(refNo));
+          } catch (e: any) {
+            toast({
+              title: typeof e === "string" ? e : e?.message || "GRN created but some batches failed to save",
+              variant: "destructive",
+              duration: DEFAULT_TOAST_DURATION,
+            });
+          }
+        }
         toast({ title: res?.message ?? "Purchase GRN created successfully", duration: DEFAULT_TOAST_DURATION });
+        setPendingBatches([]);
       }
       setDialogOpen(false);
       setStepErrors({});
@@ -1064,6 +1181,14 @@ export default function PurchaseGrnPage() {
   );
 
   const focusOn = (key: string) => setFocusRequest({ key, nonce: Date.now() });
+  /* "Balance to Map Batch" on a line pops up the batch dialog, pre-filled for
+     that line, so the remainder can be mapped to one or more batches. Before the
+     GRN is saved a line has no detail id yet, so its LINE_NO is the key. */
+  const openBatchTab = (row?: any) => {
+    const dtlId = row?.PURCHASE_GRN_DTL_ID ?? row?.LINE_NO;
+    if (dtlId == null) return;
+    setBatchDialogRequest({ dtlId: String(dtlId), nonce: Date.now() });
+  };
   const scrollToLine = (row: any) => {
     focusOn(lineStepKey(row.key));
   };
@@ -1201,6 +1326,8 @@ export default function PurchaseGrnPage() {
             setStepErrors({});
             setLineErrors({});
             setFocusRequest(null);
+            setBatchDialogRequest(null);
+            setPendingBatches([]);
           }
           setDialogOpen(v);
         }}
@@ -1220,6 +1347,33 @@ export default function PurchaseGrnPage() {
         onSave={handleSave}
         focusStep={focusRequest}
         footerNote={`${dtls.length} line${dtls.length === 1 ? "" : "s"}`}
+        formTabLabel="Purchase GRN"
+        extraTabs={[
+          {
+            key: "batch",
+            label: "Batch",
+            content: (
+              <BatchTab
+                refNo={editing ? String(editing.grnNo ?? editing.PURCHASE_GRN_REF_NO ?? "") : ""}
+                lines={dtls}
+                header={{
+                  COMPANY_ID: form.COMPANY_ID,
+                  CAMP_ID: form.CAMP_ID,
+                  STORE_ID: form.STORE_ID,
+                  LINK_PAGES_ID: form.LINK_PAGES_ID,
+                }}
+                dtlIdKey="PURCHASE_GRN_DTL_ID"
+                productOptions={opt(products, "PRODUCT_ID", "PRODUCT_NAME").filter((o) => o.value)}
+                uomOptions={uomOptions}
+                documentLabel="Purchase GRN"
+                onBatchesChange={syncBatchQty}
+                openFor={batchDialogRequest}
+                pendingBatches={editing ? undefined : pendingBatches}
+                onPendingBatchesChange={editing ? undefined : setPendingBatches}
+              />
+            ),
+          },
+        ]}
       >
         <WizardSection
           stepKey={HDR_STEP}
@@ -1332,6 +1486,7 @@ export default function PurchaseGrnPage() {
             headerRate={Number(form.EXCHANGE_RATE) || 0}
             onEditLine={scrollToLine}
             onAddLine={addDtl}
+            onOpenBatch={openBatchTab}
           />
         </WizardSection>
       </WizardShell>

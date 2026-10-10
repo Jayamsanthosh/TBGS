@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { ArrowRight, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,6 +63,27 @@ const Field = ({
   }
 
   if (field.kind === "computed") {
+    const value = field.display ? field.display(row) : row[field.key] ?? "-";
+    /* A computed cell can be an action, e.g. "Balance to Map" opens the Batch
+       tab so the remaining quantity can be mapped. */
+    if (field.onClick) {
+      return (
+        <div className="flex flex-col gap-1">
+          {label}
+          <button
+            type="button"
+            onClick={() => field.onClick!(row)}
+            className={cn(
+              boxCls,
+              "flex w-full items-center justify-between rounded-md border border-primary/50 bg-primary/5 px-2 font-semibold tabular-nums text-primary transition-colors hover:bg-primary/10"
+            )}
+          >
+            <span className="truncate">{value}</span>
+            <ArrowRight className="h-3 w-3 shrink-0 opacity-70" />
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col gap-1">
         {label}
@@ -73,7 +94,7 @@ const Field = ({
             field.display ? "font-semibold" : ""
           )}
         >
-          {field.display ? field.display(row) : row[field.key] ?? "-"}
+          {value}
         </div>
       </div>
     );

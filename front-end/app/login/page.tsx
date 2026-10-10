@@ -84,6 +84,14 @@ export default function LoginPage() {
   const [companies, setCompanies] = useState<ContextCompany[]>([]);
   const [contextLoading, setContextLoading] = useState(false);
 
+  /* Where the username lookup stands. 'invalid' covers both an unknown username
+     and a valid one with no mapping - deliberately the same state, so the form
+     never reveals which usernames exist. The password field and the whole Scope
+     section stay locked until this reads 'valid'. */
+  const [usernameStatus, setUsernameStatus] = useState<
+    'idle' | 'checking' | 'valid' | 'invalid'
+  >('idle');
+
   /* Monotonic request id. Typing "admin" can fire three lookups in a row and
      they can land out of order; without this a slow early response would
      overwrite a fast later one and offer the wrong company's camps. */
@@ -113,38 +121,48 @@ export default function LoginPage() {
     return camp?.stores ?? [];
   }, [campOptions, formData.CAMP_ID]);
 
-  /* Only options the user is actually mapped to can be submitted. Kept as a
-     derived check rather than trusting the select values, so a restored or
-     hand-edited form cannot submit a company/camp/store that does not belong
-     together. */
+  /* Every dropdown the user is actually mapped to must be chosen: company,
+     branch, camp and store. Kept as a derived check rather than trusting the
+     select values, so a restored or hand-edited form cannot submit a
+     company/camp/store that does not belong together, or a half-filled scope. */
   const isSelectionValid = useMemo(() => {
     if (!selectedCompany) return false;
-    if (formData.BRANCH_ID && !branchOptions.some((b) => String(b.branchId) === formData.BRANCH_ID)) {
-      return false;
-    }
-    if (formData.CAMP_ID) {
-      const camp = campOptions.find((c) => String(c.campId) === formData.CAMP_ID);
-      if (!camp) return false;
-      if (formData.STORE_ID && !camp.stores.some((s) => String(s.storeId) === formData.STORE_ID)) {
-        return false;
-      }
-    } else if (formData.STORE_ID) {
-      /* A store without its camp is meaningless and the backend rejects it. */
-      return false;
-    }
+
+    const branchId = formData.BRANCH_ID;
+    if (!branchId || branchId === NONE) return false;
+    if (!branchOptions.some((b) => String(b.branchId) === branchId)) return false;
+
+    const campId = formData.CAMP_ID;
+    if (!campId || campId === NONE) return false;
+    const camp = campOptions.find((c) => String(c.campId) === campId);
+    if (!camp) return false;
+
+    const storeId = formData.STORE_ID;
+    if (!storeId || storeId === NONE) return false;
+    if (!camp.stores.some((s) => String(s.storeId) === storeId)) return false;
+
     return true;
   }, [selectedCompany, branchOptions, campOptions, formData.BRANCH_ID, formData.CAMP_ID, formData.STORE_ID]);
 
-  /* A username with no active mapping still gets to log in - that is a normal
-     state for an admin or a service account - but there is nothing to pick, so
-     the dropdowns stay empty and the form submits without a context, leaving the
-     backend to apply its default. */
+  /* Whether the Scope section has anything to render. A username with no
+     mapping (or an unknown one) yields no companies, so the section is hidden -
+     but sign-in stays blocked, because the password gate is tied to
+     `isUsernameValid`, not to this list. */
   const hasContextOptions = companies.length > 0;
 
+  /* The username gate. A username is only usable once its lookup has settled AND
+     returned at least one mapped company; an empty result (unknown user or a
+     user with no mapping) leaves the password field, the scope and sign-in
+     locked. The `companies.length` half also covers the instant between typing
+     and the lookup effect flipping the status. */
+  const isUsernameValid = usernameStatus === 'valid' && companies.length > 0;
+  const isUsernameInvalid = usernameStatus === 'invalid';
+  const isUsernameChecking = usernameStatus === 'checking';
+
   const canSubmit =
-    formData.LOGIN_NAME.trim().length > 0 &&
+    isUsernameValid &&
+    isSelectionValid &&
     formData.PASSWORD_USER_HDR.length > 0 &&
-    (!hasContextOptions || isSelectionValid) &&
     !loading;
 
   /* Show Redux errors as toasts */
@@ -201,11 +219,13 @@ export default function LoginPage() {
       lookupSeq.current += 1;
       setCompanies([]);
       setContextLoading(false);
+      setUsernameStatus('idle');
       return;
     }
 
     const seq = ++lookupSeq.current;
     setContextLoading(true);
+    setUsernameStatus('checking');
 
     const timer = setTimeout(async () => {
       try {
@@ -220,13 +240,16 @@ export default function LoginPage() {
         if (seq !== lookupSeq.current) return;
 
         const parsed = json?.data?.companies;
-        setCompanies(Array.isArray(parsed) ? parsed : []);
+        const nextCompanies = Array.isArray(parsed) ? parsed : [];
+        setCompanies(nextCompanies);
+        setUsernameStatus(nextCompanies.length > 0 ? 'valid' : 'invalid');
       } catch {
         if (seq !== lookupSeq.current) return;
         /* An empty list is the same thing the server sends for an unknown user,
            so a failed lookup must look identical - otherwise the dropdown state
            would tell you which usernames exist. */
         setCompanies([]);
+        setUsernameStatus('invalid');
       } finally {
         if (seq === lookupSeq.current) setContextLoading(false);
       }
@@ -249,7 +272,22 @@ export default function LoginPage() {
     }
 
     setFormData((prev) => {
-      const company = companies.find((c) => String(c.companyId) === prev.COMPANY_ID) ?? companies[0];
+      /* Prefer the company already chosen (re-applying a remembered pick), then
+         the remembered company, then the first company that offers a complete
+         branch + camp + store path, and finally the first company. Auto-filling
+         a complete path lets a mapped user land on a usable scope instead of a
+         half-empty one they have to repair. */
+      const isCompleteCompany = (c: ContextCompany) =>
+        (c.branches?.length ?? 0) > 0 && (c.camps ?? []).some((cp) => (cp.stores?.length ?? 0) > 0);
+
+      const rememberedCompany =
+        rememberedContext && companies.find((c) => String(c.companyId) === rememberedContext.COMPANY_ID);
+
+      const company =
+        companies.find((c) => String(c.companyId) === prev.COMPANY_ID) ??
+        rememberedCompany ??
+        companies.find(isCompleteCompany) ??
+        companies[0];
       if (!company) return prev;
 
       const remembered =
@@ -258,37 +296,34 @@ export default function LoginPage() {
           : null;
 
       const branchValueStr = (() => {
-        if (remembered?.BRANCH_ID) {
-          const ok = company.branches.some((b) => String(b.branchId) === remembered.BRANCH_ID);
-          if (ok) return String(remembered.BRANCH_ID);
+        if (
+          remembered?.BRANCH_ID &&
+          company.branches.some((b) => String(b.branchId) === remembered.BRANCH_ID)
+        ) {
+          return String(remembered.BRANCH_ID);
         }
-        if (company.branches && company.branches.length > 0 && company.branches[0]?.branchId != null) {
-          return String(company.branches[0].branchId);
-        }
-        return NONE;
+        const first = company.branches.find((b) => b.branchId != null);
+        return first ? String(first.branchId) : NONE;
       })();
 
-      const campId = (() => {
+      /* Prefer a camp that actually has stores so the store dropdown can be
+         completed automatically; a remembered camp still wins. */
+      const camp = (() => {
         if (remembered?.CAMP_ID) {
-          const ok = company.camps.some((c) => String(c.campId) === remembered.CAMP_ID);
-          if (ok) return String(remembered.CAMP_ID);
+          const rem = company.camps.find((c) => String(c.campId) === remembered.CAMP_ID);
+          if (rem) return rem;
         }
-        if (company.camps && company.camps.length > 0 && company.camps[0]?.campId != null) {
-          return String(company.camps[0].campId);
-        }
-        return '';
+        return company.camps.find((c) => (c.stores?.length ?? 0) > 0) ?? company.camps[0];
       })();
-      const camp = company.camps.find((c) => String(c.campId) === campId);
+
+      const campId = camp ? String(camp.campId) : '';
 
       const storeValue = (() => {
-        if (remembered?.STORE_ID && camp?.stores) {
-          const ok = camp.stores.some((s) => String(s.storeId) === remembered.STORE_ID);
-          if (ok) return String(remembered.STORE_ID);
+        if (remembered?.STORE_ID && camp?.stores?.some((s) => String(s.storeId) === remembered.STORE_ID)) {
+          return String(remembered.STORE_ID);
         }
-        if (camp?.stores && camp.stores.length > 0 && camp.stores[0]?.storeId != null) {
-          return String(camp.stores[0].storeId);
-        }
-        return NONE;
+        const first = camp?.stores?.find((s) => s.storeId != null);
+        return first ? String(first.storeId) : NONE;
       })();
 
       const next = {
@@ -315,6 +350,7 @@ export default function LoginPage() {
   const handleLoginNameChange = useCallback((value: string) => {
     lookupSeq.current += 1;
     setCompanies([]);
+    setUsernameStatus(value.trim().length >= MIN_LOOKUP_LENGTH ? 'checking' : 'idle');
     setRememberedContext(null);
     setFormData((prev) => ({ ...prev, LOGIN_NAME: value, COMPANY_ID: '', BRANCH_ID: '', CAMP_ID: '', STORE_ID: '' }));
   }, []);
@@ -367,19 +403,28 @@ export default function LoginPage() {
     const LOGIN_NAME = formData.LOGIN_NAME.trim();
     const PASSWORD = formData.PASSWORD_USER_HDR;
 
-    if (!LOGIN_NAME || !PASSWORD) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Please enter username and password.' });
+    /* Guard here as well as in canSubmit: a submit can be triggered by the Enter
+       key in a field before the username lookup has settled. */
+    if (!isUsernameValid) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Enter a valid username with access to continue.'
+      });
       return;
     }
 
-    /* Guard here as well as in canSubmit: a submit can be triggered by the Enter
-       key in a field while the dropdowns are still settling. */
-    if (hasContextOptions && !isSelectionValid) {
+    if (!isSelectionValid) {
       toast({
         variant: 'destructive',
         title: 'Error',
         description: 'Please choose a valid company, branch, camp and store.'
       });
+      return;
+    }
+
+    if (!LOGIN_NAME || !PASSWORD) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please enter username and password.' });
       return;
     }
 
@@ -486,6 +531,16 @@ export default function LoginPage() {
                   className="block w-full pl-11 pr-4 py-3 bg-muted/30 border border-border rounded-xl focus:ring-4 focus:ring-primary/10 outline-none transition-all text-foreground text-sm"
                 />
               </div>
+              {isUsernameChecking && (
+                <p className="text-[11px] text-muted-foreground ml-1 animate-pulse">
+                  Checking username...
+                </p>
+              )}
+              {isUsernameInvalid && (
+                <p className="text-[11px] text-destructive font-medium ml-1">
+                  No access found for this username. Contact your administrator.
+                </p>
+              )}
             </div>
 
             {/* Password Field */}
@@ -509,19 +564,29 @@ export default function LoginPage() {
                   value={formData.PASSWORD_USER_HDR}
                   onChange={(e) => setFormData({ ...formData, PASSWORD_USER_HDR: e.target.value })}
                   autoComplete="current-password"
-                  disabled={loading}
-                  className="block w-full pl-11 pr-12 py-3 bg-muted/30 border border-border rounded-xl focus:ring-4 focus:ring-primary/10 outline-none transition-all text-foreground text-sm"
+                  disabled={loading || !isUsernameValid || !isSelectionValid}
+                  className="block w-full pl-11 pr-12 py-3 bg-muted/30 border border-border rounded-xl focus:ring-4 focus:ring-primary/10 outline-none transition-all text-foreground text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  disabled={loading}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-muted-foreground hover:text-foreground transition-colors outline-none"
+                  disabled={loading || !isUsernameValid || !isSelectionValid}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-muted-foreground hover:text-foreground transition-colors outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+              {!isUsernameValid && (
+                <p className="text-[11px] text-muted-foreground ml-1">
+                  Enter a valid username to unlock the password field.
+                </p>
+              )}
+              {isUsernameValid && !isSelectionValid && (
+                <p className="text-[11px] text-muted-foreground ml-1">
+                  Complete the scope (company, branch, camp and store) to continue.
+                </p>
+              )}
             </div>
 
             {/* Company / Branch / Camp / Store

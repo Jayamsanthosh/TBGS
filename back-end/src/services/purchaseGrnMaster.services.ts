@@ -35,6 +35,8 @@ export interface PurchaseGrnDtl {
   REJECTION_REMARKS?: string;
   REMARKS?: string;
   STATUS_ENTRY?: string;
+  BATCH_MAPPED_QUANTITY?: any;
+  BALANCE_TO_MAP_BATCH_QTY?: any;
 }
 
 export interface PurchaseGrnData {
@@ -113,6 +115,12 @@ const computeDtlAmounts = (dtl: PurchaseGrnDtl, headerRate: any): PurchaseGrnDtl
   const rateLc = r3(rate * exRate);
   const totalCostLc = r3(totalCostFc * exRate);
 
+  /* Batch mapping progress: the quantity of this line already allocated to
+     batches in the Batch tab, and what is left to map. Both come from the
+     client (which mirrors TBL_BATCH_MASTER); the balance is derived here. */
+  const batchMapped = amtOrNull(dtl.BATCH_MAPPED_QUANTITY) ?? 0;
+  const balanceToMap = r3(accepted - batchMapped);
+
   const balance =
     amtOrNull(dtl.BALANCE_TO_RECEIVE_QTY) ??
     (poQty === null ? null : r3(poQty - already));
@@ -127,6 +135,8 @@ const computeDtlAmounts = (dtl: PurchaseGrnDtl, headerRate: any): PurchaseGrnDtl
     TOTAL_COST_FC: totalCostFc,
     RATE_LC: rateLc,
     TOTAL_COST_LC: totalCostLc,
+    BATCH_MAPPED_QUANTITY: batchMapped,
+    BALANCE_TO_MAP_BATCH_QTY: balanceToMap,
   };
 };
 
@@ -327,7 +337,9 @@ const grnDtlRequest = (
     .input("REMARKS", sql.VarChar(500), c.REMARKS || null)
     .input("STATUS_ENTRY", sql.VarChar(20), c.STATUS_ENTRY || null)
     .input("USER", sql.VarChar(50), data.USER || "Admin")
-    .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+    .input("BATCH_MAPPED_QUANTITY", sql.Decimal(15, 3), toNum(c.BATCH_MAPPED_QUANTITY))
+    .input("BALANCE_TO_MAP_BATCH_QTY", sql.Decimal(15, 3), toNum(c.BALANCE_TO_MAP_BATCH_QTY));
 };
 
 /* ------------------------------------------------------------- dtl save */
