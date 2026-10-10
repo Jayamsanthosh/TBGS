@@ -14,6 +14,7 @@ export default function PurchaseGrnReview({
   headerRate,
   onEditLine,
   onAddLine,
+  onOpenBatch,
 }: {
   form: Record<string, any>;
   headerLabels: Record<string, string>;
@@ -22,6 +23,7 @@ export default function PurchaseGrnReview({
   headerRate: number;
   onEditLine: (row: any) => void;
   onAddLine: () => void;
+  onOpenBatch?: (row: any) => void;
 }) {
   const shown = (v: any) => (v === null || v === undefined || v === "" ? "" : v);
   const num = (v: any) => (v === "" || v == null ? "-" : v);
@@ -57,6 +59,8 @@ export default function PurchaseGrnReview({
     { label: "Received", render: (r) => num(r.RECEIVED_QUANTITY), numeric: true },
     { label: "Rejected", render: (r) => num(r.REJECTED_QUANTITY), numeric: true },
     { label: "Accepted", render: (r) => accepted(r).toFixed(3), numeric: true },
+    { label: "Batch Mapped", render: (r) => num(r.BATCH_MAPPED_QUANTITY), numeric: true },
+    { label: "Balance to Map", render: (r) => num(r.BALANCE_TO_MAP_BATCH_QTY), numeric: true, onClick: (r) => onOpenBatch?.(r) },
     { label: "UOM", render: (r) => r.UOM_NAME || r.UOM_ID || "-" },
     { label: "Alt Qty", render: (r) => num(r.ALT_QUANTITY), numeric: true },
     { label: "Alt UOM", render: (r) => r.ALT_UOM_NAME || r.ALT_UOM_ID || "-" },

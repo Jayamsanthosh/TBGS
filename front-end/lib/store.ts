@@ -150,6 +150,7 @@ import purchaseQuotationConversationReducer from "./purchaseQuotationConversatio
 import purchaseOrderMasterReducer from "./purchaseOrderMasterSlice";
 import openingStockMasterReducer from "./openingStockMasterSlice";
 import purchaseGrnMasterReducer from "./purchaseGrnMasterSlice";
+import batchMasterReducer from "./batchMasterSlice";
 
 import { useAppDispatch, useAppSelector } from "./hooks";
 
@@ -308,6 +309,7 @@ export const store = configureStore({
 purchaseOrderMaster: purchaseOrderMasterReducer,
     openingStockMaster: openingStockMasterReducer,
     purchaseGrnMaster: purchaseGrnMasterReducer,
+    batchMaster: batchMasterReducer,
 
   },
 });

@@ -163,6 +163,7 @@ import PurchaseQuotationMasterRouter from "./purchaseQuotationMaster.routers";
 import PurchaseOrderMasterRouter from "./purchaseOrderMaster.routers";
 import OpeningStockMasterRouter from "./openingStockMaster.routers";
 import PurchaseGrnMasterRouter from "./purchaseGrnMaster.routers";
+import BatchMasterRouter from "./batchMaster.routers";
 
 const Router = express.Router()
 
@@ -372,6 +373,12 @@ Router.use("/opening-stock", authenticate, OpeningStockMasterRouter);
 // (menu placement TBD). Re-enable checkPermission("/purchase-grn") once a
 // Link record is seeded for this route.
 Router.use("/purchase-grn", authenticate, PurchaseGrnMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission - the Batch Master is a shared child
+// table of the inventory documents (Purchase GRN / Opening Stock) with no
+// TBL_LINKS_AND_PAGES entry of its own. Re-enable checkPermission("/batch-master")
+// once a Link record is seeded.
+Router.use("/batch-master", authenticate, BatchMasterRouter);
 Router.use("/holiday-entries", authenticate, checkPermission("/holidays"), HolidayEntriesRouter);
 Router.use("/employee-database", authenticate, checkPermission("/employee-database"), EmployeeDatabaseRouter);
 Router.use("/dms", authenticate, checkPermission(["/dms", "/truck-master", "/driver-master", "/trailer-master"]), DMSRouter);

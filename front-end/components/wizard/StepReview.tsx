@@ -89,6 +89,7 @@ export default function StepReview({
                     {columns.map((c, ci) => {
                       const value = c.render(row);
                       const editableLink = ci === 0 && onEditLine;
+                      const clickable = !editableLink && c.onClick;
                       return (
                         <td
                           key={c.label}
@@ -102,6 +103,14 @@ export default function StepReview({
                               onClick={() => onEditLine(row)}
                               className="text-primary underline underline-offset-2 hover:text-primary/80"
                               title="Edit this line"
+                            >
+                              {show(value)}
+                            </button>
+                          ) : clickable ? (
+                            <button
+                              type="button"
+                              onClick={() => c.onClick!(row)}
+                              className="text-primary underline underline-offset-2 hover:text-primary/80"
                             >
                               {show(value)}
                             </button>
