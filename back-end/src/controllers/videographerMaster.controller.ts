@@ -29,7 +29,10 @@ export const getVideographerMasterById = async (req: Request, res: Response): Pr
   }
 
   try {
-    const videographer = await getVideographerMasterByIdService(parseInt(id as string, 10));
+    const videographer = await getVideographerMasterByIdService(
+      parseInt(id as string, 10),
+      req.query.LINK_ID ? parseInt(req.query.LINK_ID as string, 10) : null
+    );
 
     if (!videographer) {
       res.status(404).json({ success: false, message: "Videographer not found" });

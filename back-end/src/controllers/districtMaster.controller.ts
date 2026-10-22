@@ -21,6 +21,7 @@ export const getAllDistrictMaster = async (_req: Request, res: Response): Promis
 
 export const getDistrictMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const link_id = parseInt(req.query.link_id as string, 10) || 0;
 
   if (!id) {
     res.status(400).json({ success: false, message: "District ID is required" });
@@ -28,7 +29,7 @@ export const getDistrictMasterById = async (req: Request, res: Response): Promis
   }
 
   try {
-    const district = await getDistrictMasterByIdService(parseInt(id as string, 10));
+    const district = await getDistrictMasterByIdService(parseInt(id as string, 10), link_id);
 
     if (!district) {
       res.status(404).json({ success: false, message: "District not found" });

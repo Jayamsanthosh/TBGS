@@ -29,7 +29,8 @@ export const getClientAdditionalServicesMasterById = async (req: Request, res: R
   }
 
   try {
-    const service = await getClientAdditionalServicesMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const service = await getClientAdditionalServicesMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!service) {
       res.status(404).json({ success: false, message: "Client additional service not found" });

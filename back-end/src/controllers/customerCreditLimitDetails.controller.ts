@@ -27,6 +27,7 @@ export const getAllCustomerCreditLimitDetails = async (req: Request, res: Respon
 
 export const getCustomerCreditLimitDetailsById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const linkId = req.query.link_id != null ? parseInt(String(req.query.link_id), 10) : 0;
 
   if (!id) {
     res.status(400).json({ success: false, message: "SNO is required" });
@@ -34,7 +35,7 @@ export const getCustomerCreditLimitDetailsById = async (req: Request, res: Respo
   }
 
   try {
-    const item = await getCustomerCreditLimitDetailsByIdService(parseInt(id as string, 10));
+    const item = await getCustomerCreditLimitDetailsByIdService(parseInt(id as string, 10), linkId);
 
     if (!item) {
       res.status(404).json({ success: false, message: "Customer credit limit details not found" });

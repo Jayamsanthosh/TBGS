@@ -11,6 +11,7 @@ export interface DistrictGridData {
   ZONE_NAME?: string;
   DISTANCE_FROM_ARUSHA?: number;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface DistrictsState {

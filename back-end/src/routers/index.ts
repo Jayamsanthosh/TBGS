@@ -78,6 +78,8 @@ import CompanyQuotaAnimalMappingCombinedRouter from "./companyQuotaAnimalMapping
 import FieldCombinedRouter from "./fieldCombined.routers";
 import AnimalHuntingChargesMasterCombinedRouter from "./animalHuntingChargesMasterCombined.routers";
 import EmployeeBenefitMasterCombinedRouter from "./employeeBenefitMasterCombined.routers";
+import ApprovalStageRouter from "./approvalStage.routers";
+import ApprovalTemplateRouter from "./approvalTemplate.routers";
 
 import GunBrandMasterRouter from "./gunBrandMaster.routers";
 import BusinessPartnerMasterRouter from "./businessPartnerMaster.routers";
@@ -163,6 +165,7 @@ import PurchaseQuotationMasterRouter from "./purchaseQuotationMaster.routers";
 import PurchaseOrderMasterRouter from "./purchaseOrderMaster.routers";
 import OpeningStockMasterRouter from "./openingStockMaster.routers";
 import PurchaseGrnMasterRouter from "./purchaseGrnMaster.routers";
+import PurchaseInvoiceMasterRouter from "./purchaseInvoiceMaster.routers";
 import BatchMasterRouter from "./batchMaster.routers";
 
 const Router = express.Router()
@@ -374,11 +377,27 @@ Router.use("/opening-stock", authenticate, OpeningStockMasterRouter);
 // Link record is seeded for this route.
 Router.use("/purchase-grn", authenticate, PurchaseGrnMasterRouter);
 
+// NOTE: mounted WITHOUT checkPermission for now - the Purchase Invoice
+// (HDR + DTL + charges) link was seeded, but the permission is left off until
+// the role mapping is verified in the target environment.
+Router.use("/purchase-invoice", authenticate, PurchaseInvoiceMasterRouter);
+
 // NOTE: mounted WITHOUT checkPermission - the Batch Master is a shared child
 // table of the inventory documents (Purchase GRN / Opening Stock) with no
 // TBL_LINKS_AND_PAGES entry of its own. Re-enable checkPermission("/batch-master")
 // once a Link record is seeded.
 Router.use("/batch-master", authenticate, BatchMasterRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Approval Stage Master has
+// no TBL_LINKS_AND_PAGES / role-mapping entry yet (menu placement TBD).
+// Re-enable checkPermission("/approval-stage") once a Link record is seeded.
+Router.use("/approval-stage", authenticate, ApprovalStageRouter);
+
+// NOTE: mounted WITHOUT checkPermission for now - the Approval Template Master has
+// no TBL_LINKS_AND_PAGES / role-mapping entry yet (menu placement TBD).
+// Re-enable checkPermission("/approval-template") once a Link record is seeded.
+Router.use("/approval-template", authenticate, ApprovalTemplateRouter);
+
 Router.use("/holiday-entries", authenticate, checkPermission("/holidays"), HolidayEntriesRouter);
 Router.use("/employee-database", authenticate, checkPermission("/employee-database"), EmployeeDatabaseRouter);
 Router.use("/dms", authenticate, checkPermission(["/dms", "/truck-master", "/driver-master", "/trailer-master"]), DMSRouter);

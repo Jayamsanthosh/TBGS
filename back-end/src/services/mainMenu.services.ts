@@ -10,8 +10,12 @@ export interface MainMenuData {
   STATUS_MASTER: string;
   STYLE_CSS: string;
   PAGE_ACTION: string;
+  LINK_ID?: number | null;
   USER?: string;
 }
+
+const numOrNull = (v: any): number | null =>
+  v === undefined || v === null || v === "" ? null : Number(v);
 
 export const getAllMainMenuService = async () => {
   const pool = getPool();
@@ -26,7 +30,7 @@ export const getAllMainMenuService = async () => {
   }
 };
 
-export const getMainMenuByIdService = async (id: number) => {
+export const getMainMenuByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -34,6 +38,7 @@ export const getMainMenuByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("MAIN_MENU_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, numOrNull(linkId))
       .execute("VMaster.GET_MAIN_MENU");
 
     return result.recordset[0] || null;
@@ -66,6 +71,7 @@ export const saveMainMenuService = async (menu: MainMenuData) => {
       .input("STYLE_CSS", sql.VarChar(1000), menu.STYLE_CSS || null)
       .input("PAGE_ACTION", sql.VarChar(100), menu.PAGE_ACTION || null)
       .input("USER", sql.VarChar(50), menu.USER || "Admin")
+      .input("LINK_ID", sql.Int, numOrNull(menu.LINK_ID))
       .execute("VMaster.SAVE_MAIN_MENU");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save main menu");
@@ -92,6 +98,7 @@ export const updateMainMenuService = async (menu: MainMenuData) => {
       .input("STYLE_CSS", sql.VarChar(1000), menu.STYLE_CSS ?? null)
       .input("PAGE_ACTION", sql.VarChar(100), menu.PAGE_ACTION ?? null)
       .input("USER", sql.VarChar(50), menu.USER ?? "Admin")
+      .input("LINK_ID", sql.Int, numOrNull(menu.LINK_ID))
       .execute("VMaster.UPDATE_MAIN_MENU");
 
     const { message } = parseSprocResult(result.recordset?.[0], "Failed to update main menu");

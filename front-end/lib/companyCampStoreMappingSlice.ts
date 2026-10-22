@@ -9,6 +9,7 @@ export interface MappingGridData {
   STORE_ID?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface MappingState {

@@ -11,6 +11,7 @@ export interface AnimalPartsMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const serializeRecordset = (rows: any[]) =>
@@ -45,7 +46,7 @@ export const getAllAnimalPartsMasterService = async (status?: string) => {
   }
 };
 
-export const getAnimalPartsMasterByIdService = async (id: number) => {
+export const getAnimalPartsMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -53,6 +54,7 @@ export const getAnimalPartsMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("ANIMAL_PARTS_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_ANIMAL_PARTS_MASTER");
 
     return result.recordset[0] || null;
@@ -100,6 +102,7 @@ export const updateAnimalPartsMasterService = async (data: AnimalPartsMasterData
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_ANIMAL_PARTS_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update animal parts");

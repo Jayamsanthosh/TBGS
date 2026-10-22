@@ -38,6 +38,7 @@ import { API_URL } from "@/lib/config";
 import { useToast } from "@/hooks/use-toast";
 import { validateTanzaniaPhone, formatTanzaniaPhone, cleanPhoneForStorage } from "@/lib/validation";
 import EntityFilesViewerDialog from "@/components/EntityFilesViewerDialog";
+import { DMS_LINK_ID } from "@/lib/dmsSlice";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -285,7 +286,7 @@ export default function DriversTab({ onViewFiles, linkPagesId }: { onViewFiles?:
     fillForm(item);
     try {
       const res: any = await dispatch(
-        fetchDriverById(Number(item.SNO) || Number(item.id))
+        fetchDriverById({ id: Number(item.SNO) || Number(item.id), linkId: linkPagesId })
       ).unwrap();
       if (res) {
         fillForm(res);
@@ -331,6 +332,7 @@ export default function DriversTab({ onViewFiles, linkPagesId }: { onViewFiles?:
         DRIVING_LICENSE_NUMBER: form.DRIVING_LICENSE_NUMBER?.trim(),
         VEHICLE_CATEGORIES_LICENSED: form.VEHICLE_CATEGORIES_LICENSED?.trim(),
         REMARKS: form.REMARKS?.trim(),
+        LINK_ID: linkPagesId,
       };
       if (editing) {
         const res: any = await dispatch(
@@ -792,7 +794,7 @@ export default function DriversTab({ onViewFiles, linkPagesId }: { onViewFiles?:
           if (!open) setViewerDriverEmpId(null);
         }}
         listUrl={`${API_URL}/dms?linkPagesId=${encodeURIComponent(String(linkPagesId ?? 0))}&pageRefNo=${encodeURIComponent(String(viewerDriverEmpId ?? ""))}&status=ALL`}
-        contentUrlBuilder={(row) => `${API_URL}/dms/${Number(row?.DMS_ID) || ""}`}
+        contentUrlBuilder={(row) => `${API_URL}/dms/${Number(row?.DMS_ID) || ""}?link_id=${DMS_LINK_ID}`}
         emptyMessage="No files attached to this driver"
       />
     </div>

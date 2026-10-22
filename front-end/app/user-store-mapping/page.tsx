@@ -7,6 +7,7 @@ import { fetchUserStoreMappings, addUserStoreMapping, updateUserStoreMapping, de
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,7 @@ export default function UserStoreMappingPage() {
   const dispatch = useAppDispatch();
   const { mappings, loading, error } = useAppSelector((s) => s.userStoreMapping);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(82);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -289,6 +291,7 @@ export default function UserStoreMappingPage() {
         STATUS_MASTER: editing ? (form.STATUS_MASTER || "ACTIVE") : "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

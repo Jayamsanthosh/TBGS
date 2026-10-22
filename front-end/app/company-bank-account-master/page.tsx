@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { API_URL } from "@/lib/config";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -34,6 +35,7 @@ export default function CompanyBankAccountMasterPage() {
   const dispatch = useAppDispatch();
   const { accounts, loading, error } = useAppSelector((s) => s.companyBankAccount);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(84);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -144,7 +146,7 @@ export default function CompanyBankAccountMasterPage() {
     const id = Number(item.id ?? item.ACCOUNT_ID);
     if (!id) return;
     try {
-      const res = await fetch(`${API_URL}/company-bank-account-master/${id}`);
+      const res = await fetch(`${API_URL}/company-bank-account-master/${id}?link_id=${linkPagesId}`);
       if (!res.ok) return;
       const json = await res.json();
       const d = json.data;
@@ -194,6 +196,7 @@ export default function CompanyBankAccountMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

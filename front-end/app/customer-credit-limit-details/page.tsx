@@ -16,6 +16,7 @@ import { API_URL } from "@/lib/config";
 import { formatDate, clampNonNegative } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,6 +71,7 @@ export default function CustomerCreditLimitDetailsPage() {
   const { items, loading, error } = useAppSelector((s) => s.customerCreditLimitDetails);
   const { user } = useAppSelector((s) => s.auth);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(102);
 
   const [search, setSearch] = useState("");
   const [selectedCompany, setSelectedCompany] = useState("");
@@ -225,7 +227,7 @@ export default function CustomerCreditLimitDetailsPage() {
     setDialogOpen(true);
     setForm(emptyForm());
     try {
-      const detail = await dispatch(getCustomerCreditLimitById(item.id)).unwrap();
+      const detail = await dispatch(getCustomerCreditLimitById({ id: item.id, linkId: linkPagesId })).unwrap();
       if (detail) {
         setForm({
           COMPANY_ID: String(detail.COMPANY_ID || ""),
@@ -277,6 +279,7 @@ export default function CustomerCreditLimitDetailsPage() {
       OVER_DUE_OUTSTANDING_AMOUNT: form.OVER_DUE_OUTSTANDING_AMOUNT ? Math.max(0, Number(form.OVER_DUE_OUTSTANDING_AMOUNT) || 0) : null,
       REMARKS: form.REMARKS?.trim() || null,
       STATUS_MASTER: form.STATUS_MASTER,
+      LINK_ID: linkPagesId,
       USER: "Admin",
       MAC_ADDRESS: "WEB",
     };

@@ -18,6 +18,7 @@ export interface DriverMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const toInt = (v: any): number | null =>
@@ -47,6 +48,7 @@ const driverRequest = (pool: any, data: DriverMasterData, includeId = true) => {
   req.input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null);
   req.input("USER", sql.VarChar(50), data.USER || "Admin");
   req.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+  req.input("LINK_ID", sql.Int, toInt(data.LINK_ID));
   return req;
 };
 
@@ -79,7 +81,7 @@ export const getAllDriverMasterService = async (status?: string) => {
   }
 };
 
-export const getDriverMasterByIdService = async (sno: number) => {
+export const getDriverMasterByIdService = async (sno: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -87,6 +89,7 @@ export const getDriverMasterByIdService = async (sno: number) => {
     const result = await pool
       .request()
       .input("SNO", sql.Int, sno)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_DRIVER_MASTER_HDR");
     return result.recordset[0] || null;
   } catch (error) {

@@ -12,6 +12,7 @@ export interface FieldCombinedDtl {
 
 export interface FieldCombinedData {
   FIELD_ID_FLD_HDR?: number;
+  LINK_ID?: number | null;
   PROJECT_NAME_FLD_HDR: string;
   FIELD_CATEGORY_FLD_HDR?: string;
   FIELD_DESC_FLD_HDR?: string;
@@ -69,6 +70,7 @@ export const saveFieldCombinedService = async (data: FieldCombinedData) => {
       .input("STATUS_FLD_HDR", sql.VarChar(50), data.STATUS_FLD_HDR || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_FIELD_HDR");
 
     const hdrResponse = hdrResult.recordset?.[0];
@@ -117,6 +119,7 @@ export const updateFieldCombinedService = async (data: FieldCombinedData) => {
       .input("STATUS_FLD_HDR", sql.VarChar(50), data.STATUS_FLD_HDR ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_FIELD_HDR");
 
     const hdrResponse = hdrResult.recordset?.[0];

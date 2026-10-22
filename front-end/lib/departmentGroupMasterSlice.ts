@@ -11,6 +11,7 @@ export interface DepartmentGroupGridData {
   BCC_MAIL_ADDRESS?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface DepartmentGroupState {

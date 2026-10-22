@@ -15,6 +15,7 @@ export interface CustomerWiseTripTemplatePriceMappingData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const numOrNull = (v: any): number | null =>
@@ -54,6 +55,7 @@ export const saveCustomerWiseTripTemplatePriceMappingService = async (data: Cust
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, numOrNull(data.LINK_ID))
       .execute("VMaster.SAVE_CUSTOMER_WISE_TRIP_TEMPLATE_PRICE_MAPPING");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save customer wise trip template price mapping");
@@ -84,6 +86,7 @@ export const updateCustomerWiseTripTemplatePriceMappingService = async (data: Cu
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, numOrNull(data.LINK_ID))
       .execute("VMaster.UPDATE_CUSTOMER_WISE_TRIP_TEMPLATE_PRICE_MAPPING");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update customer wise trip template price mapping");

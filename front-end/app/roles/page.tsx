@@ -5,6 +5,7 @@ import MasterCrudPage, { type MasterField } from "@/components/MasterCrudPage";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchRoles, addRole, updateRole, deleteRole, clearRolesError, RoleGridData } from "@/lib/rolesSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
@@ -55,6 +56,7 @@ export default function RolesPage() {
   const dispatch = useAppDispatch();
   const { roles, loading, error } = useAppSelector((s) => s.roles);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(8);
 
   useEffect(() => {
     dispatch(fetchRoles());
@@ -71,12 +73,12 @@ export default function RolesPage() {
     data: roles,
     isLoading: loading,
     add: async (item: RoleGridData) => {
-      const res = await dispatch(addRole(item)).unwrap();
+      const res = await dispatch(addRole({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchRoles());
       return res;
     },
     update: async (item: RoleGridData) => {
-      const res = await dispatch(updateRole(item)).unwrap();
+      const res = await dispatch(updateRole({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchRoles());
       return res;
     },
@@ -93,7 +95,7 @@ export default function RolesPage() {
       dispatch(fetchRoles());
       return res;
     },
-  }), [roles, loading, dispatch]);
+  }), [roles, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

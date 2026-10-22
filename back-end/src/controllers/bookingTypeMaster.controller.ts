@@ -30,7 +30,8 @@ export const getBookingTypeMasterById = async (req: Request, res: Response): Pro
   }
 
   try {
-    const bookingType = await getBookingTypeMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const bookingType = await getBookingTypeMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!bookingType) {
       res.status(404).json({ success: false, message: "Booking Type not found" });

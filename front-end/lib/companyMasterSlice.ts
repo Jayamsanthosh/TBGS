@@ -26,6 +26,7 @@ export interface CompanyGridData {
   COMP_STAMP_LOGO?: string | null;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface CompanyState {

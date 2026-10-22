@@ -32,8 +32,10 @@ export const getMappingById = async (req: Request, res: Response): Promise<void>
     return;
   }
 
+  const linkId = req.query.link_id != null ? Number(req.query.link_id) : 0;
+
   try {
-    const item = await getMappingByIdService(parseInt(id as string, 10));
+    const item = await getMappingByIdService(parseInt(id as string, 10), Number.isNaN(linkId) ? 0 : linkId);
 
     if (!item) {
       res.status(404).json({ success: false, message: "Mapping not found" });

@@ -16,6 +16,7 @@ export interface TripTemplatePriceMappingGridData {
   CURRENCY_NAME?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;

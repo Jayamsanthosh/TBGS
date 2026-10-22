@@ -5,6 +5,7 @@ import MasterCrudPage, { type MasterField } from "@/components/MasterCrudPage";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchUoms, addUom, updateUom, deleteUom, clearUomsError, UomGridData } from "@/lib/uomMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
@@ -65,6 +66,7 @@ export default function UomMasterPage() {
   const dispatch = useAppDispatch();
   const { uoms, loading, error } = useAppSelector((s) => s.uoms);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(20);
 
   useEffect(() => {
     dispatch(fetchUoms());
@@ -81,12 +83,12 @@ export default function UomMasterPage() {
     data: uoms,
     isLoading: loading,
     add: async (item: UomGridData) => {
-      const res = await dispatch(addUom(item)).unwrap();
+      const res = await dispatch(addUom({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchUoms());
       return res;
     },
     update: async (item: UomGridData) => {
-      const res = await dispatch(updateUom(item)).unwrap();
+      const res = await dispatch(updateUom({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchUoms());
       return res;
     },
@@ -103,7 +105,7 @@ export default function UomMasterPage() {
       dispatch(fetchUoms());
       return res;
     },
-  }), [uoms, loading, dispatch]);
+  }), [uoms, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

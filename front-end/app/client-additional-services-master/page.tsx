@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { EmployeeCombobox } from "@/components/EmployeeCombobox";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const statusFormatter = (val: any) => {
   const s = String(val || "").toUpperCase();
@@ -45,6 +46,7 @@ export default function ClientAdditionalServicesMasterPage() {
   const dispatch = useAppDispatch();
   const { services, loading, error } = useAppSelector((s) => s.clientAdditionalServices);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(194);
   const [currentStatus, setCurrentStatus] = useState<string>("");
 
   const handleStatusFilterChange = useCallback((value: string) => {
@@ -174,12 +176,12 @@ export default function ClientAdditionalServicesMasterPage() {
     data: enrichedData,
     isLoading: loading,
     add: async (item: ClientAdditionalServicesGridData) => {
-      const res = await dispatch(addClientAdditionalService(item)).unwrap();
+      const res = await dispatch(addClientAdditionalService({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchClientAdditionalServices(currentStatus));
       return res;
     },
     update: async (item: ClientAdditionalServicesGridData) => {
-      const res = await dispatch(updateClientAdditionalService(item)).unwrap();
+      const res = await dispatch(updateClientAdditionalService({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchClientAdditionalServices(currentStatus));
       return res;
     },
@@ -196,7 +198,7 @@ export default function ClientAdditionalServicesMasterPage() {
       dispatch(fetchClientAdditionalServices(currentStatus));
       return res;
     },
-  }), [enrichedData, loading, dispatch, currentStatus]);
+  }), [enrichedData, loading, dispatch, currentStatus, linkPagesId]);
 
   return (
     <MasterCrudPage
@@ -217,7 +219,7 @@ export default function ClientAdditionalServicesMasterPage() {
       onBeforeEdit={async (item) => {
         const id = Number(item.SERVICES_ID ?? item.id);
         if (!id) return undefined;
-        const res = await fetch(`${API_URL}/client-additional-services-master/${id}`);
+        const res = await fetch(`${API_URL}/client-additional-services-master/${id}?link_id=${linkPagesId}`);
         if (!res.ok) return undefined;
         const json = await res.json();
         return json.data;

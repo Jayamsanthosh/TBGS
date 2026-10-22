@@ -8,6 +8,7 @@ import { API_URL } from "@/lib/config";
 import { IconPicker } from "@/components/IconPicker";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { refreshNavigationForUser } from "@/lib/navigationSlice";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 interface MainMenuGridData {
   id?: string | number;
@@ -18,6 +19,7 @@ interface MainMenuGridData {
   STATUS_MASTER: string;
   STYLE_CSS: string;
   PAGE_ACTION: string;
+  LINK_ID?: number | null;
 }
 
 const getUser = () => {
@@ -76,6 +78,7 @@ const columns = [
 export default function MainMenuPage() {
   const dispatch = useAppDispatch();
   const authUser = useAppSelector((s: any) => s.auth.user);
+  const linkPagesId = useLinkPagesId(10);
   const { data, loading } = useApiQuery("main-menu-page", async () => {
     const res = await fetch(`${API_URL}/main-menu`);
     if (!res.ok) throw new Error("Failed to fetch main menus");
@@ -128,7 +131,7 @@ export default function MainMenuPage() {
     data: data || [],
     isLoading: loading,
     add: async (item: MainMenuGridData) => {
-      const body = { ...item, STATUS_MASTER: toDbStatus(item.STATUS_MASTER), USER: getUser() };
+      const body = { ...item, STATUS_MASTER: toDbStatus(item.STATUS_MASTER), USER: getUser(), LINK_ID: linkPagesId };
       const res = await mutateAsync(async () => {
         const resp = await fetch(`${API_URL}/main-menu`, {
           method: "POST",
@@ -151,6 +154,7 @@ export default function MainMenuPage() {
         MAIN_MENU_ID: menuId,
         STATUS_MASTER: toDbStatus(item.STATUS_MASTER),
         USER: getUser(),
+        LINK_ID: linkPagesId,
       };
       const res = await mutateAsync(async () => {
         const resp = await fetch(`${API_URL}/main-menu/${menuId}`, {
@@ -198,7 +202,7 @@ export default function MainMenuPage() {
       dispatch(refreshNavigationForUser(authUser));
       return res;
     },
-  }), [data, loading, mutateAsync, dispatch, authUser]);
+  }), [data, loading, mutateAsync, dispatch, authUser, linkPagesId]);
 
   return (
     <MasterCrudPage

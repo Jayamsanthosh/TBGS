@@ -34,6 +34,7 @@ export interface BusinessPartnerGridData {
   PAYMENT_TERMS?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface BusinessPartnerState {

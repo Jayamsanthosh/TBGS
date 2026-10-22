@@ -247,7 +247,7 @@ export default function PurchaseOrderPage() {
      the tab reads them straight from the API instead. */
   const [stagedCharges, setStagedCharges] = useState<any[]>([]);
 
-  const linkPagesId = useLinkPagesId(0);
+  const linkPagesId = useLinkPagesId(268);
   const currentPoNo =
     form.PURCHASE_ORDER_NO ||
     editing?.purchaseOrderNo ||

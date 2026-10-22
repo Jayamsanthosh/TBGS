@@ -9,6 +9,7 @@ export interface AnimalGridData {
   ANIMAL_CATEGORY_NAME?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface AnimalState {

@@ -83,14 +83,20 @@ export const getAllPurchaseGrn = async (req: Request, res: Response): Promise<vo
 
 export const getPurchaseGrnHdr = async (req: Request, res: Response): Promise<void> => {
   const { refNo } = req.params;
+  const linkPagesId = toPositiveInt(req.query.linkPagesId ?? req.query.link_pages_id);
 
   if (!refNo) {
     res.status(400).json({ success: false, message: "Purchase GRN Reference No is required" });
     return;
   }
 
+  if (!linkPagesId) {
+    res.status(400).json({ success: false, message: "LINK_PAGES_ID is required" });
+    return;
+  }
+
   try {
-    const data = await getPurchaseGrnHdrService(refNo as string);
+    const data = await getPurchaseGrnHdrService(refNo as string, linkPagesId);
     res.json({ success: true, data });
   } catch (error: any) {
     console.error("GetPurchaseGrnHdr error:", error);
@@ -139,7 +145,15 @@ export const savePurchaseGrn = async (req: Request, res: Response): Promise<void
   if (!validateGrn(data, res, false)) return;
 
   try {
-    const result = await savePurchaseGrnCombinedService(data);
+    /* The user / role always come from the token, never from the request
+       body - the delete procs decide on the role. */
+    const { USER, ROLE, MAC_ADDRESS } = identityFrom(req);
+    const result = await savePurchaseGrnCombinedService({
+      ...data,
+      USER: USER || data.USER || "Admin",
+      ROLE,
+      MAC_ADDRESS: MAC_ADDRESS || "WEB",
+    });
     res.json({
       success: true,
       message: result.message || "Purchase GRN created successfully",
@@ -162,7 +176,16 @@ export const updatePurchaseGrn = async (req: Request, res: Response): Promise<vo
   if (!validateGrn(data, res, true)) return;
 
   try {
-    const result = await updatePurchaseGrnCombinedService(data);
+    /* The user / role always come from the token, never from the request
+       body - removing a line is an Admin only action and the service checks
+       the role before it writes anything. */
+    const { USER, ROLE, MAC_ADDRESS } = identityFrom(req);
+    const result = await updatePurchaseGrnCombinedService({
+      ...data,
+      USER: USER || data.USER || "Admin",
+      ROLE,
+      MAC_ADDRESS: MAC_ADDRESS || "WEB",
+    });
     res.json({ success: true, message: result.message || "Purchase GRN updated successfully" });
   } catch (error: any) {
     console.error("UpdatePurchaseGrn error:", error);
@@ -184,7 +207,7 @@ export const deletePurchaseGrnDtl = async (req: Request, res: Response): Promise
     const result = await deletePurchaseGrnDtlService(
       dtlId,
       USER || "Admin",
-      ROLE || "Admin",
+      ROLE || "",
       MAC_ADDRESS || "WEB"
     );
     res.json({ success: true, message: result.message || "Purchase GRN detail deleted successfully" });
@@ -207,7 +230,7 @@ export const deletePurchaseGrnHdr = async (req: Request, res: Response): Promise
     const result = await deletePurchaseGrnHdrService(
       refNo as string,
       USER || "Admin",
-      ROLE || "Admin",
+      ROLE || "",
       MAC_ADDRESS || "WEB"
     );
     res.json({ success: true, message: result.message || "Purchase GRN deleted successfully" });

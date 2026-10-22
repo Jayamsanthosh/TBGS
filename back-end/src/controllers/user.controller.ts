@@ -21,6 +21,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 
 export const showUser = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const { LINK_ID } = req.query as any;
 
   if (!id) {
     res.status(400).json({ success: false, message: "User ID is required" });
@@ -28,7 +29,7 @@ export const showUser = async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    const user = await showUserByIdService(parseInt(id as string));
+    const user = await showUserByIdService(parseInt(id as string), LINK_ID ? Number(LINK_ID) : null);
 
     if (!user) {
       res.status(404).json({ success: false, message: "User not found" });

@@ -10,7 +10,14 @@ export interface AirlinesMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
+
+const toNullableInt = (v: any): number | null => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+};
 
 const addStatusAlias = (rows: any[]) =>
   (rows || []).map((r: any) => ({
@@ -47,7 +54,7 @@ export const getAllAirlinesMasterService = async (status = "ALL") => {
   }
 };
 
-export const getAirlinesMasterByIdService = async (id: number) => {
+export const getAirlinesMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -55,6 +62,7 @@ export const getAirlinesMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("AIRLINE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, toNullableInt(linkId))
       .execute("VMaster.GET_AIRLINES_MASTER");
 
     return result.recordset[0] || null;
@@ -77,6 +85,7 @@ export const saveAirlinesMasterService = async (data: AirlinesMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, toNullableInt(data.LINK_ID))
       .execute("VMaster.SAVE_AIRLINES_MASTER");
 
     const { message, data: id } = parseSprocResult(result.recordset?.[0], "Failed to save airline");
@@ -100,6 +109,7 @@ export const updateAirlinesMasterService = async (data: AirlinesMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("link_id", sql.Int, toNullableInt(data.LINK_ID))
       .execute("VMaster.UPDATE_AIRLINES_MASTER");
 
     const { message } = parseSprocResult(result.recordset?.[0], "Failed to update airline");

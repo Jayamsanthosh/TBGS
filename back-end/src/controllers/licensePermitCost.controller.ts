@@ -26,8 +26,9 @@ export const getLicensePermitCostById = async (req: Request, res: Response): Pro
     res.status(400).json({ success: false, message: "SNO is required" });
     return;
   }
+  const linkId = req.query.link_id != null ? Number(req.query.link_id) : 0;
   try {
-    const item = await getLicensePermitCostByIdService(parseInt(id as string, 10));
+    const item = await getLicensePermitCostByIdService(parseInt(id as string, 10), Number.isNaN(linkId) ? 0 : linkId);
     if (!item) {
       res.status(404).json({ success: false, message: "License permit cost not found" });
       return;

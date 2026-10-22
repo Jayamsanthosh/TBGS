@@ -28,7 +28,10 @@ export const getUserStoreMappingById = async (req: Request, res: Response): Prom
   }
 
   try {
-    const mapping = await getUserStoreMappingByIdService(parseInt(id as string, 10));
+    const mapping = await getUserStoreMappingByIdService(
+      parseInt(id as string, 10),
+      req.query.LINK_ID ? parseInt(req.query.LINK_ID as string, 10) : null
+    );
 
     if (!mapping) {
       res.status(404).json({ success: false, message: "Mapping not found" });

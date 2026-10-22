@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchBanks, addBank, updateBank, deleteBank, clearBankMasterError, type BankMasterGridData } from "@/lib/bankMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ export default function BankMasterPage() {
   const dispatch = useAppDispatch();
   const { banks, loading, error } = useAppSelector((s) => s.bankMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(83);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -121,6 +123,7 @@ export default function BankMasterPage() {
         STATUS_MASTER: "AC",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

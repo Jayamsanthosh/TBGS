@@ -23,6 +23,8 @@ export const getAllCompanyQuotaAnimalMapping = async (req: Request, res: Respons
 
 export const getCompanyQuotaAnimalMappingHdr = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const linkIdParam = req.query.link_id;
+  const linkId = linkIdParam !== undefined && linkIdParam !== null ? parseInt(String(linkIdParam), 10) : 0;
 
   if (!id) {
     res.status(400).json({ success: false, message: "Quota ID is required" });
@@ -30,7 +32,7 @@ export const getCompanyQuotaAnimalMappingHdr = async (req: Request, res: Respons
   }
 
   try {
-    const data = await getCompanyQuotaAnimalMappingHdrService(parseInt(id as string, 10));
+    const data = await getCompanyQuotaAnimalMappingHdrService(parseInt(id as string, 10), isNaN(linkId) ? 0 : linkId);
     res.json({ success: true, data });
   } catch (error: any) {
     console.error("GetCompanyQuotaAnimalMappingHdr error:", error);

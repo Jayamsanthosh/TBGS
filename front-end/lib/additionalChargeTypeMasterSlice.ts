@@ -16,6 +16,8 @@ export interface AdditionalChargeTypeGridData {
   modifiedBy?: string;
   modifiedDate?: string;
   modifiedMacAddress?: string;
+  linkId?: number | null;
+  LINK_ID?: number | null;
 }
 
 export interface AdditionalChargeTypeOption {
@@ -31,6 +33,7 @@ export interface AdditionalChargeTypeListParams {
   search?: string;
   page?: number;
   pageSize?: number;
+  link_id?: number;
 }
 
 interface AdditionalChargeTypeState {
@@ -58,6 +61,7 @@ export const fetchAdditionalChargeTypes = createAsyncThunk(
       if (params.search) query.set("search", params.search);
       if (params.page) query.set("page", String(params.page));
       if (params.pageSize) query.set("pageSize", String(params.pageSize));
+      if (params.link_id !== undefined && params.link_id !== null) query.set("link_id", String(params.link_id));
       const qs = query.toString();
 
       const response = await fetch(
@@ -81,9 +85,11 @@ export const fetchAdditionalChargeTypes = createAsyncThunk(
 
 export const fetchAdditionalChargeTypeById = createAsyncThunk(
   "additionalChargeType/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (params: { id: number; link_id?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/additional-charge-type-master/${id}`);
+      const response = await fetch(
+        `${API_URL}/additional-charge-type-master/${params.id}${params.link_id !== undefined ? `?link_id=${params.link_id}` : ""}`
+      );
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch additional charge type");

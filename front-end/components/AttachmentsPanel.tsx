@@ -11,6 +11,7 @@ import {
   deleteDMSFile,
   clearDMSError,
   clearDMSFiles,
+  DMS_LINK_ID,
   type DMSFileGridData,
 } from "@/lib/dmsSlice";
 import { useToast } from "@/hooks/use-toast";
@@ -53,6 +54,20 @@ interface PickedFile {
   contentType: string;
   contentData: string;
   sizeMB: string;
+}
+
+/* A file the caller wants to queue before the owning record exists. The panel
+   only builds these; the parent stores them and flushes after the record is
+   created, so nothing is written against a reference that does not exist yet. */
+export interface PendingAttachment {
+  key: string;
+  FILE_NAME: string;
+  CONTENT_TYPE: string;
+  CONTENT_DATA: string;
+  DOCUMENT_TYPE?: string;
+  DESCRIPTIONS?: string;
+  REMARKS?: string;
+  STATUS_MASTER?: string;
 }
 
 /* Renders image files (picked or reloaded) as a data-URL; anything else has no
@@ -103,6 +118,10 @@ interface AttachmentsPanelProps {
   emptyMessage?: string;
   statusFilter?: "AC" | "IN" | "ALL";
   onChange?: () => void;
+  /* When supplied the panel queues attachments instead of rejecting them while
+     entityRefNo is empty; the parent persists them once the record is saved. */
+  pendingFiles?: PendingAttachment[];
+  onPendingFilesChange?: (files: PendingAttachment[]) => void;
 }
 
 export default function AttachmentsPanel({
@@ -119,11 +138,17 @@ export default function AttachmentsPanel({
   emptyMessage,
   statusFilter = "AC",
   onChange,
+  pendingFiles,
+  onPendingFilesChange,
 }: AttachmentsPanelProps) {
   const dispatch = useAppDispatch();
   const { files, loading, error } = useAppSelector((s) => s.dms);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /* Staging mode lets a caller collect files before the record exists. */
+  const stagingMode = typeof onPendingFilesChange === "function";
+  const pending = stagingMode ? pendingFiles ?? [] : [];
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<DMSFileGridData | null>(null);
@@ -137,8 +162,10 @@ export default function AttachmentsPanel({
   const canManage = !readOnly && (allowUpload || allowEdit || allowDelete);
   /* A document can only be written once both halves of its identity are known: the
      link page and the record reference. Without them the upload would land on a
-     row nothing else can find, so the whole panel stays locked. */
-  const scopeReady = linkPagesId > 0 && !!entityRefNo;
+     row nothing else can find, so the whole panel stays locked. In staging mode
+     the reference arrives later, so only the link page is required up front. */
+  const scopeReady = linkPagesId > 0 && (stagingMode || !!entityRefNo);
+  const canStageFiles = stagingMode && linkPagesId > 0;
 
   /* The viewer reads the same scoped list itself, so it is given the same
      identity rather than the rows already on screen. */
@@ -151,7 +178,10 @@ export default function AttachmentsPanel({
   );
   /* Held in a ref-free memo: the viewer refetches whenever this identity changes,
      so it must stay stable across renders. */
-  const contentUrlBuilder = useCallback((row: { DMS_ID?: number }) => `${API_URL}/dms/${Number(row?.DMS_ID) || ""}`, []);
+  const contentUrlBuilder = useCallback(
+    (row: { DMS_ID?: number }) => `${API_URL}/dms/${Number(row?.DMS_ID) || ""}?link_id=${DMS_LINK_ID}`,
+    []
+  );
 
   const loadFiles = () => {
     if (!scopeReady) {
@@ -196,6 +226,11 @@ export default function AttachmentsPanel({
     setPickedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setDialogOpen(true);
+  };
+
+  const removePending = (key: string) => {
+    if (!stagingMode) return;
+    onPendingFilesChange?.(pending.filter((p) => p.key !== key));
   };
 
   const openEdit = async (item: DMSFileGridData) => {
@@ -266,6 +301,31 @@ export default function AttachmentsPanel({
       toast({ variant: "destructive", title: "Please choose a file" });
       return;
     }
+    /* Staging mode: keep the file local until the owning record exists. */
+    if (stagingMode && !editing && !entityRefNo) {
+      const key =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}${Math.random()}`;
+      onPendingFilesChange?.([
+        ...pending,
+        {
+          key,
+          FILE_NAME: String(form.FILE_NAME || pickedFile?.name || ""),
+          CONTENT_TYPE: String(form.CONTENT_TYPE || pickedFile?.contentType || ""),
+          CONTENT_DATA: String(form.CONTENT_DATA || pickedFile?.contentData || ""),
+          DOCUMENT_TYPE: form.DOCUMENT_TYPE,
+          DESCRIPTIONS: form.DESCRIPTIONS,
+          REMARKS: form.REMARKS,
+          STATUS_MASTER: String(form.STATUS_MASTER || "AC"),
+        },
+      ]);
+      setDialogOpen(false);
+      setPickedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      toast({ title: "File queued - it will be saved with the record" });
+      return;
+    }
     setSaving(true);
     try {
       const payload: DMSFileGridData = {
@@ -321,7 +381,9 @@ export default function AttachmentsPanel({
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">{title}</h3>
           {showCount && (
-            <span className="text-[10px] font-semibold bg-muted px-2 py-0.5 rounded-full">{filtered.length}</span>
+            <span className="text-[10px] font-semibold bg-muted px-2 py-0.5 rounded-full">
+              {filtered.length + pending.length}
+            </span>
           )}
         </div>
         {canManage && allowUpload && (
@@ -338,7 +400,7 @@ export default function AttachmentsPanel({
             <Skeleton key={i} className="h-9 w-full" />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && pending.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-slate-200/80 rounded-lg bg-slate-50/30 text-center px-3">
           <FileText className="w-8 h-8 text-muted-foreground mb-2" />
           <p className="text-xs text-muted-foreground font-medium">
@@ -351,13 +413,41 @@ export default function AttachmentsPanel({
           ) : (
             canManage &&
             allowUpload &&
-            !entityRefNo && (
+            !entityRefNo &&
+            !canStageFiles && (
               <p className="text-[10px] text-muted-foreground mt-1">Save to enable attachments</p>
             )
           )}
         </div>
       ) : (
         <div className="space-y-2">
+          {pending.map((p) => (
+            <div
+              key={p.key}
+              className="flex items-center justify-between gap-2 border border-dashed rounded-md px-3 py-2 bg-muted/30"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium truncate">{p.FILE_NAME || "Untitled file"}</p>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span className="rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-primary">Pending</span>
+                    {p.DOCUMENT_TYPE && <span className="truncate">{p.DOCUMENT_TYPE}</span>}
+                    {p.CONTENT_TYPE && <span className="truncate">{p.CONTENT_TYPE}</span>}
+                  </div>
+                </div>
+              </div>
+              {canManage && allowUpload && (
+                <button
+                  onClick={() => removePending(p.key)}
+                  className="p-1 rounded hover:bg-destructive/10 transition-colors shrink-0"
+                  title="Remove"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                </button>
+              )}
+            </div>
+          ))}
           {filtered.map((f: DMSFileGridData, idx: number) => (
             <div
               key={String(f.DMS_ID ?? f.id ?? idx)}

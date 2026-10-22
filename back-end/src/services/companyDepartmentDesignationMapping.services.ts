@@ -13,6 +13,7 @@ export interface CompanyDepartmentDesignationMappingData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const serializeRecordset = (rows: any[]) =>
@@ -47,7 +48,7 @@ export const getAllMappingService = async (status?: string) => {
   }
 };
 
-export const getMappingByIdService = async (id: number) => {
+export const getMappingByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -55,6 +56,7 @@ export const getMappingByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("SNO", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_COMPANY_DEPARTMENT_DESIGNATION_MAPPING");
 
     return result.recordset[0] || null;
@@ -79,6 +81,7 @@ export const saveMappingService = async (data: CompanyDepartmentDesignationMappi
     request.input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null);
     request.input("USER", sql.VarChar(50), data.USER || "Admin");
     request.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    request.input("LINK_ID", sql.Int, (data as any).LINK_ID ?? null);
 
     const result = await request.execute("VMaster.SAVE_COMPANY_DEPARTMENT_DESIGNATION_MAPPING");
 
@@ -108,6 +111,7 @@ export const updateMappingService = async (data: CompanyDepartmentDesignationMap
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, (data as any).LINK_ID ?? null)
       .execute("VMaster.UPDATE_COMPANY_DEPARTMENT_DESIGNATION_MAPPING");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update mapping");

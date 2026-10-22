@@ -7,6 +7,7 @@ import { fetchAnimals, addAnimal, updateAnimal, deleteAnimal, clearAnimalError, 
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const baseFields: MasterField[] = [
@@ -73,6 +74,7 @@ export default function AnimalMasterPage() {
   const dispatch = useAppDispatch();
   const { animals, loading, error } = useAppSelector((s) => s.animals);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(115);
 
   const { data: categories } = useApiQuery("animal-master-category-list", async () => {
     const res = await fetch(`${API_URL}/animal-category-master`);
@@ -110,12 +112,12 @@ export default function AnimalMasterPage() {
     data: animals,
     isLoading: loading,
     add: async (item: AnimalGridData) => {
-      const res = await dispatch(addAnimal(item)).unwrap();
+      const res = await dispatch(addAnimal({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchAnimals());
       return res;
     },
     update: async (item: AnimalGridData) => {
-      const res = await dispatch(updateAnimal(item)).unwrap();
+      const res = await dispatch(updateAnimal({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchAnimals());
       return res;
     },
@@ -132,10 +134,10 @@ export default function AnimalMasterPage() {
       dispatch(fetchAnimals());
       return res;
     },
-  }), [animals, loading, dispatch]);
+  }), [animals, loading, dispatch, linkPagesId]);
 
   const onBeforeEdit = async (item: Record<string, any>) => {
-    const res = await fetch(`${API_URL}/animal-master/${item.id}`);
+    const res = await fetch(`${API_URL}/animal-master/${item.id}?link_id=${linkPagesId}`);
     if (!res.ok) return item;
     const json = await res.json();
     return json.data || item;

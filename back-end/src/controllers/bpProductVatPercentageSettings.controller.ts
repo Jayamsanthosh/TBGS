@@ -47,8 +47,9 @@ export const getById = async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ success: false, message: "A valid ID is required" });
     return;
   }
+  const linkId = parseId(req.query.link_id) ?? 0;
   try {
-    const row = await getByIdService(id);
+    const row = await getByIdService(id, linkId);
     if (!row) {
       res.status(404).json({ success: false, message: "Record not found" });
       return;

@@ -13,6 +13,7 @@ export interface AdditionalChargeTypeData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export interface AdditionalChargeTypeListFilter {
@@ -20,6 +21,7 @@ export interface AdditionalChargeTypeListFilter {
   search?: string | null;
   page?: number | null;
   pageSize?: number | null;
+  linkId?: number | null;
 }
 
 const toNullablePage = (v: number | null | undefined): number | null =>
@@ -48,6 +50,7 @@ const mapSingleRowToFrontend = (row: any) => {
     sortOrder: row.SORT_ORDER,
     remarks: row.REMARKS,
     statusMaster: row.STATUS_MASTER,
+    linkId: row.link_id,
     createdBy: row.CREATED_BY,
     createdDate: row.CREATED_DATE,
     createdMacAddress: row.CREATED_MAC_ADDRESS,
@@ -72,6 +75,7 @@ export const saveAdditionalChargeTypeService = async (data: AdditionalChargeType
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || "ACTIVE")
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, toNullableInt(data.LINK_ID))
       .execute("VMASTER.SAVE_ADDITIONAL_CHARGE_TYPE_MASTER");
 
     const { message, data: id } = parseSprocResult(
@@ -104,6 +108,7 @@ export const updateAdditionalChargeTypeService = async (data: AdditionalChargeTy
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || "ACTIVE")
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("Link_id", sql.Int, toNullableInt(data.LINK_ID))
       .execute("VMASTER.UPDATE_ADDITIONAL_CHARGE_TYPE_MASTER");
 
     const { message } = parseSprocResult(
@@ -173,6 +178,7 @@ export const getAdditionalChargeTypeListService = async (
       .input("Search", sql.NVarChar(400), filter.search || null)
       .input("Page", sql.Int, toNullablePage(filter.page))
       .input("PageSize", sql.Int, toNullablePage(filter.pageSize))
+      .input("LInk_id", sql.Int, toNullableInt(filter.linkId))
       .execute("VMASTER.GET_ADDITIONAL_CHARGE_TYPE_MASTER");
 
     const recordsets = (result.recordsets || []) as any[][];
@@ -189,7 +195,7 @@ export const getAdditionalChargeTypeListService = async (
   }
 };
 
-export const getAdditionalChargeTypeByIdService = async (id: number) => {
+export const getAdditionalChargeTypeByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -197,6 +203,7 @@ export const getAdditionalChargeTypeByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("ADDITIONAL_CHARGE_TYPE_ID", sql.Int, id)
+      .input("LInk_id", sql.Int, toNullableInt(linkId))
       .execute("VMASTER.GET_ADDITIONAL_CHARGE_TYPE_MASTER");
 
     return mapSingleRowToFrontend(result.recordset?.[0] || null);

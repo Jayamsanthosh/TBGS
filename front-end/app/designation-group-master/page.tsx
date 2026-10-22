@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchItems, addItem, updateItem, deleteItem, clearError, type DesignationGroupGridData } from "@/lib/designationGroupMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ export default function DesignationGroupMasterPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.designationGroupMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(32);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -126,6 +128,7 @@ export default function DesignationGroupMasterPage() {
         STATUS_MASTER: !editing ? "AC" : form.STATUS_MASTER,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

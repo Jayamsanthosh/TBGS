@@ -28,7 +28,8 @@ export const getAntiPoachingFindingsMasterById = async (req: Request, res: Respo
   }
 
   try {
-    const record = await getAntiPoachingFindingsMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const record = await getAntiPoachingFindingsMasterByIdService(parseInt(id as string, 10), linkId);
     if (!record) {
       res.status(404).json({ success: false, message: "Anti-poaching findings not found" });
       return;

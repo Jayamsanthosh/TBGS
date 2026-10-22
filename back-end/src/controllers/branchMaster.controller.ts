@@ -30,7 +30,8 @@ export const getBranchMasterById = async (req: Request, res: Response): Promise<
   }
 
   try {
-    const branch = await getBranchMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const branch = await getBranchMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!branch) {
       res.status(404).json({ success: false, message: "Branch not found" });

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { API_URL } from "@/lib/config";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { toast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { refreshNavigationForUser } from "@/lib/navigationSlice";
@@ -82,6 +83,7 @@ const normalizeStatus = (val: any): string => {
 export default function RoleToLinkPage() {
   const dispatch = useAppDispatch();
   const authUser = useAppSelector((s: any) => s.auth.user);
+  const linkPagesId = useLinkPagesId(13);
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [links, setLinks] = useState<LinkOption[]>([]);
   const [records, setRecords] = useState<RoleToLinkRecord[]>([]);
@@ -227,6 +229,7 @@ export default function RoleToLinkPage() {
       const payload = {
         ROLE_ID_TO_LINK: Number(formRoleId),
         LINK_ID_ROLE_TO_LINK: formLinkIds.map(Number),
+        LINK_ID: linkPagesId,
         STATUS_ROLE_TO_LINK: toDbStatus(formStatus),
         USER_ROLE_TO_LINK: getUser(),
         MAC_ADDR_ROLE_TO_LINK: getMacAddr(),

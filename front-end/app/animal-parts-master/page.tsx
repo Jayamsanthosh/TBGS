@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchItems, addItem, updateItem, deleteItem, clearError, type AnimalPartsGridData } from "@/lib/animalPartsMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,6 +64,7 @@ export default function AnimalPartsMasterPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.animalPartsMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(116);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -161,6 +163,7 @@ export default function AnimalPartsMasterPage() {
       STATUS_MASTER: editing ? form.STATUS_MASTER : "AC",
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: linkPagesId,
     };
 
     try {

@@ -21,6 +21,7 @@ export interface BpProductVatGridData {
   REMARKS?: string;
   STATUS_MASTER?: string;
   FILE_COUNT?: number;
+  LINK_ID?: number | null;
 }
 
 interface BpProductVatState {
@@ -56,9 +57,18 @@ export const fetchBpProductVat = createAsyncThunk(
 
 export const fetchBpProductVatById = createAsyncThunk(
   "bpProductVat/fetchBpProductVatById",
-  async (id: string | number, { rejectWithValue }) => {
+  async (args: { id: string | number; linkId?: number | string | null } | string | number, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/bp-product-vat-percentage-settings/${id}`);
+      let id: string | number;
+      let linkId: any = null;
+      if (typeof args === "object" && args !== null) {
+        id = (args as any).id;
+        linkId = (args as any).linkId ?? null;
+      } else {
+        id = args;
+      }
+      const qs = linkId != null && linkId !== "" ? `?link_id=${encodeURIComponent(String(linkId))}` : "";
+      const response = await fetch(`${API_URL}/bp-product-vat-percentage-settings/${id}${qs}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch record");

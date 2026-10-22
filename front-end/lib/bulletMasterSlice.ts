@@ -17,6 +17,7 @@ export interface BulletMasterGridData {
   CALIBER_ID?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface BulletMasterState {
@@ -60,9 +61,12 @@ export const fetchBulletMasters = createAsyncThunk(
 
 export const fetchBulletMasterById = createAsyncThunk(
   "bulletMaster/fetchBulletMasterById",
-  async (id: number, { rejectWithValue }) => {
+  async (args: number | { id: number; linkId?: number | string | null }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/bullet-master/${id}`);
+      const id = typeof args === "object" && args !== null ? args.id : args;
+      const linkId = typeof args === "object" && args !== null ? args.linkId : null;
+      const qs = linkId != null && linkId !== "" ? `?link_id=${encodeURIComponent(String(linkId))}` : "";
+      const response = await fetch(`${API_URL}/bullet-master/${id}${qs}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch bullet");

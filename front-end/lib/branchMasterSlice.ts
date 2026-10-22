@@ -8,6 +8,7 @@ export interface BranchGridData {
   BRANCH_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface BranchState {

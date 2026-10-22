@@ -22,6 +22,7 @@ export const getAllDesignationGroupMaster = async (req: Request, res: Response):
 
 export const getDesignationGroupMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const link_id = parseInt(req.query.link_id as string, 10) || 0;
 
   if (!id) {
     res.status(400).json({ success: false, message: "DESIGNATION_GROUP_ID is required" });
@@ -29,7 +30,7 @@ export const getDesignationGroupMasterById = async (req: Request, res: Response)
   }
 
   try {
-    const item = await getDesignationGroupMasterByIdService(parseInt(id as string, 10));
+    const item = await getDesignationGroupMasterByIdService(parseInt(id as string, 10), link_id);
 
     if (!item) {
       res.status(404).json({ success: false, message: "Designation group not found" });

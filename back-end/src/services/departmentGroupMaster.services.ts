@@ -14,6 +14,7 @@ export interface DepartmentGroupMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number;
 }
 
 export const getAllDepartmentGroupMasterService = async () => {
@@ -31,7 +32,7 @@ export const getAllDepartmentGroupMasterService = async () => {
   }
 };
 
-export const getDepartmentGroupMasterByIdService = async (id: number) => {
+export const getDepartmentGroupMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -39,6 +40,7 @@ export const getDepartmentGroupMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("DEPARTMENT_GROUP_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_DEPARTMENT_GROUP_MASTER");
 
     return result.recordset[0] || null;
@@ -55,7 +57,7 @@ export const saveDepartmentGroupMasterService = async (data: DepartmentGroupMast
   try {
     const result = await pool
       .request()
-      .input("DEPARTMENT_GROUP_ID", sql.Int, data.DEPARTMENT_GROUP_ID ?? 0)
+      .output("DEPARTMENT_GROUP_ID", sql.Int)
       .input("DEPARTMENT_GROUP_NAME", sql.VarChar(200), data.DEPARTMENT_GROUP_NAME || null)
       .input("MANAGER_EMP_ID", sql.Int, data.MANAGER_EMP_ID ?? null)
       .input("TO_MAIL_ADDRESS", sql.VarChar(500), data.TO_MAIL_ADDRESS || null)
@@ -65,11 +67,13 @@ export const saveDepartmentGroupMasterService = async (data: DepartmentGroupMast
       .input("STATUS_MASTER", sql.VarChar(50), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_DEPARTMENT_GROUP_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save department group");
+    const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save department group");
 
-    return { message: message || "Department group saved successfully" };
+    const newId = result.output?.DEPARTMENT_GROUP_ID ?? savedData;
+    return { message: message || "Department group saved successfully", DEPARTMENT_GROUP_ID: newId };
   } catch (error) {
     console.error("SAVE_DEPARTMENT_GROUP_MASTER SP error:", error);
     throw error;
@@ -93,6 +97,7 @@ export const updateDepartmentGroupMasterService = async (data: DepartmentGroupMa
       .input("STATUS_MASTER", sql.VarChar(50), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_DEPARTMENT_GROUP_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update department group");

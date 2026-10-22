@@ -34,6 +34,7 @@ import { API_URL } from "@/lib/config";
 import { formatDate, clampNonNegative } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -108,6 +109,11 @@ export default function OpeningStockPage() {
   const [focusRequest, setFocusRequest] = useState<{ key: string; nonce: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  /* The current page's link id (VMaster.TBL_LINKS_AND_PAGES); stored on each
+     record so DMS/reporting can scope by page. Fallback is the Opening Stock
+     page id for when the navigation has not loaded yet. */
+  const linkPagesId = useLinkPagesId(272);
 
   const role = useMemo(() => {
     if (typeof window !== "undefined") {
@@ -322,6 +328,7 @@ export default function OpeningStockPage() {
     STATUS_ID: "",
     REMARKS: "",
     STATUS_ENTRY: "CF",
+    LINK_PAGES_ID: String(linkPagesId),
   });
 
   /* SHOW_CURRENCY_MASTER returns the rate as "Exchange_Rate", so both spellings
@@ -442,6 +449,7 @@ export default function OpeningStockPage() {
         STATUS_ID: toStr(hdr.STATUS_ID),
         REMARKS: hdr.REMARKS || "",
         STATUS_ENTRY: hdr.STATUS_ENTRY || "CF",
+        LINK_PAGES_ID: toStr(hdr.LINK_PAGES_ID ?? linkPagesId),
       });
 
       const showRows = await dispatch(fetchOpeningStockDtls(refNo)).unwrap();
@@ -579,6 +587,7 @@ export default function OpeningStockPage() {
         STATUS_ID: toNum(form.STATUS_ID),
         REMARKS: form.REMARKS?.trim() || null,
         STATUS_ENTRY: form.STATUS_ENTRY || "CF",
+        LINK_PAGES_ID: toNum(form.LINK_PAGES_ID),
         dtls: validRows.map((r: any) => ({
           OPENING_STOCK_DTL_ID: r.OPENING_STOCK_DTL_ID || undefined,
           LINE_NO: toNum(r.LINE_NO),

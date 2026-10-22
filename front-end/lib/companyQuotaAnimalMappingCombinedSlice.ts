@@ -48,11 +48,7 @@ export interface CompanyQuotaAnimalMappingGridData {
   STATUS_QUOTA_HDR?: string;
   REMARKS_QUOTA_DTL?: string;
   STATUS_QUOTA_DTL?: string;
-  dtls?: CompanyQuotaAnimalMappingDtl[];
-  deletedIds?: number[];
-  USER?: string;
-  MAC_ADDRESS?: string;
-  ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 interface CompanyQuotaAnimalMappingState {

@@ -15,7 +15,14 @@ export interface AirportMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
+
+const toNullableInt = (v: any): number | null => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+};
 
 const serializeRecordset = (rows: any[]) =>
   (rows || []).map((r: any) => ({ ...r, id: r.AIRPORT_ID }));
@@ -49,7 +56,7 @@ export const getAllAirportMasterService = async (status?: string) => {
   }
 };
 
-export const getAirportMasterByIdService = async (id: number) => {
+export const getAirportMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -57,6 +64,7 @@ export const getAirportMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("AIRPORT_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, toNullableInt(linkId))
       .execute("VMaster.GET_AIRPORT_MASTER");
 
     return result.recordset[0] || null;
@@ -83,6 +91,7 @@ export const saveAirportMasterService = async (data: AirportMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("Link_Id", sql.Int, toNullableInt(data.LINK_ID))
       .execute("VMaster.SAVE_AIRPORT_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save airport");
@@ -112,6 +121,7 @@ export const updateAirportMasterService = async (data: AirportMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("Link_Id", sql.Int, toNullableInt(data.LINK_ID))
       .execute("VMaster.UPDATE_AIRPORT_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update airport");

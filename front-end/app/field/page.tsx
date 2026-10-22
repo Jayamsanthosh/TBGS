@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Pencil, Trash2, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchFieldCombined, addFieldCombined, updateFieldCombined, deleteFieldCombined, clearFieldCombinedError, FieldCombinedGridData } from "@/lib/fieldCombinedSlice";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ export default function FieldPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.fieldCombined);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(38);
 
   const [search, setSearch] = useState("");
   const [hdrStatusFilter, setHdrStatusFilter] = useState<string>("ALL");
@@ -234,6 +236,7 @@ export default function FieldPage() {
         deletedIds,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

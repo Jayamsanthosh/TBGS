@@ -4,6 +4,7 @@ import { parseSprocResult } from "../utils/sprocResult";
 
 export interface RoleToLinkData {
   ROLE_TO_LINK_ID_ROLE_TO_LINK?: number;
+  LINK_ID?: number | null;
   ROLE_ID_TO_LINK: number;
   LINK_ID_ROLE_TO_LINK: number;
   STATUS_ROLE_TO_LINK: string;
@@ -14,6 +15,7 @@ export interface RoleToLinkData {
 export interface RoleToLinkSyncData {
   ROLE_ID_TO_LINK: number;
   LINK_ID_ROLE_TO_LINK: number[];
+  LINK_ID?: number | null;
   STATUS_ROLE_TO_LINK?: string;
   USER_ROLE_TO_LINK?: string;
   MAC_ADDR_ROLE_TO_LINK?: string;
@@ -42,7 +44,7 @@ export const getAllRoleToLinkService = async () => {
   }
 };
 
-export const getRoleToLinkByIdService = async (id: number) => {
+export const getRoleToLinkByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -50,6 +52,7 @@ export const getRoleToLinkByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("ROLE_TO_LINK_ID_ROLE_TO_LINK", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_TO_LINK_AND_PAGE");
 
     return result.recordset[0] || null;
@@ -96,6 +99,7 @@ export const saveRoleToLinkService = async (data: RoleToLinkData) => {
       .input("STATUS_ROLE_TO_LINK", sql.VarChar(20), normalizeStatus(data.STATUS_ROLE_TO_LINK))
       .input("USER_ROLE_TO_LINK", sql.VarChar(50), data.USER_ROLE_TO_LINK || "Admin")
       .input("MAC_ADDR_ROLE_TO_LINK", sql.VarChar(50), data.MAC_ADDR_ROLE_TO_LINK || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_TO_LINK_AND_PAGE");
 
     const { message } = parseSprocResult(result.recordset?.[0], "Failed to save role link");
@@ -120,6 +124,7 @@ export const updateRoleToLinkService = async (data: RoleToLinkData) => {
       .input("STATUS_ROLE_TO_LINK", sql.VarChar(20), normalizeStatus(data.STATUS_ROLE_TO_LINK))
       .input("USER_ROLE_TO_LINK", sql.VarChar(50), data.USER_ROLE_TO_LINK ?? "Admin")
       .input("MAC_ADDR_ROLE_TO_LINK", sql.VarChar(50), data.MAC_ADDR_ROLE_TO_LINK ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_TO_LINK_AND_PAGE");
 
     const { message } = parseSprocResult(result.recordset?.[0], "Failed to update role link");
@@ -161,6 +166,7 @@ export const syncRoleToLinkService = async (data: RoleToLinkSyncData) => {
   const status = normalizeStatus(data.STATUS_ROLE_TO_LINK);
   const user = data.USER_ROLE_TO_LINK || "Admin";
   const mac = data.MAC_ADDR_ROLE_TO_LINK || "WEB";
+  const linkId = data.LINK_ID ?? null;
 
   const transaction = new sql.Transaction(pool);
   try {
@@ -198,13 +204,14 @@ export const syncRoleToLinkService = async (data: RoleToLinkSyncData) => {
       insReq.input("STATUS_ROLE_TO_LINK", sql.VarChar(20), status);
       insReq.input("USER_ROLE_TO_LINK", sql.VarChar(50), user);
       insReq.input("MAC_ADDR_ROLE_TO_LINK", sql.VarChar(50), mac);
+      insReq.input("LINK_ID", sql.Int, linkId);
       toAdd.forEach((id, i) => insReq.input(`LinkId${i}`, sql.Int, id));
       await insReq.query(`
         INSERT INTO [vmaster].[TBL_ROLE_TO_LINK_AND_PAGE]
             ([ROLE_ID_ROLE_TO_LINK], [LINK_ID_ROLE_TO_LINK], [STATUS_ROLE_TO_LINK],
              [CREATED_USER_ROLE_TO_LINK], [CREATED_DATE_ROLE_TO_LINK], [CREATED_MAC_ADDR_ROLE_TO_LINK],
-             [MODIFIED_USER_ROLE_TO_LINK], [MODIFIED_DATE_ROLE_TO_LINK], [MODIFIED_MAC_ADDR_ROLE_TO_LINK])
-        SELECT @ROLE_ID_TO_LINK, t.linkId, @STATUS_ROLE_TO_LINK, @USER_ROLE_TO_LINK, GETDATE(), @MAC_ADDR_ROLE_TO_LINK, @USER_ROLE_TO_LINK, GETDATE(), @MAC_ADDR_ROLE_TO_LINK
+             [MODIFIED_USER_ROLE_TO_LINK], [MODIFIED_DATE_ROLE_TO_LINK], [MODIFIED_MAC_ADDR_ROLE_TO_LINK], [LINK_ID])
+        SELECT @ROLE_ID_TO_LINK, t.linkId, @STATUS_ROLE_TO_LINK, @USER_ROLE_TO_LINK, GETDATE(), @MAC_ADDR_ROLE_TO_LINK, @USER_ROLE_TO_LINK, GETDATE(), @MAC_ADDR_ROLE_TO_LINK, @LINK_ID
         FROM (VALUES ${toAdd.map((_, i) => `(@LinkId${i})`).join(", ")}) AS t(linkId)
       `);
     }
@@ -215,13 +222,15 @@ export const syncRoleToLinkService = async (data: RoleToLinkSyncData) => {
       updReq.input("STATUS_ROLE_TO_LINK", sql.VarChar(20), status);
       updReq.input("USER_ROLE_TO_LINK", sql.VarChar(50), user);
       updReq.input("MAC_ADDR_ROLE_TO_LINK", sql.VarChar(50), mac);
+      updReq.input("LINK_ID", sql.Int, linkId);
       toUpdate.forEach((id, i) => updReq.input(`LinkId${i}`, sql.Int, id));
       await updReq.query(`
         UPDATE [vmaster].[TBL_ROLE_TO_LINK_AND_PAGE]
         SET [STATUS_ROLE_TO_LINK] = @STATUS_ROLE_TO_LINK,
             [MODIFIED_USER_ROLE_TO_LINK] = @USER_ROLE_TO_LINK,
             [MODIFIED_DATE_ROLE_TO_LINK] = GETDATE(),
-            [MODIFIED_MAC_ADDR_ROLE_TO_LINK] = @MAC_ADDR_ROLE_TO_LINK
+            [MODIFIED_MAC_ADDR_ROLE_TO_LINK] = @MAC_ADDR_ROLE_TO_LINK,
+            [LINK_ID] = @LINK_ID
         WHERE [ROLE_ID_ROLE_TO_LINK] = @ROLE_ID_TO_LINK
           AND [LINK_ID_ROLE_TO_LINK] IN (${toUpdate.map((_, i) => `@LinkId${i}`).join(", ")})
       `);

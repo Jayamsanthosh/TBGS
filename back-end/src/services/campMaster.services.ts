@@ -10,6 +10,7 @@ export interface CampMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllCampMasterService = async () => {
@@ -27,7 +28,7 @@ export const getAllCampMasterService = async () => {
   }
 };
 
-export const getCampMasterByIdService = async (id: number) => {
+export const getCampMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -35,6 +36,7 @@ export const getCampMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("CAMP_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_CAMP_MASTER");
 
     return result.recordset[0] || null;
@@ -57,6 +59,7 @@ export const saveCampMasterService = async (data: CampMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_CAMP_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save camp");
@@ -81,6 +84,7 @@ export const updateCampMasterService = async (data: CampMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_CAMP_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update camp");

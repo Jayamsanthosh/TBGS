@@ -1,10 +1,17 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { API_URL } from "./config";
 
+/* Document Management is one shared module used from its own page and from the
+   files tabs embedded across the app, so its owning link is a constant. Every
+   DMS record is stored against it (VMaster.TBL_DOCUMENT_MANAGEMENT_SYSTEM.LINK_ID),
+   while LINK_PAGES_ID keeps pointing at the entity page the file belongs to. */
+export const DMS_LINK_ID = 267;
+
 export interface DMSFileGridData {
   id?: string | number;
   DMS_ID?: number;
   LINK_PAGES_ID?: number;
+  LINK_ID?: number | null;
   LINK_PAGES_NAME?: string;
   PAGE_REF_NO?: string;
   DOCUMENT_TYPE?: string;
@@ -73,9 +80,11 @@ export const fetchDocumentTypes = createAsyncThunk(
 
 export const fetchDMSFileById = createAsyncThunk(
   "dms/fetchDMSFileById",
-  async (id: string | number, { rejectWithValue }) => {
+  async (args: string | number | { id: string | number; linkId?: number | null }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/dms/${id}`);
+      const id = typeof args === "object" && args !== null ? args.id : args;
+      const linkId = (typeof args === "object" && args !== null ? args.linkId : undefined) ?? DMS_LINK_ID;
+      const response = await fetch(`${API_URL}/dms/${id}?link_id=${encodeURIComponent(String(linkId))}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch file");
@@ -95,7 +104,7 @@ export const addDMSFile = createAsyncThunk(
       const response = await fetch(`${API_URL}/dms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify({ ...item, LINK_ID: item.LINK_ID ?? DMS_LINK_ID }),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

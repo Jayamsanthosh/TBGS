@@ -22,12 +22,14 @@ export const getAllCreditLimitPaymentModeMaster = async (req: Request, res: Resp
 
 export const getCreditLimitPaymentModeMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const linkIdParam = req.query.link_id;
+  const linkId = linkIdParam !== undefined && linkIdParam !== null ? parseInt(String(linkIdParam), 10) : 0;
   if (!id) {
     res.status(400).json({ success: false, message: "Payment Mode ID is required" });
     return;
   }
   try {
-    const mode = await getCreditLimitPaymentModeMasterByIdService(parseInt(id as string, 10));
+    const mode = await getCreditLimitPaymentModeMasterByIdService(parseInt(id as string, 10), isNaN(linkId) ? 0 : linkId);
     if (!mode) {
       res.status(404).json({ success: false, message: "Payment mode not found" });
       return;

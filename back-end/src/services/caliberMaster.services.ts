@@ -13,6 +13,7 @@ export interface CaliberMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllCaliberMasterService = async (status = "AC") => {
@@ -31,7 +32,7 @@ export const getAllCaliberMasterService = async (status = "AC") => {
   }
 };
 
-export const getCaliberMasterByIdService = async (id: number) => {
+export const getCaliberMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -39,6 +40,7 @@ export const getCaliberMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("CALIBER_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_CALIBER_MASTER");
 
     return result.recordset[0] || null;
@@ -64,6 +66,7 @@ export const saveCaliberMasterService = async (data: CaliberMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_CALIBER_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save caliber");
@@ -91,6 +94,7 @@ export const updateCaliberMasterService = async (data: CaliberMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("link_id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_CALIBER_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update caliber");

@@ -11,6 +11,7 @@ export interface UomMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllUomMasterService = async () => {
@@ -28,7 +29,7 @@ export const getAllUomMasterService = async () => {
   }
 };
 
-export const getUomMasterByIdService = async (id: number) => {
+export const getUomMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -36,6 +37,7 @@ export const getUomMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("UOM_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_UOM_MASTER");
 
     return result.recordset[0] || null;
@@ -59,6 +61,7 @@ export const saveUomMasterService = async (data: UomMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_UOM_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save UOM");
@@ -84,6 +87,7 @@ export const updateUomMasterService = async (data: UomMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_UOM_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update UOM");

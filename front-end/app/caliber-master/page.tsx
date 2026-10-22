@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -29,6 +30,7 @@ export default function CaliberMasterPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.caliber);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(125);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -137,9 +139,10 @@ export default function CaliberMasterPage() {
         METRIC_SIZE: form.METRIC_SIZE?.trim() || null,
         DESCRIPTION: form.DESCRIPTION?.trim() || null,
         REMARKS: form.REMARKS?.trim() || null,
-        STATUS_MASTER: "AC",
+        STATUS_MASTER: form.STATUS_MASTER === "INACTIVE" ? "IA" : "AC",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

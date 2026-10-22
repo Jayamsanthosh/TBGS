@@ -10,6 +10,7 @@ export interface DepartmentMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number;
 }
 
 export const getAllDepartmentMasterService = async () => {
@@ -27,7 +28,7 @@ export const getAllDepartmentMasterService = async () => {
   }
 };
 
-export const getDepartmentMasterByIdService = async (id: number) => {
+export const getDepartmentMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -35,6 +36,7 @@ export const getDepartmentMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("DEPARTMENT_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_DEPARTMENT_MASTER");
 
     return result.recordset[0] || null;
@@ -57,6 +59,7 @@ export const saveDepartmentMasterService = async (data: DepartmentMasterData) =>
       .input("STATUS_MASTER", sql.VarChar(50), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_DEPARTMENT_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save department");
@@ -81,6 +84,7 @@ export const updateDepartmentMasterService = async (data: DepartmentMasterData) 
       .input("STATUS_MASTER", sql.VarChar(50), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_DEPARTMENT_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update department");

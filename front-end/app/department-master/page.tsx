@@ -12,6 +12,7 @@ import {
   DepartmentGridData,
 } from "@/lib/departmentMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
@@ -60,6 +61,7 @@ export default function DepartmentMasterPage() {
   const dispatch = useAppDispatch();
   const { departments, loading, error } = useAppSelector((s) => s.department);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(29);
 
   useEffect(() => {
     dispatch(fetchDepartments());
@@ -76,12 +78,12 @@ export default function DepartmentMasterPage() {
     data: departments,
     isLoading: loading,
     add: async (item: DepartmentGridData) => {
-      const res = await dispatch(addDepartment(item)).unwrap();
+      const res = await dispatch(addDepartment({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchDepartments());
       return res;
     },
     update: async (item: DepartmentGridData) => {
-      const res = await dispatch(updateDepartment(item)).unwrap();
+      const res = await dispatch(updateDepartment({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchDepartments());
       return res;
     },
@@ -98,7 +100,7 @@ export default function DepartmentMasterPage() {
       dispatch(fetchDepartments());
       return res;
     },
-  }), [departments, loading, dispatch]);
+  }), [departments, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

@@ -17,6 +17,7 @@ export interface CompanyBankAccountGridData {
   COMPANY_ID?: number;
   BANK_ID?: number;
   CURRENCY_ID?: number;
+  LINK_ID?: number | null;
 }
 
 interface CompanyBankAccountState {

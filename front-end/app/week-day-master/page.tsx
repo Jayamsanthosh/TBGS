@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchWeekDays, addWeekDay, updateWeekDay, deleteWeekDay, clearWeekDayError, type WeekDayMasterGridData } from "@/lib/weekDayMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ export default function WeekDayMasterPage() {
   const dispatch = useAppDispatch();
   const { weekDays, loading, error } = useAppSelector((s) => s.weekDayMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(231);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -127,6 +129,7 @@ export default function WeekDayMasterPage() {
         STATUS_MASTER: editing ? form.STATUS_MASTER : "AC",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

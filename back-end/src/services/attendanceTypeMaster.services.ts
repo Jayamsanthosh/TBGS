@@ -11,6 +11,7 @@ export interface AttendanceTypeMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const normalizeRow = (r: any) => ({
@@ -51,7 +52,7 @@ export const getAllAttendanceTypeMasterService = async (status = "ALL") => {
   }
 };
 
-export const getAttendanceTypeMasterByIdService = async (id: number) => {
+export const getAttendanceTypeMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -59,6 +60,7 @@ export const getAttendanceTypeMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("ATTENDANCE_TYPE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_ATTENDANCE_TYPE_MASTER");
 
     const row = result.recordset[0] || null;
@@ -83,6 +85,7 @@ export const saveAttendanceTypeMasterService = async (data: AttendanceTypeMaster
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("Link_Id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_ATTENDANCE_TYPE_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save attendance type");
@@ -103,7 +106,7 @@ export const updateAttendanceTypeMasterService = async (data: AttendanceTypeMast
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const existing = await getAttendanceTypeMasterByIdService(data.ATTENDANCE_TYPE_ID ?? 0);
+    const existing = await getAttendanceTypeMasterByIdService(data.ATTENDANCE_TYPE_ID ?? 0, data.LINK_ID ?? null);
     if (!existing) {
       throw new Error("RECORD DOES NOT EXIST");
     }
@@ -117,6 +120,7 @@ export const updateAttendanceTypeMasterService = async (data: AttendanceTypeMast
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("Link_Id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_ATTENDANCE_TYPE_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update attendance type");

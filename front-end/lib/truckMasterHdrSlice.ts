@@ -51,6 +51,7 @@ export interface TruckGridData {
   GOODS_CAPACITY?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface TruckState {
@@ -84,9 +85,14 @@ export const fetchTrucks = createAsyncThunk(
 
 export const fetchTruckById = createAsyncThunk(
   "truck/fetchTruckById",
-  async (id: string | number, { rejectWithValue }) => {
+  async (payload: string | number | { id: string | number; link_id?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/truck-master/${id}`);
+      const id = typeof payload === "object" ? payload.id : payload;
+      const linkId = typeof payload === "object" ? payload.link_id : undefined;
+      const url = linkId
+        ? `${API_URL}/truck-master/${id}?LINK_ID=${encodeURIComponent(String(linkId))}`
+        : `${API_URL}/truck-master/${id}`;
+      const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch truck");

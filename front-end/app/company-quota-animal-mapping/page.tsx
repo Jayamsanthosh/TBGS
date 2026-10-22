@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -328,6 +329,8 @@ export default function CompanyQuotaAnimalMappingPage() {
     setDialogOpen(true);
   };
 
+  const linkPagesId = useLinkPagesId(187);
+
   const handleNext = () => {
     if (!form.COMPANY_ID || !form.CAMP_ID || !form.EFFECTIVE_YEAR) {
       toast({ title: "Company, Camp and Effective Year are required", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
@@ -398,6 +401,7 @@ export default function CompanyQuotaAnimalMappingPage() {
         USER: "Admin",
         MAC_ADDRESS: "WEB",
         ROLE: role,
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

@@ -12,6 +12,7 @@ import {
   DepartmentGroupGridData,
 } from "@/lib/departmentGroupMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 import { validateEmail } from "@/lib/validation";
 
@@ -81,6 +82,7 @@ export default function DepartmentGroupMasterPage() {
   const dispatch = useAppDispatch();
   const { departmentGroups, loading, error } = useAppSelector((s) => s.departmentGroup);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(31);
 
   useEffect(() => {
     dispatch(fetchDepartmentGroups());
@@ -97,12 +99,12 @@ export default function DepartmentGroupMasterPage() {
     data: departmentGroups,
     isLoading: loading,
     add: async (item: DepartmentGroupGridData) => {
-      const res = await dispatch(addDepartmentGroup(item)).unwrap();
+      const res = await dispatch(addDepartmentGroup({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchDepartmentGroups());
       return res;
     },
     update: async (item: DepartmentGroupGridData) => {
-      const res = await dispatch(updateDepartmentGroup(item)).unwrap();
+      const res = await dispatch(updateDepartmentGroup({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchDepartmentGroups());
       return res;
     },
@@ -119,7 +121,7 @@ export default function DepartmentGroupMasterPage() {
       dispatch(fetchDepartmentGroups());
       return res;
     },
-  }), [departmentGroups, loading, dispatch]);
+  }), [departmentGroups, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

@@ -9,6 +9,7 @@ export interface VideographerMasterGridData {
   LOCATION_NAME?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface VideographerMasterState {

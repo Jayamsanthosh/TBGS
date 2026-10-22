@@ -12,6 +12,7 @@ export interface CompanyCampStoreMappingData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const serializeRecordset = (rows: any[]) =>
@@ -59,7 +60,7 @@ export const getAllMappingService = async (status?: string) => {
   }
 };
 
-export const getMappingByIdService = async (id: number) => {
+export const getMappingByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -67,6 +68,7 @@ export const getMappingByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("MAP_ID", sql.Int, id)
+      .input("link_id", sql.Int, linkId ?? null)
       .execute("VMaster.GET_COMPANY_CAMP_STORE_MAPPING");
 
     return result.recordset[0] || null;
@@ -91,6 +93,7 @@ export const saveMappingService = async (data: CompanyCampStoreMappingData) => {
       .input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER))
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_COMPANY_CAMP_STORE_MAPPING");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save mapping");
@@ -117,6 +120,7 @@ export const updateMappingService = async (data: CompanyCampStoreMappingData) =>
       .input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER))
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_COMPANY_CAMP_STORE_MAPPING");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update mapping");

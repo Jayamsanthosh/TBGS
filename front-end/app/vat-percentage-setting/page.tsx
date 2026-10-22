@@ -7,6 +7,7 @@ import { fetchVatPercentageSettings, addVatPercentageSetting, updateVatPercentag
 import { formatDate } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,7 @@ export default function VatPercentageSettingPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.vatPercentageSetting);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(41);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -118,7 +120,7 @@ export default function VatPercentageSettingPage() {
     setLoadingEdit(true);
     setEditing(item);
     try {
-      const response = await dispatch(fetchVatPercentageSettingById(Number(item.SNO))).unwrap();
+      const response = await dispatch(fetchVatPercentageSettingById({ id: Number(item.SNO), link_id: linkPagesId })).unwrap();
       if (response) {
         setForm({
           VAT_PERCENTAGE: response.VAT_PERCENTAGE ?? "",
@@ -162,6 +164,7 @@ export default function VatPercentageSettingPage() {
         STATUS_MASTER: editing ? (form.STATUS_MASTER || "ACTIVE") : "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

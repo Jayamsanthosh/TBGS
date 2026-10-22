@@ -29,7 +29,8 @@ export const getCaliberMasterById = async (req: Request, res: Response): Promise
   }
 
   try {
-    const caliber = await getCaliberMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const caliber = await getCaliberMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!caliber) {
       res.status(404).json({ success: false, message: "Caliber not found" });

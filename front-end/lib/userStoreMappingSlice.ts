@@ -11,6 +11,7 @@ export interface UserStoreMappingGridData {
   ROLE_ID?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface UserStoreMappingState {

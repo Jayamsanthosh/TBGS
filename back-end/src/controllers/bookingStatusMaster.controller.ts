@@ -30,7 +30,8 @@ export const getBookingStatusMasterById = async (req: Request, res: Response): P
   }
 
   try {
-    const bookingStatus = await getBookingStatusMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const bookingStatus = await getBookingStatusMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!bookingStatus) {
       res.status(404).json({ success: false, message: "Booking Status not found" });

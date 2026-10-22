@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchMappings, addMapping, updateMapping, deleteMapping, clearMappingError, type DriverTruckMasterMappingGridData } from "@/lib/driverTruckMasterMappingSlice";
 import { API_URL } from "@/lib/config";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { formatDate } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
@@ -53,6 +54,7 @@ export default function DriverTruckMasterMappingPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.driverTruckMasterMapping);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(182);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -207,6 +209,7 @@ export default function DriverTruckMasterMappingPage() {
       STATUS_MASTER: form.STATUS_MASTER,
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: linkPagesId,
     };
     for (const p of RESPONSE_PREFIXES) {
       const empKey = p === "SECTION_HEAD_RESPONSE" ? "SECTION_HEAD_RESPONSE_PERSON_EMP_ID" : p === "FINAL_RESPONSE" ? null : `${p}_EMP_ID`;

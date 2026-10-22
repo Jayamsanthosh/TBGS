@@ -29,6 +29,7 @@ export interface CompanyMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const toBuffer = (val: string | null | undefined): Buffer | null => {
@@ -71,7 +72,7 @@ export const getAllCompanyMasterService = async () => {
   }
 };
 
-export const getCompanyMasterByIdService = async (id: number) => {
+export const getCompanyMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -79,7 +80,8 @@ export const getCompanyMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("COMPANY_ID", sql.Int, id)
-      .execute("VMaster.SHOW_COMPANY_MASTER");
+      .input("LINK_ID", sql.Int, linkId ?? null)
+      .execute("VMaster.GET_COMPANY_MASTER");
 
     const row = result.recordset[0] || null;
     if (!row) return null;
@@ -100,7 +102,7 @@ export const getCompanyMasterByIdService = async (id: number) => {
         : null,
     };
   } catch (error) {
-    console.error("SHOW_COMPANY_MASTER SP error:", error);
+    console.error("GET_COMPANY_MASTER SP error:", error);
     throw error;
   }
 };
@@ -137,6 +139,7 @@ export const saveCompanyMasterService = async (data: CompanyMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, (data as any).LINK_ID ?? null)
       .execute("VMaster.SAVE_COMPANY_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save company");
@@ -180,6 +183,7 @@ export const updateCompanyMasterService = async (data: CompanyMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, (data as any).LINK_ID ?? null)
       .execute("VMaster.UPDATE_COMPANY_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update company");

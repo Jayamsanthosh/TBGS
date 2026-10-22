@@ -41,6 +41,7 @@ export interface CustomerCreditLimitGridData {
   FINAL_RESPONSE_REMARKS?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface CustomerCreditLimitState {
@@ -77,9 +78,12 @@ export const fetchCustomerCreditLimits = createAsyncThunk(
 
 export const getCustomerCreditLimitById = createAsyncThunk(
   "customerCreditLimit/getCustomerCreditLimitById",
-  async (id: string | number, { rejectWithValue }) => {
+  async (args: string | number | { id: string | number; linkId?: number | string | null }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/customer-credit-limit-details/${id}`);
+      const id = typeof args === "object" && args !== null ? args.id : args;
+      const linkId = typeof args === "object" && args !== null ? args.linkId : null;
+      const qs = linkId != null && linkId !== "" ? `?link_id=${encodeURIComponent(String(linkId))}` : "";
+      const response = await fetch(`${API_URL}/customer-credit-limit-details/${id}${qs}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch customer credit limit details");

@@ -6,7 +6,11 @@ export interface BatchMasterData {
   BATCH_NO?: string;
   LINK_PAGES_ID?: number | null;
   BATCH_SOURCE_REF_NO?: string;
-  BATCH_SOURCE_DTL_ID?: number | null;
+  /* The detail line of the source document. In the database this is the
+     detail id (a number). A batch that belongs to a document which has not
+     been saved yet keeps the key of its line instead - a row key of the
+     screen, which is text - until the document has been written. */
+  BATCH_SOURCE_DTL_ID?: number | string | null;
   COMPANY_ID?: number | null;
   CAMP_ID?: number | null;
   STORE_ID?: number | null;

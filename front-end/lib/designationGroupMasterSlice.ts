@@ -7,6 +7,7 @@ export interface DesignationGroupGridData {
   DESIGNATION_GROUP_NAME?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface DesignationGroupState {

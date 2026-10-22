@@ -27,7 +27,8 @@ export const getBusBoardingLocationMasterById = async (req: Request, res: Respon
     return;
   }
   try {
-    const location = await getBusBoardingLocationMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const location = await getBusBoardingLocationMasterByIdService(parseInt(id as string, 10), linkId);
     if (!location) {
       res.status(404).json({ success: false, message: "Bus boarding location not found" });
       return;

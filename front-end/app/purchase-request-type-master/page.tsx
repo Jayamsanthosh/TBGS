@@ -13,6 +13,7 @@ import {
   PurchaseRequestTypeGridData,
 } from "@/lib/purchaseRequestTypeMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +44,7 @@ export default function PurchaseRequestTypeMasterPage() {
   const dispatch = useAppDispatch();
   const { items, total, loading, error } = useAppSelector((s) => s.purchaseRequestTypeMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(258);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -167,6 +169,7 @@ export default function PurchaseRequestTypeMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

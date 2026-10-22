@@ -19,6 +19,7 @@ export interface VatPercentageSettingData {
   STATUS_MASTER?: string;
   USER?: string;
   MAC_ADDRESS?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllVatPercentageSettingService = async (status = 'AC') => {
@@ -37,7 +38,7 @@ export const getAllVatPercentageSettingService = async (status = 'AC') => {
   }
 };
 
-export const getVatPercentageSettingByIdService = async (id: number) => {
+export const getVatPercentageSettingByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -45,6 +46,7 @@ export const getVatPercentageSettingByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("SNO", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_VAT_PERCENTAGE_SETTING");
     return result.recordset[0] || null;
   } catch (error) {
@@ -68,6 +70,7 @@ export const saveVatPercentageSettingService = async (data: VatPercentageSetting
       .input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER))
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_VAT_PERCENTAGE_SETTING");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save VAT percentage");
@@ -94,6 +97,7 @@ export const updateVatPercentageSettingService = async (data: VatPercentageSetti
       .input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER))
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_VAT_PERCENTAGE_SETTING");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to update VAT percentage");

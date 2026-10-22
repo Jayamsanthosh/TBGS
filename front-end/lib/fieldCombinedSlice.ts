@@ -12,6 +12,7 @@ export interface FieldCombinedDtl {
 export interface FieldCombinedGridData {
   id?: string | number;
   FIELD_ID_FLD_HDR?: number;
+  LINK_ID?: number | null;
   PROJECT_NAME_FLD_HDR: string;
   FIELD_CATEGORY_FLD_HDR: string;
   FIELD_DESC_FLD_HDR?: string;

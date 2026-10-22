@@ -21,6 +21,8 @@ export const getAllCostCentreMaster = async (_req: Request, res: Response): Prom
 
 export const getCostCentreMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const linkIdParam = req.query.link_id;
+  const linkId = linkIdParam !== undefined && linkIdParam !== null ? parseInt(String(linkIdParam), 10) : 0;
 
   if (!id) {
     res.status(400).json({ success: false, message: "Cost Centre ID is required" });
@@ -28,7 +30,7 @@ export const getCostCentreMasterById = async (req: Request, res: Response): Prom
   }
 
   try {
-    const centre = await getCostCentreMasterByIdService(parseInt(id as string, 10));
+    const centre = await getCostCentreMasterByIdService(parseInt(id as string, 10), isNaN(linkId) ? 0 : linkId);
 
     if (!centre) {
       res.status(404).json({ success: false, message: "Cost centre not found" });

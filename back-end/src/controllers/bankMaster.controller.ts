@@ -29,7 +29,8 @@ export const getBankMasterById = async (req: Request, res: Response): Promise<vo
   }
 
   try {
-    const bank = await getBankMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const bank = await getBankMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!bank) {
       res.status(404).json({ success: false, message: "Bank not found" });

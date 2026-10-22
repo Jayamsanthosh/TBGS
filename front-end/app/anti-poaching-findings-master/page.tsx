@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchAntiPoachingFindingsMasters, addAntiPoachingFindingsMaster, updateAntiPoachingFindingsMaster, deleteAntiPoachingFindingsMaster, fetchAntiPoachingFindingsMasterById, clearAntiPoachingFindingsMasterError } from "@/lib/antiPoachingFindingsMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ export default function AntiPoachingFindingsMasterPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.antiPoachingFindingsMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(118);
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -98,7 +100,7 @@ export default function AntiPoachingFindingsMasterPage() {
     setLoadingEdit(true);
     setEditing(item);
     try {
-      const response = await dispatch(fetchAntiPoachingFindingsMasterById(Number(item.ANTI_POACHING_FINDINGS_ID))).unwrap();
+      const response = await dispatch(fetchAntiPoachingFindingsMasterById({ id: Number(item.ANTI_POACHING_FINDINGS_ID), linkId: linkPagesId })).unwrap();
       if (response) {
         setForm({
           ANTI_POACHING_FINDINGS_NAME: response.ANTI_POACHING_FINDINGS_NAME || "",
@@ -135,6 +137,7 @@ export default function AntiPoachingFindingsMasterPage() {
         STATUS_MASTER: editing ? (form.STATUS_MASTER || "ACTIVE") : "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

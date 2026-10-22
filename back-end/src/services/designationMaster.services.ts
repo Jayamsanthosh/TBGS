@@ -11,6 +11,7 @@ export interface DesignationMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number;
 }
 
 interface ProcRowResult {
@@ -105,6 +106,7 @@ export const updateDesignationMasterService = async (data: DesignationMasterData
       .input("STATUS_MASTER", sql.VarChar(50), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("link_id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_DESIGNATION_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update designation");

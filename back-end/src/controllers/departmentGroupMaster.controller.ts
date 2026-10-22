@@ -21,6 +21,7 @@ export const getAllDepartmentGroupMaster = async (_req: Request, res: Response):
 
 export const getDepartmentGroupMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const link_id = parseInt(req.query.link_id as string, 10) || 0;
 
   if (!id) {
     res.status(400).json({ success: false, message: "Department Group ID is required" });
@@ -28,7 +29,7 @@ export const getDepartmentGroupMasterById = async (req: Request, res: Response):
   }
 
   try {
-    const departmentGroup = await getDepartmentGroupMasterByIdService(parseInt(id as string, 10));
+    const departmentGroup = await getDepartmentGroupMasterByIdService(parseInt(id as string, 10), link_id);
 
     if (!departmentGroup) {
       res.status(404).json({ success: false, message: "Department group not found" });

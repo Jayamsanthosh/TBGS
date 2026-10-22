@@ -12,6 +12,7 @@ import {
   type BloodGroupGridData,
 } from "@/lib/bloodGroupMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const fields: MasterField[] = [
   { key: "BLOOD_GROUP_NAME", label: "Blood Group Name", type: "text", required: true, placeholder: "e.g., A+", maxLength: 50 },
@@ -39,6 +40,7 @@ export default function BloodGroupMasterPage() {
   const { bloodGroups, loading, error } = useAppSelector((s) => s.bloodGroup);
   const { toast } = useToast();
   const [currentStatus, setCurrentStatus] = useState<string>("Active");
+  const linkPagesId = useLinkPagesId(86);
 
   const enrichedData = useMemo(() => {
     if (!Array.isArray(bloodGroups)) return [];
@@ -68,12 +70,12 @@ export default function BloodGroupMasterPage() {
       data: enrichedData,
       isLoading: loading,
       add: async (item: BloodGroupGridData) => {
-        const res = await dispatch(addBloodGroup(item)).unwrap();
+        const res = await dispatch(addBloodGroup({ ...item, LINK_ID: linkPagesId })).unwrap();
         dispatch(fetchBloodGroups(currentStatus));
         return res;
       },
       update: async (item: BloodGroupGridData) => {
-        const res = await dispatch(updateBloodGroup(item)).unwrap();
+        const res = await dispatch(updateBloodGroup({ ...item, LINK_ID: linkPagesId })).unwrap();
         dispatch(fetchBloodGroups(currentStatus));
         return res;
       },
@@ -91,7 +93,7 @@ export default function BloodGroupMasterPage() {
         return res;
       },
     }),
-    [enrichedData, loading, dispatch, currentStatus]
+    [enrichedData, loading, dispatch, currentStatus, linkPagesId]
   );
 
   return (

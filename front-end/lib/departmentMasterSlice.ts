@@ -7,6 +7,7 @@ export interface DepartmentGridData {
   DEPARTMENT_NAME: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface DepartmentState {

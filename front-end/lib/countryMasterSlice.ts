@@ -11,7 +11,7 @@ export interface CountryGridData {
   phonecode?: number;
   Batch_No?: string;
   Remarks?: string;
-  Status_Master?: string;
+  LINK_ID?: number | null;
 }
 
 interface CountriesState {

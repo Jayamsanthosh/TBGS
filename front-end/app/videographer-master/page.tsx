@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchVideographers, addVideographer, updateVideographer, deleteVideographer, clearVideographerMasterError, type VideographerMasterGridData } from "@/lib/videographerMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ export default function VideographerMasterPage() {
   const dispatch = useAppDispatch();
   const { videographers, loading, error } = useAppSelector((s) => s.videographerMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(128);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -129,6 +131,7 @@ export default function VideographerMasterPage() {
         STATUS_MASTER: editing ? form.STATUS_MASTER : "AC",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

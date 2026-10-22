@@ -66,12 +66,13 @@ export const getDriverOptions = async (req: Request, res: Response): Promise<voi
 
 export const getDriverMasterById = async (req: Request, res: Response): Promise<void> => {
   const id = parseId(req.params.id);
+  const linkId = req.query.link_id != null ? parseInt(String(req.query.link_id), 10) : 0;
   if (!id) {
     res.status(400).json({ success: false, message: "A valid SNO is required" });
     return;
   }
   try {
-    const item = await getDriverMasterByIdService(id);
+    const item = await getDriverMasterByIdService(id, linkId);
     if (!item) {
       res.status(404).json({ success: false, message: "Driver not found" });
       return;

@@ -7,7 +7,7 @@ export interface CostCentreGridData {
   COST_CENTRE_NAME?: string;
   COMPANY_ID?: number;
   REMARKS?: string;
-  STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface CostCentreState {

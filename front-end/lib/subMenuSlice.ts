@@ -14,6 +14,7 @@ export interface SubMenuGridData {
   IS_PARENT: string;
   STATUS_MASTER: string;
   USER?: string;
+  LINK_ID?: number | null;
 }
 
 interface SubMenusState {

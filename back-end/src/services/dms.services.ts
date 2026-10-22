@@ -5,6 +5,7 @@ import { parseSprocResult } from "../utils/sprocResult";
 export interface DMSFileData {
   DMS_ID?: number;
   LINK_PAGES_ID?: number;
+  LINK_ID?: number | null;
   PAGE_REF_NO?: string;
   DOCUMENT_TYPE?: string;
   DESCRIPTIONS?: string;
@@ -171,13 +172,14 @@ export const getDocumentTypesService = async () => {
     .filter((value: unknown): value is string => typeof value === "string" && value !== "");
 };
 
-export const getDocumentByIdService = async (id: number) => {
+export const getDocumentByIdService = async (id: number, linkId: number | null = null) => {
   const pool = requirePool();
 
   try {
     const result = await pool
       .request()
       .input("DMS_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_DOCUMENT_MANAGEMENT_SYSTEM");
     const row = result.recordset[0] || null;
     if (!row) return null;
@@ -242,6 +244,11 @@ const executeDocument = async (pool: any, data: DMSFileData, spName: string, isU
   req.input("STATUS_MASTER", sql.VarChar(MAX_LEN.STATUS_MASTER), statusMaster);
   req.input("USER", sql.VarChar(50), text(data.USER) ?? "Admin");
   req.input("MAC_ADDRESS", sql.VarChar(50), text(data.MAC_ADDRESS) ?? "WEB");
+  /* SAVE carries the owning module link; UPDATE has no @LINK_ID parameter and
+     never rewrites the column, so it is only bound on insert. */
+  if (!isUpdate) {
+    req.input("LINK_ID", sql.Int, toInt(data.LINK_ID));
+  }
 
   return req.execute(spName);
 };

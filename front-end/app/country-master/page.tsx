@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchCountries, addCountry, updateCountry, deleteCountry, clearCountriesError, CountryGridData } from "@/lib/countryMasterSlice";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const fields: MasterField[] = [
   { key: "Country_Name", label: "Country Name", type: "text", required: true, placeholder: "e.g., India" },
@@ -68,6 +69,8 @@ export default function CountryMasterPage() {
     dispatch(fetchCountries());
   }, [dispatch]);
 
+  const linkPagesId = useLinkPagesId(16);
+
   useEffect(() => {
     if (error) {
       toast({ variant: 'destructive', title: 'Error', description: error });
@@ -79,12 +82,12 @@ export default function CountryMasterPage() {
     data: countries,
     isLoading: loading,
     add: async (item: CountryGridData) => {
-      const res = await dispatch(addCountry(item)).unwrap();
+      const res = await dispatch(addCountry({ ...item, LINK_ID: linkPagesId } as CountryGridData)).unwrap();
       dispatch(fetchCountries());
       return res;
     },
     update: async (item: CountryGridData) => {
-      const res = await dispatch(updateCountry(item)).unwrap();
+      const res = await dispatch(updateCountry({ ...item, LINK_ID: linkPagesId } as CountryGridData)).unwrap();
       dispatch(fetchCountries());
       return res;
     },
@@ -101,7 +104,7 @@ export default function CountryMasterPage() {
       dispatch(fetchCountries());
       return res;
     },
-  }), [countries, loading, dispatch]);
+  }), [countries, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

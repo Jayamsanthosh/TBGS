@@ -29,7 +29,10 @@ export const getTruckTypeMasterById = async (req: Request, res: Response): Promi
   }
 
   try {
-    const truckType = await getTruckTypeMasterByIdService(parseInt(id as string, 10));
+    const truckType = await getTruckTypeMasterByIdService(
+      parseInt(id as string, 10),
+      req.query.LINK_ID ? parseInt(req.query.LINK_ID as string, 10) : null
+    );
 
     if (!truckType) {
       res.status(404).json({ success: false, message: "Truck type not found" });

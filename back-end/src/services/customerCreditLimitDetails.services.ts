@@ -9,11 +9,11 @@ export interface CustomerCreditLimitDetailsData {
   CREDIT_LIMIT_DAYS?: number;
   CREDIT_LIMIT_AMOUNT?: number;
   PAYMENT_MODE_ID?: number;
-  EFFECTIVE_FROM?: string;
-  EFFECTIVE_TO?: string;
+  EFFECTIVE_FROM?: string | Date | null;
+  EFFECTIVE_TO?: string | Date | null;
   VALID_TYPE?: string;
   CURRENCY_ID?: number;
-  EXPECTED_NEXT_PAYMENT_DATE?: string;
+  EXPECTED_NEXT_PAYMENT_DATE?: string | Date | null;
   EXPECTED_NEXT_PAYMENT_AMOUNT?: number;
   REQUEST_FOR?: string;
   SINGLE_INVOICE_REQUEST_AMOUNT?: number;
@@ -21,21 +21,24 @@ export interface CustomerCreditLimitDetailsData {
   TOTAL_OUTSTANDING_AMOUNT?: number;
   OVER_DUE_OUTSTANDING_AMOUNT?: number;
   REQUESTED_BY?: string;
-  REQUESTED_DATE?: string;
+  REQUESTED_DATE?: string | Date | null;
   SECTION_HEAD_RESPONSE_PERSON?: string;
-  SECTION_HEAD_RESPONSE_DATE?: string;
+  SECTION_HEAD_RESPONSE_PERSON_EMP_ID?: string | number | null;
+  SECTION_HEAD_RESPONSE_DATE?: string | Date | null;
   SECTION_HEAD_RESPONSE_STATUS?: string;
   SECTION_HEAD_RESPONSE_REMARKS?: string;
   RESPONSE_1_PERSON?: string;
-  RESPONSE_1_DATE?: string;
+  RESPONSE_1_EMP_ID?: string | number | null;
+  RESPONSE_1_DATE?: string | Date | null;
   RESPONSE_1_STATUS?: string;
   RESPONSE_1_REMARKS?: string;
   RESPONSE_2_PERSON?: string;
-  RESPONSE_2_DATE?: string;
+  RESPONSE_2_EMP_ID?: string | number | null;
+  RESPONSE_2_DATE?: string | Date | null;
   RESPONSE_2_STATUS?: string;
   RESPONSE_2_REMARKS?: string;
   FINAL_RESPONSE_PERSON?: string;
-  FINAL_RESPONSE_DATE?: string;
+  FINAL_RESPONSE_DATE?: string | Date | null;
   FINAL_RESPONSE_STATUS?: string;
   FINAL_RESPONSE_REMARKS?: string;
   REMARKS?: string;
@@ -43,6 +46,7 @@ export interface CustomerCreditLimitDetailsData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export interface CustomerCreditLimitInput {
@@ -70,15 +74,15 @@ const saveFieldInputs = (data: CustomerCreditLimitDetailsData): CustomerCreditLi
   { name: "OVER_DUE_OUTSTANDING_AMOUNT", type: sql.Decimal(15, 2), value: data.OVER_DUE_OUTSTANDING_AMOUNT ?? null },
   { name: "REQUESTED_BY", type: sql.VarChar(50), value: data.REQUESTED_BY || null },
   { name: "REQUESTED_DATE", type: sql.DateTime, value: data.REQUESTED_DATE || null },
-  { name: "SECTION_HEAD_RESPONSE_PERSON", type: sql.VarChar(50), value: data.SECTION_HEAD_RESPONSE_PERSON || null },
+  { name: "SECTION_HEAD_RESPONSE_PERSON_EMP_ID", type: sql.Int, value: data.SECTION_HEAD_RESPONSE_PERSON_EMP_ID ?? data.SECTION_HEAD_RESPONSE_PERSON ?? null },
   { name: "SECTION_HEAD_RESPONSE_DATE", type: sql.DateTime, value: data.SECTION_HEAD_RESPONSE_DATE || null },
   { name: "SECTION_HEAD_RESPONSE_STATUS", type: sql.VarChar(50), value: data.SECTION_HEAD_RESPONSE_STATUS || null },
   { name: "SECTION_HEAD_RESPONSE_REMARKS", type: sql.VarChar(50), value: data.SECTION_HEAD_RESPONSE_REMARKS || null },
-  { name: "RESPONSE_1_PERSON", type: sql.VarChar(50), value: data.RESPONSE_1_PERSON || null },
+  { name: "RESPONSE_1_EMP_ID", type: sql.Int, value: data.RESPONSE_1_EMP_ID ?? data.RESPONSE_1_PERSON ?? null },
   { name: "RESPONSE_1_DATE", type: sql.DateTime, value: data.RESPONSE_1_DATE || null },
   { name: "RESPONSE_1_STATUS", type: sql.VarChar(50), value: data.RESPONSE_1_STATUS || null },
   { name: "RESPONSE_1_REMARKS", type: sql.VarChar(50), value: data.RESPONSE_1_REMARKS || null },
-  { name: "RESPONSE_2_PERSON", type: sql.VarChar(50), value: data.RESPONSE_2_PERSON || null },
+  { name: "RESPONSE_2_EMP_ID", type: sql.Int, value: data.RESPONSE_2_EMP_ID ?? data.RESPONSE_2_PERSON ?? null },
   { name: "RESPONSE_2_DATE", type: sql.DateTime, value: data.RESPONSE_2_DATE || null },
   { name: "RESPONSE_2_STATUS", type: sql.VarChar(50), value: data.RESPONSE_2_STATUS || null },
   { name: "RESPONSE_2_REMARKS", type: sql.VarChar(50), value: data.RESPONSE_2_REMARKS || null },
@@ -156,7 +160,7 @@ export const getAllCustomerCreditLimitDetailsService = async (companyId: number,
   }
 };
 
-export const getCustomerCreditLimitDetailsByIdService = async (sno: number) => {
+export const getCustomerCreditLimitDetailsByIdService = async (sno: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -164,6 +168,7 @@ export const getCustomerCreditLimitDetailsByIdService = async (sno: number) => {
     const result = await pool
       .request()
       .input("SNO", sql.Int, sno)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_CUSTOMER_CREDIT_LIMIT_DETAILS");
 
     const row = result.recordset[0] || null;
@@ -184,6 +189,7 @@ export const saveCustomerCreditLimitDetailsService = async (data: CustomerCredit
     applyInputs(request, saveFieldInputs(data));
     request.input("USER", sql.VarChar(50), data.USER || "Admin");
     request.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    request.input("LINK_ID", sql.Int, data.LINK_ID ?? null);
 
     const result = await request.execute("VMaster.SAVE_CUSTOMER_CREDIT_LIMIT_DETAILS");
 
@@ -207,6 +213,7 @@ export const updateCustomerCreditLimitDetailsService = async (data: CustomerCred
     applyInputs(request, updateFieldInputs(data));
     request.input("USER", sql.VarChar(50), data.USER || "Admin");
     request.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    request.input("LINK_ID", sql.Int, data.LINK_ID ?? null);
 
     const result = await request.execute("VMaster.UPDATE_CUSTOMER_CREDIT_LIMIT_DETAILS");
 

@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchCamps, addCamp, updateCamp, deleteCamp, clearCampError, CampGridData } from "@/lib/campMasterSlice";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const fields: MasterField[] = [
   {
@@ -63,6 +64,7 @@ export default function CampMasterPage() {
   const dispatch = useAppDispatch();
   const { camps, loading, error } = useAppSelector((s) => s.camp);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(15);
 
   useEffect(() => {
     dispatch(fetchCamps());
@@ -79,12 +81,12 @@ export default function CampMasterPage() {
     data: camps,
     isLoading: loading,
     add: async (item: CampGridData) => {
-      const res = await dispatch(addCamp(item)).unwrap();
+      const res = await dispatch(addCamp({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchCamps());
       return res;
     },
     update: async (item: CampGridData) => {
-      const res = await dispatch(updateCamp(item)).unwrap();
+      const res = await dispatch(updateCamp({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchCamps());
       return res;
     },
@@ -101,7 +103,7 @@ export default function CampMasterPage() {
       dispatch(fetchCamps());
       return res;
     },
-  }), [camps, loading, dispatch]);
+  }), [camps, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

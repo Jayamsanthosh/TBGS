@@ -14,6 +14,7 @@ export interface UserGridData {
   OUTSIDE_ACCESS_Y_N?: 'YES' | 'NO';
   STATUS_MASTER?: string;
   REMARKS?: string;
+  LINK_ID?: number;
 }
 
 interface UsersState {

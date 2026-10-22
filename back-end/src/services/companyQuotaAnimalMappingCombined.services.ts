@@ -45,6 +45,7 @@ export interface CompanyQuotaAnimalMappingData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const dateOrNull = (v: any): Date | null => (v ? new Date(v) : null);
@@ -90,7 +91,7 @@ export const getAllCompanyQuotaAnimalMappingCombinedService = async () => {
   }
 };
 
-export const getCompanyQuotaAnimalMappingHdrService = async (quotaId: number) => {
+export const getCompanyQuotaAnimalMappingHdrService = async (quotaId: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -98,6 +99,7 @@ export const getCompanyQuotaAnimalMappingHdrService = async (quotaId: number) =>
     const result = await pool
       .request()
       .input("QUOTA_ID", sql.Int, quotaId)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_COMPANY_QUOTA_ANIMAL_MAPPING_HDR");
 
     const row = result.recordset?.[0] || null;
@@ -155,6 +157,7 @@ export const saveCompanyQuotaAnimalMappingCombinedService = async (data: Company
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_HDR || data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, (data as any).LINK_ID ?? null)
       .execute("VMaster.SAVE_COMPANY_QUOTA_ANIMAL_MAPPING_HDR");
 
     const { status, message, data: parsedData } = parseSprocResult(hdrResult.recordset?.[0], "Failed to save quota header");
@@ -215,6 +218,7 @@ export const updateCompanyQuotaAnimalMappingCombinedService = async (data: Compa
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_HDR || data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, (data as any).LINK_ID ?? null)
       .execute("VMaster.UPDATE_COMPANY_QUOTA_ANIMAL_MAPPING_HDR");
 
     const { status, message } = parseSprocResult(hdrResult.recordset?.[0], "Failed to update quota header");

@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { validateEmail, validateTanzaniaPhone, validateTin, formatTanzaniaPhone, cleanPhoneForStorage } from "@/lib/validation";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -31,6 +32,7 @@ export default function BusinessPartnerMasterPage() {
   const dispatch = useAppDispatch();
   const { businessPartners, loading, error } = useAppSelector((s) => s.businessPartner);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(36);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -329,6 +331,7 @@ export default function BusinessPartnerMasterPage() {
         STATUS_MASTER: "AC",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

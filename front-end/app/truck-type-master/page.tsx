@@ -12,6 +12,7 @@ import {
   TruckTypeGridData,
 } from "@/lib/truckTypeMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
@@ -62,6 +63,7 @@ export default function TruckTypeMasterPage() {
   const dispatch = useAppDispatch();
   const { truckTypes, loading, error } = useAppSelector((s) => s.truckType);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(95);
 
   useEffect(() => {
     dispatch(fetchTruckTypes("ALL"));
@@ -78,12 +80,12 @@ export default function TruckTypeMasterPage() {
     data: truckTypes,
     isLoading: loading,
     add: async (item: TruckTypeGridData) => {
-      const res = await dispatch(addTruckType(item)).unwrap();
+      const res = await dispatch(addTruckType({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchTruckTypes("ALL"));
       return res;
     },
     update: async (item: TruckTypeGridData) => {
-      const res = await dispatch(updateTruckType(item)).unwrap();
+      const res = await dispatch(updateTruckType({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchTruckTypes("ALL"));
       return res;
     },
@@ -100,7 +102,7 @@ export default function TruckTypeMasterPage() {
       dispatch(fetchTruckTypes("ALL"));
       return res;
     },
-  }), [truckTypes, loading, dispatch]);
+  }), [truckTypes, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

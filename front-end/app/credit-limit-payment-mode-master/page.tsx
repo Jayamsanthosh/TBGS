@@ -13,6 +13,7 @@ import {
 } from "@/lib/creditLimitPaymentModeMasterSlice";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const fields: MasterField[] = [
   { key: "PAYMENT_MODE_NAME", label: "Payment Mode Name", type: "text", required: true, placeholder: "e.g., Credit Card" },
@@ -72,6 +73,8 @@ export default function CreditLimitPaymentModeMasterPage() {
     dispatch(fetchCreditLimitPaymentModes(currentStatus));
   }, [dispatch, currentStatus]);
 
+  const linkPagesId = useLinkPagesId(47);
+
   useEffect(() => {
     if (error) {
       toast({ variant: "destructive", title: "Error", description: error });
@@ -83,12 +86,12 @@ export default function CreditLimitPaymentModeMasterPage() {
     data: creditLimitPaymentModes,
     isLoading: loading,
     add: async (item: CreditLimitPaymentModeGridData) => {
-      const res = await dispatch(addCreditLimitPaymentMode(item)).unwrap();
+      const res = await dispatch(addCreditLimitPaymentMode({ ...item, LINK_ID: linkPagesId } as CreditLimitPaymentModeGridData)).unwrap();
       dispatch(fetchCreditLimitPaymentModes(currentStatus));
       return res;
     },
     update: async (item: CreditLimitPaymentModeGridData) => {
-      const res = await dispatch(updateCreditLimitPaymentMode(item)).unwrap();
+      const res = await dispatch(updateCreditLimitPaymentMode({ ...item, LINK_ID: linkPagesId } as CreditLimitPaymentModeGridData)).unwrap();
       dispatch(fetchCreditLimitPaymentModes(currentStatus));
       return res;
     },
@@ -105,7 +108,7 @@ export default function CreditLimitPaymentModeMasterPage() {
       dispatch(fetchCreditLimitPaymentModes(currentStatus));
       return res;
     },
-  }), [creditLimitPaymentModes, loading, dispatch, currentStatus]);
+  }), [creditLimitPaymentModes, loading, dispatch, currentStatus, linkPagesId]);
 
   return (
     <MasterCrudPage

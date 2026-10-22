@@ -15,6 +15,7 @@ export interface TripTemplatePriceMappingData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const numOrNull = (v: any): number | null =>
@@ -53,6 +54,7 @@ export const saveTripTemplatePriceMappingService = async (data: TripTemplatePric
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, numOrNull(data.LINK_ID))
       .execute("VMaster.SAVE_TRIP_TEMPLATE_PRICE_MAPPING");
 
     const { status, message, data: id } = parseSprocResult(result.recordset?.[0], "Failed to save trip template price mapping");
@@ -83,6 +85,7 @@ export const updateTripTemplatePriceMappingService = async (data: TripTemplatePr
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, numOrNull(data.LINK_ID))
       .execute("VMaster.UPDATE_TRIP_TEMPLATE_PRICE_MAPPING");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update trip template price mapping");
