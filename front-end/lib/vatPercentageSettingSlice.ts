@@ -9,6 +9,7 @@ export interface VatPercentageSettingGridData {
   EFFECTIVE_TO?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface VatPercentageSettingState {
@@ -42,9 +43,14 @@ export const fetchVatPercentageSettings = createAsyncThunk(
 
 export const fetchVatPercentageSettingById = createAsyncThunk(
   "vatPercentageSetting/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (arg: number | { id: number; link_id?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/vat-percentage-setting/${id}`);
+      const id = typeof arg === "object" ? arg.id : arg;
+      const linkId = typeof arg === "object" ? arg.link_id : undefined;
+      const url = linkId
+        ? `${API_URL}/vat-percentage-setting/${id}?LINK_ID=${encodeURIComponent(String(linkId))}`
+        : `${API_URL}/vat-percentage-setting/${id}`;
+      const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch VAT setting");

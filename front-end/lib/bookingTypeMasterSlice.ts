@@ -8,6 +8,7 @@ export interface BookingTypeGridData {
   BOOKING_TYPE_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface BookingTypeState {

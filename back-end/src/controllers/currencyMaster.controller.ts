@@ -21,6 +21,8 @@ export const getAllCurrencyMaster = async (_req: Request, res: Response): Promis
 
 export const getCurrencyMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const linkIdParam = req.query.link_id;
+  const linkId = linkIdParam !== undefined && linkIdParam !== null ? parseInt(String(linkIdParam), 10) : 0;
 
   if (!id) {
     res.status(400).json({ success: false, message: "Currency ID is required" });
@@ -28,7 +30,7 @@ export const getCurrencyMasterById = async (req: Request, res: Response): Promis
   }
 
   try {
-    const currency = await getCurrencyMasterByIdService(parseInt(id as string, 10));
+    const currency = await getCurrencyMasterByIdService(parseInt(id as string, 10), isNaN(linkId) ? 0 : linkId);
 
     if (!currency) {
       res.status(404).json({ success: false, message: "Currency not found" });

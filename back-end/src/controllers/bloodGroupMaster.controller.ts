@@ -35,7 +35,8 @@ export const getBloodGroupMasterById = async (req: Request, res: Response): Prom
     return;
   }
   try {
-    const bloodGroup = await getBloodGroupMasterByIdService(id);
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const bloodGroup = await getBloodGroupMasterByIdService(id, linkId);
     if (!bloodGroup) {
       res.status(404).json({ success: false, message: "Blood group not found" });
       return;

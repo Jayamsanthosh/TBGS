@@ -36,6 +36,7 @@ export interface AnimalHuntingChargesMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const dateOrNull = (v: any): Date | null => (v ? new Date(v) : null);
@@ -91,7 +92,7 @@ export const getAllAnimalHuntingChargesMasterCombinedService = async () => {
   }
 };
 
-export const getAnimalHuntingChargesMasterHdrService = async (id: number) => {
+export const getAnimalHuntingChargesMasterHdrService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -99,6 +100,7 @@ export const getAnimalHuntingChargesMasterHdrService = async (id: number) => {
     const result = await pool
       .request()
       .input("ANIMAL_HUNT_CHARGE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, numOrNull(linkId))
       .execute("VMaster.GET_ANIMAL_HUNTING_CHARGES_MASTER_HDR");
 
     const row = result.recordset?.[0] || null;
@@ -149,6 +151,7 @@ export const saveAnimalHuntingChargesMasterCombinedService = async (data: Animal
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_HDR || data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, numOrNull(data.LINK_ID))
       .execute("VMaster.SAVE_ANIMAL_HUNTING_CHARGES_MASTER_HDR");
 
     const { status, message, data: hdrData } = parseSprocResult(hdrResult.recordset?.[0], "Failed to save hunting charge header");
@@ -209,6 +212,7 @@ export const updateAnimalHuntingChargesMasterCombinedService = async (data: Anim
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_HDR || data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, numOrNull(data.LINK_ID))
       .execute("VMaster.UPDATE_ANIMAL_HUNTING_CHARGES_MASTER_HDR");
 
     parseSprocResult(hdrResult.recordset?.[0], "Failed to update hunting charge header");
@@ -256,6 +260,26 @@ export const updateAnimalHuntingChargesMasterCombinedService = async (data: Anim
     return { message: "Animal hunting charges updated successfully" };
   } catch (error) {
     console.error("UPDATE_ANIMAL_HUNTING_CHARGES_MASTER_COMBINED error:", error);
+    throw error;
+  }
+};
+
+export const submitAnimalHuntingChargesMasterService = async (id: number, role = "Administrator") => {
+  const pool = getPool();
+  if (!pool) throw new Error("Database not connected");
+
+  try {
+    const result = await pool
+      .request()
+      .input("ANIMAL_HUNT_CHARGE_ID", sql.Int, id)
+      .input("Role", sql.VarChar(50), role)
+      .execute("VMaster.SUBMIT_ANIMAL_HUNTING_CHARGES_MASTER_HDR");
+
+    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to submit animal hunting charges");
+
+    return { message: message || "Animal hunting charges submitted successfully" };
+  } catch (error) {
+    console.error("SUBMIT_ANIMAL_HUNTING_CHARGES_MASTER_HDR error:", error);
     throw error;
   }
 };

@@ -28,7 +28,8 @@ export const getRole = async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    const role = await getRoleByIdService(parseInt(id as string));
+    const linkId = req.query.link_id ? parseInt(req.query.link_id as string, 10) : 0;
+    const role = await getRoleByIdService(parseInt(id as string), Number.isNaN(linkId) ? 0 : linkId);
 
     if (!role) {
       res.status(404).json({ success: false, message: "Role not found" });

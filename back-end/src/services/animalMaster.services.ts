@@ -13,6 +13,7 @@ export interface AnimalMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllAnimalMasterService = async () => {
@@ -30,7 +31,7 @@ export const getAllAnimalMasterService = async () => {
   }
 };
 
-export const getAnimalMasterByIdService = async (id: number) => {
+export const getAnimalMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -38,6 +39,7 @@ export const getAnimalMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("ANIMAL_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_ANIMAL_MASTER");
 
     return result.recordset[0] || null;
@@ -63,6 +65,7 @@ export const saveAnimalMasterService = async (data: AnimalMasterData) => {
       .input("ANIMAL_CATEGORY_ID", sql.Int, data.ANIMAL_CATEGORY_ID ?? null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("Link_Id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_ANIMAL_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save animal");
@@ -90,6 +93,7 @@ export const updateAnimalMasterService = async (data: AnimalMasterData) => {
       .input("ANIMAL_CATEGORY_ID", sql.Int, data.ANIMAL_CATEGORY_ID ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("Link_Id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_ANIMAL_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update animal");

@@ -28,8 +28,11 @@ export const getAirportMasterById = async (req: Request, res: Response): Promise
     return;
   }
 
+  const linkId =
+    req.query.link_id != null && req.query.link_id !== "" ? Number(req.query.link_id) : 0;
+
   try {
-    const item = await getAirportMasterByIdService(parseInt(id as string, 10));
+    const item = await getAirportMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!item) {
       res.status(404).json({ success: false, message: "Airport not found" });

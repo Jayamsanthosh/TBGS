@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchBulletMasters, fetchBulletMasterById, addBulletMaster, updateBulletMaster, deleteBulletMaster, clearBulletMasterError, type BulletMasterGridData } from "@/lib/bulletMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +35,7 @@ export default function BulletMasterPage() {
   const dispatch = useAppDispatch();
   const { bullets, loading, error } = useAppSelector((s) => s.bulletMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(124);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -138,7 +140,7 @@ export default function BulletMasterPage() {
     setDialogOpen(true);
     try {
       const id = Number(item.id || item.BULLET_ID);
-      const resultAction = await dispatch(fetchBulletMasterById(id));
+      const resultAction = await dispatch(fetchBulletMasterById({ id, linkId: linkPagesId }));
       if (fetchBulletMasterById.fulfilled.match(resultAction)) {
         const raw = resultAction.payload;
         setEditing(item);
@@ -187,9 +189,10 @@ export default function BulletMasterPage() {
         ROUNDS_PER_BOX: form.ROUNDS_PER_BOX ? Math.max(0, Number(form.ROUNDS_PER_BOX) || 0) : null,
         REORDER_LEVEL: form.REORDER_LEVEL ? Math.max(0, Number(form.REORDER_LEVEL) || 0) : null,
         REMARKS: form.REMARKS?.trim() || null,
-        STATUS_MASTER: "AC",
+        STATUS_MASTER: form.STATUS_MASTER || "AC",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

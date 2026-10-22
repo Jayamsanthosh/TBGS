@@ -17,6 +17,7 @@ import { fetchCompanies } from "@/lib/companyMasterSlice";
 import { fetchCurrencies } from "@/lib/currencyMasterSlice";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const statusLabel = (s: any) => {
   const v = String(s).toUpperCase();
@@ -39,6 +40,7 @@ export default function TripTemplatePriceMappingPage() {
   const companies = useAppSelector((s) => s.company.companies);
   const currencies = useAppSelector((s) => s.currencies.currencies);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(184);
   const [currentStatus, setCurrentStatus] = useState<string>("AC");
 
   useEffect(() => {
@@ -145,12 +147,12 @@ export default function TripTemplatePriceMappingPage() {
       data: items,
       isLoading: loading,
       add: async (item: TripTemplatePriceMappingGridData) => {
-        const res = await dispatch(addTripTemplatePriceMapping(item)).unwrap();
+        const res = await dispatch(addTripTemplatePriceMapping({ ...item, LINK_ID: linkPagesId })).unwrap();
         dispatch(fetchTripTemplatePriceMapping());
         return res;
       },
       update: async (item: TripTemplatePriceMappingGridData) => {
-        const res = await dispatch(updateTripTemplatePriceMapping(item)).unwrap();
+        const res = await dispatch(updateTripTemplatePriceMapping({ ...item, LINK_ID: linkPagesId })).unwrap();
         dispatch(fetchTripTemplatePriceMapping());
         return res;
       },
@@ -168,7 +170,7 @@ export default function TripTemplatePriceMappingPage() {
         return res;
       },
     }),
-    [items, loading, dispatch]
+    [items, loading, dispatch, linkPagesId]
   );
 
   return (

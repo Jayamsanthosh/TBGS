@@ -43,6 +43,7 @@ export interface OpeningStockData {
   STATUS_ID?: number;
   REMARKS?: string;
   LINK_PAGES_ID?: number;
+  LINK_ID?: number | null;
   STATUS_ENTRY?: string;
   USER?: string;
   MAC_ADDRESS?: string;
@@ -354,6 +355,20 @@ export const deleteOpeningStockDtlService = async (
 };
 
 /* ----------------------------------------------------- combined save */
+/* The HDR procs take @LINK_PAGES_ID but not the dedicated LINK_ID column, so
+   mirror the page link id into LINK_ID after the write. */
+const syncOpeningStockHdrLinkId = async (pool: any, refNo: string, linkId: any) => {
+  const value = numOrNull(linkId);
+  if (!refNo || value === null) return;
+  await pool
+    .request()
+    .input("REF_NO", sql.VarChar(50), refNo)
+    .input("LINK_ID", sql.Int, value)
+    .query(
+      "UPDATE [VInventory].[TBL_OPENING_STOCK_HDR] SET LINK_ID = @LINK_ID WHERE OPENING_STOCK_REF_NO = @REF_NO"
+    );
+};
+
 export const saveOpeningStockCombinedService = async (data: OpeningStockData) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
@@ -395,6 +410,8 @@ export const saveOpeningStockCombinedService = async (data: OpeningStockData) =>
     if (!refNo) {
       throw new Error("Can't Generate Open Stock Ref Number. Contact Admin");
     }
+
+    await syncOpeningStockHdrLinkId(pool, refNo, data.LINK_ID ?? data.LINK_PAGES_ID);
 
     for (const dtl of computedDtls) {
       await saveOpeningStockDtlService(refNo, dtl, data);
@@ -449,6 +466,8 @@ export const updateOpeningStockCombinedService = async (data: OpeningStockData) 
       "Failed to update opening stock header"
     );
     void parsedData;
+
+    await syncOpeningStockHdrLinkId(pool, refNo, data.LINK_ID ?? data.LINK_PAGES_ID);
 
     for (const dtl of computedDtls) {
       if (numOrNull(dtl.OPENING_STOCK_DTL_ID)) {

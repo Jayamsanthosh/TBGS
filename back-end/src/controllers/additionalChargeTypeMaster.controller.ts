@@ -17,9 +17,11 @@ export const getAllAdditionalChargeType = async (req: Request, res: Response): P
   const page = req.query.page != null && req.query.page !== "" ? Number(req.query.page) : null;
   const pageSize =
     req.query.pageSize != null && req.query.pageSize !== "" ? Number(req.query.pageSize) : null;
+  const linkId =
+    req.query.link_id != null && req.query.link_id !== "" ? Number(req.query.link_id) : 0;
 
   try {
-    const result = await getAdditionalChargeTypeListService({ status, search, page, pageSize });
+    const result = await getAdditionalChargeTypeListService({ status, search, page, pageSize, linkId });
     res.json({ success: true, total: result.total, count: result.rows.length, data: result.rows });
   } catch (error: any) {
     console.error("GetAllAdditionalChargeType error:", error);
@@ -36,8 +38,11 @@ export const getAdditionalChargeTypeById = async (req: Request, res: Response): 
     return;
   }
 
+  const linkId =
+    req.query.link_id != null && req.query.link_id !== "" ? Number(req.query.link_id) : 0;
+
   try {
-    const chargeType = await getAdditionalChargeTypeByIdService(idNumber);
+    const chargeType = await getAdditionalChargeTypeByIdService(idNumber, linkId);
 
     if (!chargeType) {
       res.status(404).json({ success: false, message: "Additional Charge Type not found" });

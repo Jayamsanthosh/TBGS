@@ -11,6 +11,7 @@ export interface BookingTypeMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllBookingTypeMasterService = async (status = "ALL") => {
@@ -42,7 +43,7 @@ export const getAllBookingTypeMasterService = async (status = "ALL") => {
   }
 };
 
-export const getBookingTypeMasterByIdService = async (id: number) => {
+export const getBookingTypeMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -50,6 +51,7 @@ export const getBookingTypeMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("BOOKING_TYPE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_BOOKING_TYPE_MASTER");
 
     return result.recordset[0] || null;
@@ -73,6 +75,7 @@ export const saveBookingTypeMasterService = async (data: BookingTypeMasterData) 
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_BOOKING_TYPE_MASTER");
 
     const { message, data: id } = parseSprocResult(result.recordset?.[0], "Failed to save booking type");
@@ -97,6 +100,7 @@ export const updateBookingTypeMasterService = async (data: BookingTypeMasterData
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("link_id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_BOOKING_TYPE_MASTER");
 
     const { message } = parseSprocResult(result.recordset?.[0], "Failed to update booking type");

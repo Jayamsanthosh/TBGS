@@ -29,12 +29,14 @@ import {
   PurchaseGrnGridData,
 } from "@/lib/purchaseGrnMasterSlice";
 import { fetchPurchaseOrderHdr, fetchPurchaseOrderDtls } from "@/lib/purchaseOrderMasterSlice";
+import { fetchPurchaseInvoiceDtls } from "@/lib/purchaseInvoiceMasterSlice";
 import { fetchBatchesBySource, addBatch, type BatchMasterData } from "@/lib/batchMasterSlice";
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { formatDate, clampNonNegative } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,6 +65,8 @@ const entryBadgeClass = (s: any) => {
 
 const fmtDate = (d: any) => {
   if (!d) return "";
+  const s = String(d);
+  if (s.startsWith("0001") || s.startsWith("1900")) return "";
   const date = new Date(d);
   if (isNaN(date.getTime())) return "";
   const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -111,6 +115,11 @@ export default function PurchaseGrnPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  /* The current page's link id (VMaster.TBL_LINKS_AND_PAGES); stored on each
+     record so DMS/reporting can scope by page. Fallback is the Purchase GRN
+     page id for when the navigation has not loaded yet. */
+  const linkPagesId = useLinkPagesId(282);
+
   const role = useMemo(() => {
     if (typeof window !== "undefined") {
       const userJson = localStorage.getItem("user");
@@ -120,7 +129,10 @@ export default function PurchaseGrnPage() {
     }
     return "Manager";
   }, []);
-  const isAdmin = role === "Admin" || role === "Super Admin" || role === "Administrator";
+  /* The delete procs accept exactly the role "Admin" - the role master only
+     has "Admin", "Manager", "Purchase Clerk" and "super Admin", so any other
+     name would be refused by the database half way through the save. */
+  const isAdmin = role === "Admin";
 
   const fetchList = async (url: string) => {
     const res = await fetch(url);
@@ -142,6 +154,7 @@ export default function PurchaseGrnPage() {
   const { data: racks } = useApiQuery("grn-master-racks", () => fetchList(`${API_URL}/rack-master`));
   const { data: partners } = useApiQuery("grn-master-suppliers", () => fetchList(`${API_URL}/business-partner-master?status=AC`));
   const { data: purchaseOrders } = useApiQuery("grn-master-purchase-orders", () => fetchList(`${API_URL}/purchase-order`));
+  const { data: purchaseInvoices } = useApiQuery("grn-master-purchase-invoices", () => fetchList(`${API_URL}/purchase-invoice`));
 
   const opt = (rows: any[] | undefined, valueKey: string, labelKey: string) =>
     (Array.isArray(rows) ? rows : []).map((r: any) => ({
@@ -210,6 +223,29 @@ export default function PurchaseGrnPage() {
         .filter((o) => o.value),
     [purchaseOrders]
   );
+
+  /* Purchase invoices linked to the selected purchase order. A GRN's
+     PURCHASE_INVOICE_REF_NO is an FK into VPurchase.TBL_PURCHASE_INVOICE_HDR,
+     so it can only ever be one of the invoices already raised for that PO. The
+     current value is merged back in when editing so a stored ref never blanks. */
+  const invoiceOptions = useMemo(() => {
+    const selectedPo = String(form.PURCHASE_ORDER_NO ?? "").trim();
+    const rows = Array.isArray(purchaseInvoices) ? purchaseInvoices : [];
+    const all = rows
+      .map((r: any) => ({
+        value: String(r.purchaseInvoiceRefNo ?? r.PURCHASE_INVOICE_REF_NO ?? ""),
+        label: String(r.purchaseInvoiceRefNo ?? r.PURCHASE_INVOICE_REF_NO ?? ""),
+        poNo: String(r.purchaseOrderNo ?? r.PURCHASE_ORDER_NO ?? ""),
+      }))
+      .filter((o) => o.value);
+    const list = selectedPo ? all.filter((o) => o.poNo === selectedPo) : all;
+    const own = String(form.PURCHASE_INVOICE_REF_NO ?? "").trim();
+    if (own && !list.some((o) => o.value === own)) {
+      const cur = all.find((o) => o.value === own);
+      if (cur) list.unshift(cur);
+    }
+    return list.map((o) => ({ value: o.value, label: o.label }));
+  }, [purchaseInvoices, form.PURCHASE_ORDER_NO, form.PURCHASE_INVOICE_REF_NO]);
 
   /* The GRN status is set at creation: a new record starts at DRAFT, resolved
      from the status master by STATUS_CODE so no numeric id is hard-coded. */
@@ -302,6 +338,7 @@ export default function PurchaseGrnPage() {
     PURCHASE_GRN_DTL_ID: undefined as number | undefined,
     PURCHASE_ORDER_NO: "",
     PURCHASE_ORDER_DTL_ID: undefined as number | undefined,
+    PURCHASE_INVOICE_DTL_ID: undefined as number | undefined,
     LINE_NO: lineNo,
     MAIN_CATEGORY_ID: undefined as number | undefined,
     SUB_CATEGORY_ID: undefined as number | undefined,
@@ -348,11 +385,20 @@ export default function PurchaseGrnPage() {
     SUPPLIER_BP_ID: "",
     SUPPLIER_DELIVERY_NOTE_NO: "",
     SUPPLIER_DELIVERY_NOTE_DATE: "",
+    PURCHASE_INVOICE_REF_NO: "",
+    CONTAINER_NO: "",
+    VEHICLE_SOURCE_STATUS: "",
+    VEHICLE_ID: "",
+    VEHICLE_NAME: "",
+    DRIVER_NAME: "",
+    DRIVER_PHONE_NUMBER: "",
+    SEAL_NUMBER: "",
     CURRENCY_ID: "",
     EXCHANGE_RATE: "",
     STATUS_ID: "",
     REMARKS: "",
     STATUS_ENTRY: "CF",
+    LINK_PAGES_ID: String(linkPagesId),
   });
 
   /* Selecting the currency stamps the document rate from the master, exactly
@@ -429,7 +475,11 @@ export default function PurchaseGrnPage() {
   /* The Batch tab reports the batches currently mapped for this document; the
      mapped quantity per line and the balance still to map are mirrored onto the
      detail rows so an Update persists them (BATCH_MAPPED_QUANTITY /
-     BALANCE_TO_MAP_BATCH_QTY). */
+     BALANCE_TO_MAP_BATCH_QTY).
+
+     Before the GRN is stored a line has no detail id yet, so the batches are
+     keyed by the line's own row key. The line number moves when a line above
+     is removed, the row key does not - so the batches stay on their line. */
   const syncBatchQty = useCallback((batches: any[]) => {
     const mapped = new Map<string, number>();
     (Array.isArray(batches) ? batches : []).forEach((b: any) => {
@@ -446,7 +496,7 @@ export default function PurchaseGrnPage() {
         );
         const m = r.PURCHASE_GRN_DTL_ID
           ? mapped.get(String(r.PURCHASE_GRN_DTL_ID)) || 0
-          : mapped.get(String(r.LINE_NO)) || 0;
+          : mapped.get(String(r.key)) || 0;
         const balance = (accepted - m).toFixed(3);
         if (
           Number(r.BATCH_MAPPED_QUANTITY || 0) === m &&
@@ -465,10 +515,51 @@ export default function PurchaseGrnPage() {
 
   const removeDtl = (key: string) => {
     const row = dtls.find((r) => r.key === key);
+    /* A line that is already stored is removed by the database, and that is an
+       Admin only action - the delete proc refuses any other role. A line that
+       was never stored is only dropped from the screen. */
+    if (row?.PURCHASE_GRN_DTL_ID && !isAdmin) {
+      toast({
+        title: "Only an Admin can remove a saved Purchase GRN line",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+      return;
+    }
     if (row?.PURCHASE_GRN_DTL_ID) {
       setDeletedIds((d) => [...d, Number(row.PURCHASE_GRN_DTL_ID)]);
     }
     setDtls((prev) => renumberDtls(prev.filter((r) => r.key !== key)));
+  };
+
+  /* Map each PO detail line to its Purchase Invoice detail line. GRN lines
+     store both ids, so the invoice link survives edits. */
+  const invoiceDtlByPoDtl = async (invoiceRef: string): Promise<Map<number, number>> => {
+    const map = new Map<number, number>();
+    if (!invoiceRef) return map;
+    try {
+      const rows: any[] = await dispatch(fetchPurchaseInvoiceDtls(invoiceRef)).unwrap();
+      for (const r of Array.isArray(rows) ? rows : []) {
+        const poDtl = r?.PURCHASE_ORDER_DTL_ID;
+        const invDtl = r?.PURCHASE_INVOICE_DTL_ID ?? r?.ID;
+        if (poDtl != null && invDtl != null) map.set(Number(poDtl), Number(invDtl));
+      }
+    } catch {
+      /* invoice lines are optional - leave the link empty if they fail */
+    }
+    return map;
+  };
+
+  const onInvoiceChange = async (invoiceRef: string) => {
+    setForm((prev) => ({ ...prev, PURCHASE_INVOICE_REF_NO: invoiceRef }));
+    const map = await invoiceDtlByPoDtl(invoiceRef);
+    setDtls((prev) =>
+      prev.map((r: any) => ({
+        ...r,
+        PURCHASE_INVOICE_DTL_ID:
+          r.PURCHASE_ORDER_DTL_ID != null ? map.get(Number(r.PURCHASE_ORDER_DTL_ID)) : undefined,
+      }))
+    );
   };
 
   /* Pull the purchase order header (supplier / currency / rate / destination)
@@ -495,6 +586,7 @@ export default function PurchaseGrnPage() {
 
       const newRows: any[] = [];
       let skipped = 0;
+      const invoiceMap = await invoiceDtlByPoDtl(String(form.PURCHASE_INVOICE_REF_NO || ""));
       for (const p of (Array.isArray(lines) ? lines : [])) {
         const dId = p.PURCHASE_ORDER_DTL_ID;
         if (dId != null && dtls.some((r) => String(r.PURCHASE_ORDER_DTL_ID) === String(dId))) {
@@ -507,6 +599,8 @@ export default function PurchaseGrnPage() {
           PURCHASE_GRN_DTL_ID: undefined,
           PURCHASE_ORDER_NO: poNo,
           PURCHASE_ORDER_DTL_ID: dId != null ? Number(dId) : undefined,
+          PURCHASE_INVOICE_DTL_ID:
+            dId != null ? invoiceMap.get(Number(dId)) : undefined,
           LINE_NO: 0,
           MAIN_CATEGORY_ID: p.MAIN_CATEGORY_ID != null ? Number(p.MAIN_CATEGORY_ID) : undefined,
           MAIN_CATEGORY_NAME: p.MAIN_CATEGORY_NAME || "",
@@ -591,7 +685,7 @@ export default function PurchaseGrnPage() {
     setEditing(item);
     try {
       const refNo = item.grnNo ?? item.PURCHASE_GRN_REF_NO ?? item.refNo;
-      const hdr: any = await dispatch(fetchPurchaseGrnHdr(refNo)).unwrap();
+      const hdr: any = await dispatch(fetchPurchaseGrnHdr({ refNo, linkPagesId })).unwrap();
       const toStr = (v: any) => (v == null || v === "" ? "" : String(v));
       setForm({
         SNO: hdr.SNO != null ? Number(hdr.SNO) : undefined,
@@ -605,25 +699,35 @@ export default function PurchaseGrnPage() {
         SUPPLIER_BP_ID: toStr(hdr.SUPPLIER_BP_ID),
         SUPPLIER_DELIVERY_NOTE_NO: hdr.SUPPLIER_DELIVERY_NOTE_NO || "",
         SUPPLIER_DELIVERY_NOTE_DATE: fmtDate(hdr.SUPPLIER_DELIVERY_NOTE_DATE),
+        PURCHASE_INVOICE_REF_NO: hdr.PURCHASE_INVOICE_REF_NO || "",
+        CONTAINER_NO: hdr.CONTAINER_NO || "",
+        VEHICLE_SOURCE_STATUS: hdr.VEHICLE_SOURCE_STATUS || "",
+        VEHICLE_ID: toStr(hdr.VEHICLE_ID),
+        VEHICLE_NAME: hdr.VEHICLE_NAME || "",
+        DRIVER_NAME: hdr.DRIVER_NAME || "",
+        DRIVER_PHONE_NUMBER: hdr.DRIVER_PHONE_NUMBER || "",
+        SEAL_NUMBER: hdr.SEAL_NUMBER || "",
         CURRENCY_ID: toStr(hdr.CURRENCY_ID),
         EXCHANGE_RATE: toStr(hdr.EXCHANGE_RATE ?? ""),
         STATUS_ID: toStr(hdr.STATUS_ID),
         REMARKS: hdr.REMARKS || "",
         STATUS_ENTRY: hdr.STATUS_ENTRY || "CF",
+        LINK_PAGES_ID: toStr(hdr.LINK_PAGES_ID ?? linkPagesId),
       });
 
       const showRows: any[] = await dispatch(fetchPurchaseGrnDtls(refNo)).unwrap();
-      const rows = (showRows || []).map((d: any) => ({
+      let rows = (showRows || []).map((d: any) => ({
         key: newKey(),
         PURCHASE_GRN_DTL_ID: d.PURCHASE_GRN_DTL_ID != null ? Number(d.PURCHASE_GRN_DTL_ID) : undefined,
         PURCHASE_ORDER_NO: d.PURCHASE_ORDER_NO || "",
         PURCHASE_ORDER_DTL_ID: d.PURCHASE_ORDER_DTL_ID != null ? Number(d.PURCHASE_ORDER_DTL_ID) : undefined,
+        PURCHASE_INVOICE_DTL_ID: d.PURCHASE_INVOICE_DTL_ID != null ? Number(d.PURCHASE_INVOICE_DTL_ID) : undefined,
         LINE_NO: d.LINE_NO != null ? Number(d.LINE_NO) : undefined,
         MAIN_CATEGORY_ID: d.MAIN_CATEGORY_ID != null ? Number(d.MAIN_CATEGORY_ID) : undefined,
         SUB_CATEGORY_ID: d.SUB_CATEGORY_ID != null ? Number(d.SUB_CATEGORY_ID) : undefined,
         PRODUCT_ID: d.PRODUCT_ID != null ? Number(d.PRODUCT_ID) : undefined,
         NO_OF_PCS_PER_PACKING: toStr(d.NO_OF_PCS_PER_PACKING),
-        PO_QUANTITY: toStr(d.PO_QUANTITY),
+        PO_QUANTITY: toStr(d.PO_QUANTITY ?? d.PO_INVOICE_QUANTITY),
         ALREADY_RECEIVED_QTY: toStr(d.ALREADY_RECEIVED_QTY),
         BALANCE_TO_RECEIVE_QTY: toStr(d.BALANCE_TO_RECEIVE_QTY),
         RECEIVED_QUANTITY: toStr(d.RECEIVED_QUANTITY),
@@ -648,6 +752,25 @@ export default function PurchaseGrnPage() {
         BATCH_MAPPED_QUANTITY: toStr(d.BATCH_MAPPED_QUANTITY),
         BALANCE_TO_MAP_BATCH_QTY: toStr(d.BALANCE_TO_MAP_BATCH_QTY),
       }));
+
+      /* Backfill PURCHASE_INVOICE_DTL_ID for existing rows if missing */
+      const invRef = String(hdr.PURCHASE_INVOICE_REF_NO || form.PURCHASE_INVOICE_REF_NO || "").trim();
+      if (invRef && rows.some((r: any) => r.PURCHASE_ORDER_DTL_ID != null && r.PURCHASE_INVOICE_DTL_ID == null)) {
+        try {
+          const map = await invoiceDtlByPoDtl(invRef);
+          rows = rows.map((r: any) => ({
+            ...r,
+            PURCHASE_INVOICE_DTL_ID:
+              r.PURCHASE_INVOICE_DTL_ID != null
+                ? r.PURCHASE_INVOICE_DTL_ID
+                : r.PURCHASE_ORDER_DTL_ID != null
+                ? map.get(Number(r.PURCHASE_ORDER_DTL_ID))
+                : undefined,
+          }));
+        } catch {
+          /* ignore */
+        }
+      }
       setDtls(renumberDtls(rows));
       setDeletedIds([]);
     } catch (e: any) {
@@ -736,18 +859,20 @@ export default function PurchaseGrnPage() {
 
     /* Create mode: every line must carry at least one batch before the GRN can
        be created, and each line's mapped / balance quantities are derived from
-       those batches so the saved lines already reflect them. */
-    const mappedByLine = new Map<number, number>();
+       those batches so the saved lines already reflect them. The batches are
+       keyed by the row key of their line (the line number moves when a line
+       above is removed). */
+    const mappedByLine = new Map<string, number>();
     if (!editing) {
       (pendingBatches || []).forEach((b: BatchMasterData) => {
-        const ln = Number(b.BATCH_SOURCE_DTL_ID);
+        const ln = String(b.BATCH_SOURCE_DTL_ID ?? "");
         if (!ln) return;
         mappedByLine.set(ln, (mappedByLine.get(ln) || 0) + (Number(b.BATCH_QTY) || 0));
       });
       const missing = validRows.filter(
         (r: any) =>
           !(pendingBatches || []).some(
-            (b: BatchMasterData) => Number(b.BATCH_SOURCE_DTL_ID) === Number(r.LINE_NO)
+            (b: BatchMasterData) => String(b.BATCH_SOURCE_DTL_ID) === String(r.key)
           )
       );
       if (missing.length > 0) {
@@ -756,7 +881,7 @@ export default function PurchaseGrnPage() {
           variant: "destructive",
           duration: DEFAULT_TOAST_DURATION,
         });
-        setBatchDialogRequest({ dtlId: String(missing[0].LINE_NO), nonce: Date.now() });
+        setBatchDialogRequest({ dtlId: String(missing[0].key), nonce: Date.now() });
         return;
       }
     }
@@ -769,6 +894,17 @@ export default function PurchaseGrnPage() {
         return isNaN(n) ? null : Math.max(0, n);
       };
       const headerRate = toNum(form.EXCHANGE_RATE) ?? 0;
+      /* The same roll-up the backend does: the total quantity is the received
+         quantity, the values are the accepted amounts. */
+      const totalQuantity = validRows.reduce((a, r: any) => a + (toNum(r.RECEIVED_QUANTITY) || 0), 0);
+      const totalValueFc = validRows.reduce(
+        (a, r: any) => a + (Number(lineAmounts(r, headerRate).TOTAL_COST_FC) || 0),
+        0
+      );
+      const totalValueLc = validRows.reduce(
+        (a, r: any) => a + (Number(lineAmounts(r, headerRate).TOTAL_COST_LC) || 0),
+        0
+      );
       const payload: Record<string, any> = {
         SNO: editing ? toNum(form.SNO) : undefined,
         PURCHASE_GRN_REF_NO: editing ? String(editing.grnNo ?? editing.PURCHASE_GRN_REF_NO ?? form.PURCHASE_GRN_REF_NO) : "",
@@ -781,8 +917,19 @@ export default function PurchaseGrnPage() {
         SUPPLIER_BP_ID: toNum(form.SUPPLIER_BP_ID),
         SUPPLIER_DELIVERY_NOTE_NO: form.SUPPLIER_DELIVERY_NOTE_NO?.trim() || null,
         SUPPLIER_DELIVERY_NOTE_DATE: form.SUPPLIER_DELIVERY_NOTE_DATE || null,
+        PURCHASE_INVOICE_REF_NO: form.PURCHASE_INVOICE_REF_NO?.trim() || null,
+        CONTAINER_NO: form.CONTAINER_NO?.trim() || null,
+        VEHICLE_SOURCE_STATUS: form.VEHICLE_SOURCE_STATUS?.trim() || null,
+        VEHICLE_ID: toNum(form.VEHICLE_ID),
+        VEHICLE_NAME: form.VEHICLE_NAME?.trim() || null,
+        DRIVER_NAME: form.DRIVER_NAME?.trim() || null,
+        DRIVER_PHONE_NUMBER: form.DRIVER_PHONE_NUMBER?.trim() || null,
+        SEAL_NUMBER: form.SEAL_NUMBER?.trim() || null,
         CURRENCY_ID: toNum(form.CURRENCY_ID),
         EXCHANGE_RATE: headerRate,
+        TOTAL_QUANTITY: totalQuantity,
+        TOTAL_VALUE_FC: totalValueFc,
+        TOTAL_VALUE_LC: totalValueLc,
         STATUS_ID: toNum(form.STATUS_ID),
         REMARKS: form.REMARKS?.trim() || null,
         LINK_PAGES_ID: toNum(form.LINK_PAGES_ID),
@@ -794,11 +941,12 @@ export default function PurchaseGrnPage() {
           );
           const rowMapped = editing
             ? toNum(r.BATCH_MAPPED_QUANTITY) ?? 0
-            : mappedByLine.get(Number(r.LINE_NO)) || 0;
+            : mappedByLine.get(String(r.key)) || 0;
           return {
           PURCHASE_GRN_DTL_ID: r.PURCHASE_GRN_DTL_ID || undefined,
           PURCHASE_ORDER_NO: form.PURCHASE_ORDER_NO || r.PURCHASE_ORDER_NO || null,
           PURCHASE_ORDER_DTL_ID: toNum(r.PURCHASE_ORDER_DTL_ID),
+          PURCHASE_INVOICE_DTL_ID: toNum(r.PURCHASE_INVOICE_DTL_ID),
           LINE_NO: toNum(r.LINE_NO),
           MAIN_CATEGORY_ID: toNum(r.MAIN_CATEGORY_ID),
           SUB_CATEGORY_ID: toNum(r.SUB_CATEGORY_ID),
@@ -844,18 +992,22 @@ export default function PurchaseGrnPage() {
       } else {
         const res = await dispatch(addPurchaseGrn(payload as PurchaseGrnGridData)).unwrap();
         /* Create mode: the header now exists, so its batches can be persisted
-           against the real reference + detail ids. Each line's LINE_NO was used
-           as the temporary batch key. */
+           against the real reference + detail ids. Each batch was keyed by the
+           row key of its line; the line number of that row points at the
+           detail row the database has just written. */
         const refNo = String(res?.PURCHASE_GRN_REF_NO ?? "").trim();
         if (refNo && pendingBatches.length > 0) {
           try {
             const savedDtls: any[] = await dispatch(fetchPurchaseGrnDtls(refNo)).unwrap();
+            const lineNoByKey = new Map<string, number>();
+            validRows.forEach((r: any) => lineNoByKey.set(String(r.key), toNum(r.LINE_NO) ?? 0));
             const dtlByLine = new Map<number, any>();
             (Array.isArray(savedDtls) ? savedDtls : []).forEach((d) => {
               if (d?.LINE_NO != null) dtlByLine.set(Number(d.LINE_NO), d);
             });
             for (const b of pendingBatches) {
-              const line = dtlByLine.get(Number(b.BATCH_SOURCE_DTL_ID));
+              const lineNo = lineNoByKey.get(String(b.BATCH_SOURCE_DTL_ID));
+              const line = lineNo != null ? dtlByLine.get(Number(lineNo)) : undefined;
               if (!line?.PURCHASE_GRN_DTL_ID) continue;
               await dispatch(
                 addBatch({
@@ -906,7 +1058,7 @@ export default function PurchaseGrnPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const renderField = (key: string, label: string, type: "text" | "number" | "date" | "select" | "textarea", options?: { value: string; label: string }[], required?: boolean, placeholder?: string, disabled?: boolean, helper?: string, onChange?: (value: string) => void) => {
+  const renderField = (key: string, label: string, type: "text" | "number" | "date" | "select" | "textarea", options?: { value: string; label: string }[], required?: boolean, placeholder?: string, disabled?: boolean, helper?: string, onChange?: (value: string) => void, maxLength?: number) => {
     const baseClass = "flex flex-col gap-1.5";
     const isEmpty = required && !form[key];
     const fieldBorderClass = isEmpty ? "border-destructive ring-1 ring-destructive/30" : "";
@@ -928,7 +1080,7 @@ export default function PurchaseGrnPage() {
         ) : type === "date" ? (
           <DatePicker value={form[key] || ""} onChange={(v) => set(v)} placeholder={placeholder} className={fieldBorderClass || undefined} />
         ) : (
-          <Input type={type === "number" ? "number" : "text"} min={type === "number" ? "0" : undefined} step={type === "number" ? "any" : undefined} value={form[key] ?? ""} onChange={(e) => set(e.target.value)} placeholder={placeholder} className={`h-9 text-xs ${fieldBorderClass}`} />
+          <Input type={type === "number" ? "number" : "text"} min={type === "number" ? "0" : undefined} step={type === "number" ? "any" : undefined} maxLength={maxLength} value={form[key] ?? ""} onChange={(e) => set(e.target.value)} placeholder={placeholder} className={`h-9 text-xs ${fieldBorderClass}`} />
         )}
       </div>
     );
@@ -1133,12 +1285,14 @@ export default function PurchaseGrnPage() {
           key: "REJECTION_REMARKS",
           label: "Rejection Remarks",
           kind: "textarea",
+          maxLength: 500,
           placeholder: "Reason for rejection, if any",
         },
         {
           key: "REMARKS",
           label: "Remarks",
           kind: "textarea",
+          maxLength: 500,
           placeholder: "Remarks",
         },
       ],
@@ -1182,10 +1336,11 @@ export default function PurchaseGrnPage() {
 
   const focusOn = (key: string) => setFocusRequest({ key, nonce: Date.now() });
   /* "Balance to Map Batch" on a line pops up the batch dialog, pre-filled for
-     that line, so the remainder can be mapped to one or more batches. Before the
-     GRN is saved a line has no detail id yet, so its LINE_NO is the key. */
+     that line, so the remainder can be mapped to one or more batches. A stored
+     line is addressed by its detail id, a line that is not stored yet by its
+     row key - the line number moves when a line above is removed. */
   const openBatchTab = (row?: any) => {
-    const dtlId = row?.PURCHASE_GRN_DTL_ID ?? row?.LINE_NO;
+    const dtlId = row?.PURCHASE_GRN_DTL_ID ?? row?.key;
     if (dtlId == null) return;
     setBatchDialogRequest({ dtlId: String(dtlId), nonce: Date.now() });
   };
@@ -1363,6 +1518,7 @@ export default function PurchaseGrnPage() {
                   LINK_PAGES_ID: form.LINK_PAGES_ID,
                 }}
                 dtlIdKey="PURCHASE_GRN_DTL_ID"
+                pendingLineIdKey="key"
                 productOptions={opt(products, "PRODUCT_ID", "PRODUCT_NAME").filter((o) => o.value)}
                 uomOptions={uomOptions}
                 documentLabel="Purchase GRN"
@@ -1387,11 +1543,26 @@ export default function PurchaseGrnPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             {renderField("SUPPLIER_BP_ID", "Supplier", "select", supplierOptions, true, "Select supplier")}
-            {renderField("SUPPLIER_DELIVERY_NOTE_NO", "Delivery Note No", "text", undefined, false, "Supplier delivery note no")}
+            {renderField("SUPPLIER_DELIVERY_NOTE_NO", "Delivery Note No", "text", undefined, false, "Supplier delivery note no", false, undefined, undefined, 100)}
           </div>
           <div className="grid grid-cols-2 gap-4">
             {renderField("SUPPLIER_DELIVERY_NOTE_DATE", "Delivery Note Date", "date")}
             {renderField("LOCATION_ID", "Location", "select", locationOptions, true, "Select location")}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {renderField("PURCHASE_INVOICE_REF_NO", "Purchase Invoice Ref No", "select", invoiceOptions, false, "Select the invoice raised for this purchase order", false, undefined, onInvoiceChange)}
+            {renderField("CONTAINER_NO", "Container No", "text", undefined, false, "Container number", false, undefined, undefined, 50)}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {renderField("VEHICLE_SOURCE_STATUS", "Vehicle Source", "text", undefined, false, "e.g. Own / Third party", false, undefined, undefined, 50)}
+            {renderField("VEHICLE_NAME", "Vehicle Name", "text", undefined, false, "Vehicle name / number", false, undefined, undefined, 100)}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {renderField("DRIVER_NAME", "Driver Name", "text", undefined, false, "Driver name", false, undefined, undefined, 100)}
+            {renderField("DRIVER_PHONE_NUMBER", "Driver Phone", "text", undefined, false, "Driver phone number", false, undefined, undefined, 50)}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {renderField("SEAL_NUMBER", "Seal Number", "text", undefined, false, "Container seal number", false, undefined, undefined, 50)}
           </div>
           <div className="grid grid-cols-2 gap-4">
             {renderField("COMPANY_ID", "Company", "select", companyOptions, true, "No company mapped to your login", true, "from your login")}

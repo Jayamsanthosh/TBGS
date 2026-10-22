@@ -12,6 +12,7 @@ import {
   BusBoardingLocationGridData,
 } from "@/lib/busBoardingLocationMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
@@ -62,6 +63,7 @@ export default function BusBoardingLocationMasterPage() {
   const dispatch = useAppDispatch();
   const { busBoardingLocations, loading, error } = useAppSelector((s) => s.busBoardingLocation);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(97);
   const [currentStatus, setCurrentStatus] = useState<string>("AC");
 
   useEffect(() => {
@@ -83,12 +85,12 @@ export default function BusBoardingLocationMasterPage() {
     data: busBoardingLocations,
     isLoading: loading,
     add: async (item: BusBoardingLocationGridData) => {
-      const res = await dispatch(addBusBoardingLocation(item)).unwrap();
+      const res = await dispatch(addBusBoardingLocation({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchBusBoardingLocations(currentStatus));
       return res;
     },
     update: async (item: BusBoardingLocationGridData) => {
-      const res = await dispatch(updateBusBoardingLocation(item)).unwrap();
+      const res = await dispatch(updateBusBoardingLocation({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchBusBoardingLocations(currentStatus));
       return res;
     },

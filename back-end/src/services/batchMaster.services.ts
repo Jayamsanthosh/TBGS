@@ -6,6 +6,7 @@ export interface BatchMasterData {
   BATCH_ID?: number;
   BATCH_NO?: string;
   LINK_PAGES_ID?: number | null;
+  LINK_ID?: number | null;
   BATCH_SOURCE_REF_NO?: string;
   BATCH_SOURCE_DTL_ID?: number | null;
   COMPANY_ID?: number | null;
@@ -88,11 +89,49 @@ export const getBatchService = async (id: number) => {
   }
 };
 
+/* The batch procs take the page link id as @Link_Id and write it into the
+   LINK_ID column of the row, but that parameter is not in every deployment of
+   the procedure. node-mssql binds the inputs by name, so both directions
+   break the call: a parameter the procedure does not declare fails with
+   "@Link_Id is not a parameter for procedure", and one it declares but the
+   caller leaves out fails with "expects parameter '@Link_Id', which was not
+   supplied". The parameter list of the procedure decides, so it is read once
+   and cached; when the parameter is missing the link id is written by the
+   fallback update below. */
+const procParamCache = new Map<string, { at: number; names: Set<string> }>();
+
+const procParamNames = async (pool: any, procName: string): Promise<Set<string>> => {
+  const cached = procParamCache.get(procName);
+  if (cached && Date.now() - cached.at < 60_000) return cached.names;
+
+  const result = await pool
+    .request()
+    .input("PROC_NAME", procName)
+    .query(
+      `SELECT p.name AS PARAM_NAME
+         FROM sys.parameters p
+        WHERE p.object_id = OBJECT_ID(@PROC_NAME)`
+    );
+  const names = new Set<string>(
+    (result.recordset || [])
+      .map((r: any) => String(r.PARAM_NAME).replace(/^@/, "").toLowerCase())
+  );
+  procParamCache.set(procName, { at: Date.now(), names });
+  return names;
+};
+
 /* Shared input chain - the column order must match the deployed
    SAVE/UPDATE_BATCH_MASTER signatures exactly (node-mssql binds the inputs
    positionally). UPDATE primes @BATCH_ID first. */
-const batchRequest = (req: any, data: BatchMasterData) =>
-  req
+const batchRequest = async (
+  pool: any,
+  req: any,
+  data: BatchMasterData,
+  procName: string
+) => {
+  const names = await procParamNames(pool, procName);
+
+  const chain = req
     .input("BATCH_NO", sql.VarChar(100), data.BATCH_NO || null)
     .input("LINK_PAGES_ID", sql.Int, numOrNull(data.LINK_PAGES_ID))
     .input("BATCH_SOURCE_REF_NO", sql.VarChar(50), data.BATCH_SOURCE_REF_NO || null)
@@ -110,20 +149,47 @@ const batchRequest = (req: any, data: BatchMasterData) =>
     .input("USER", sql.VarChar(50), data.USER || "Admin")
     .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
 
+  /* Only when the procedure declares it - see the note above. */
+  if (names.has("link_id")) {
+    chain.input(
+      "Link_Id",
+      sql.Int,
+      numOrNull(data.LINK_ID ?? data.LINK_PAGES_ID)
+    );
+  }
+
+  return chain;
+};
+
+/* The batch procs write the page link id into the LINK_ID column themselves
+   when they take @Link_Id. This mirrors it for the deployments whose procedure
+   does not have that parameter. */
+const syncBatchLinkId = async (pool: any, batchId: any, linkId: any) => {
+  const id = numOrNull(batchId);
+  const value = numOrNull(linkId);
+  if (id === null || value === null) return;
+  await pool
+    .request()
+    .input("BATCH_ID", sql.Int, id)
+    .input("LINK_ID", sql.Int, value)
+    .query("UPDATE [VInventory].[TBL_BATCH_MASTER] SET LINK_ID = @LINK_ID WHERE BATCH_ID = @BATCH_ID");
+};
+
 /* ------------------------------------------------------------- create */
 export const saveBatchService = async (data: BatchMasterData) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const result = await batchRequest(pool.request(), data).execute(
-      "VInventory.SAVE_BATCH_MASTER"
-    );
+    const result = await (
+      await batchRequest(pool, pool.request(), data, "VInventory.SAVE_BATCH_MASTER")
+    ).execute("VInventory.SAVE_BATCH_MASTER");
 
     const { message, data: insertedId } = parseSprocResult(
       pickResultRow(result),
       "Failed to save batch"
     );
+    await syncBatchLinkId(pool, insertedId, data.LINK_ID ?? data.LINK_PAGES_ID);
     return { message: message || "Batch saved successfully", BATCH_ID: numOrNull(insertedId) };
   } catch (error) {
     console.error("SAVE_BATCH_MASTER SP error:", error);
@@ -141,9 +207,12 @@ export const updateBatchService = async (data: BatchMasterData) => {
       .request()
       .input("BATCH_ID", sql.Int, numOrNull(data.BATCH_ID) ?? 0);
 
-    const result = await batchRequest(base, data).execute("VInventory.UPDATE_BATCH_MASTER");
+    const result = await (
+      await batchRequest(pool, base, data, "VInventory.UPDATE_BATCH_MASTER")
+    ).execute("VInventory.UPDATE_BATCH_MASTER");
 
     const { message } = parseSprocResult(pickResultRow(result), "Failed to update batch");
+    await syncBatchLinkId(pool, data.BATCH_ID, data.LINK_ID ?? data.LINK_PAGES_ID);
     return { message: message || "Batch updated successfully" };
   } catch (error) {
     console.error("UPDATE_BATCH_MASTER SP error:", error);

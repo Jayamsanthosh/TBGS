@@ -8,6 +8,7 @@ export interface AnimalPartsGridData {
   ANIMAL_PARTS_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface AnimalPartsState {

@@ -17,6 +17,7 @@ export interface ClientAdditionalServicesMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const normalizeRow = (r: any) => ({
@@ -66,7 +67,7 @@ export const getAllClientAdditionalServicesMasterService = async (status = "ALL"
   }
 };
 
-export const getClientAdditionalServicesMasterByIdService = async (id: number) => {
+export const getClientAdditionalServicesMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -74,6 +75,7 @@ export const getClientAdditionalServicesMasterByIdService = async (id: number) =
     const result = await pool
       .request()
       .input("SERVICES_ID", sql.Int, id)
+      .input("link_id", sql.Int, linkId ?? null)
       .execute("VMaster.GET_CLIENT_ADDITIONAL_SERVICES_MASTER");
 
     const row = result.recordset[0] || null;
@@ -104,6 +106,7 @@ export const saveClientAdditionalServicesMasterService = async (data: ClientAddi
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_CLIENT_ADDITIONAL_SERVICES_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save client additional service");
@@ -124,7 +127,7 @@ export const updateClientAdditionalServicesMasterService = async (data: ClientAd
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const existing = await getClientAdditionalServicesMasterByIdService(data.SERVICES_ID ?? 0);
+    const existing = await getClientAdditionalServicesMasterByIdService(data.SERVICES_ID ?? 0, data.LINK_ID ?? null);
     if (!existing) {
       throw new Error("RECORD DOES NOT EXIST");
     }
@@ -144,6 +147,7 @@ export const updateClientAdditionalServicesMasterService = async (data: ClientAd
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("link_id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_CLIENT_ADDITIONAL_SERVICES_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update client additional service");

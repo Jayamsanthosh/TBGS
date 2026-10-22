@@ -18,6 +18,7 @@ import { fetchCurrencies } from "@/lib/currencyMasterSlice";
 import { fetchBusinessPartners } from "@/lib/businessPartnerMasterSlice";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const statusLabel = (s: any) => {
   const v = String(s).toUpperCase();
@@ -41,6 +42,7 @@ export default function CustomerWiseTripTemplatePriceMappingPage() {
   const currencies = useAppSelector((s) => s.currencies.currencies);
   const businessPartners = useAppSelector((s) => s.businessPartner.businessPartners);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(185);
 
   useEffect(() => {
     dispatch(fetchCustomerWiseTripTemplatePriceMapping("AC"));
@@ -158,12 +160,12 @@ export default function CustomerWiseTripTemplatePriceMappingPage() {
       data: items,
       isLoading: loading,
       add: async (item: CustomerWiseTripTemplatePriceMappingGridData) => {
-        const res = await dispatch(addCustomerWiseTripTemplatePriceMapping(item)).unwrap();
+        const res = await dispatch(addCustomerWiseTripTemplatePriceMapping({ ...item, LINK_ID: linkPagesId })).unwrap();
         dispatch(fetchCustomerWiseTripTemplatePriceMapping("AC"));
         return res;
       },
       update: async (item: CustomerWiseTripTemplatePriceMappingGridData) => {
-        const res = await dispatch(updateCustomerWiseTripTemplatePriceMapping(item)).unwrap();
+        const res = await dispatch(updateCustomerWiseTripTemplatePriceMapping({ ...item, LINK_ID: linkPagesId })).unwrap();
         dispatch(fetchCustomerWiseTripTemplatePriceMapping("AC"));
         return res;
       },
@@ -181,7 +183,7 @@ export default function CustomerWiseTripTemplatePriceMappingPage() {
         return res;
       },
     }),
-    [items, loading, dispatch]
+    [items, loading, dispatch, linkPagesId]
   );
 
   return (

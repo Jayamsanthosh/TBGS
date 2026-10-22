@@ -12,6 +12,7 @@ export interface PurchaseRequestTypeData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export interface PurchaseRequestTypeListFilter {
@@ -56,6 +57,7 @@ export const savePurchaseRequestTypeService = async (data: PurchaseRequestTypeDa
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || "ACTIVE")
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMASTER.SAVE_PURCHASE_REQUEST_TYPE_MASTER");
 
     const { status, message, data: id } = parseSprocResult(
@@ -85,6 +87,7 @@ export const updatePurchaseRequestTypeService = async (data: PurchaseRequestType
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMASTER.UPDATE_PURCHASE_REQUEST_TYPE_MASTER");
 
     const { status, message } = parseSprocResult(

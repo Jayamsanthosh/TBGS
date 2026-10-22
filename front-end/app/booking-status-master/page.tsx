@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchBookingStatuses, addBookingStatus, updateBookingStatus, deleteBookingStatus, clearBookingStatusError, type BookingStatusGridData } from "@/lib/bookingStatusMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ export default function BookingStatusMasterPage() {
   const dispatch = useAppDispatch();
   const { bookingStatuses, loading, error } = useAppSelector((s) => s.bookingStatus);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(242);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -137,6 +139,7 @@ export default function BookingStatusMasterPage() {
         STATUS_MASTER: editing ? (form.STATUS_MASTER === "ACTIVE" ? "AC" : "IA") : "AC",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

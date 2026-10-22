@@ -8,6 +8,7 @@ export interface VisaStatusGridData {
   VISA_STATUS_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface VisaStatusState {

@@ -16,6 +16,7 @@ export interface CompanyBranchMappingData {
   MODIFIED_BY?: string | null;
   MODIFIED_DATE?: string | null;
   MODIFIED_MAC_ADDRESS?: string | null;
+  LINK_ID?: number | null;
 }
 
 interface MappingState {

@@ -13,6 +13,7 @@ import {
 } from "@/lib/designationMasterSlice";
 
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 import { API_URL } from "@/lib/config";
 
@@ -46,6 +47,7 @@ export default function DesignationMasterPage() {
   const dispatch = useAppDispatch();
   const { designations, loading, error } = useAppSelector((s) => s.designation);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(30);
 
   useEffect(() => {
     dispatch(fetchDesignations());
@@ -116,7 +118,7 @@ export default function DesignationMasterPage() {
     update: async (item: DesignationGridData) => {
       let res;
       try {
-        res = await dispatch(updateDesignation(item)).unwrap();
+        res = await dispatch(updateDesignation({ ...item, LINK_ID: linkPagesId })).unwrap();
       } catch (e) {
         dispatch(clearDesignationError());
         throw e;
@@ -148,7 +150,7 @@ export default function DesignationMasterPage() {
       dispatch(fetchDesignations());
       return res;
     },
-  }), [mappedDesignations, loading, dispatch]);
+  }), [mappedDesignations, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Plus, Search, Pencil, Trash2, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, ArrowLeft, ArrowRight, Loader2, Send } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { fetchAnimalHuntingChargesMaster, addAnimalHuntingChargesMaster, updateAnimalHuntingChargesMaster, deleteAnimalHuntingChargesMaster, fetchAnimalHuntingChargesHdr, fetchAnimalHuntingChargesDtl, clearAnimalHuntingChargesMasterError, AnimalHuntingChargesMasterGridData } from "@/lib/animalHuntingChargesMasterCombinedSlice";
+import { fetchAnimalHuntingChargesMaster, addAnimalHuntingChargesMaster, updateAnimalHuntingChargesMaster, deleteAnimalHuntingChargesMaster, submitAnimalHuntingChargesMaster, fetchAnimalHuntingChargesHdr, fetchAnimalHuntingChargesDtl, clearAnimalHuntingChargesMasterError, AnimalHuntingChargesMasterGridData } from "@/lib/animalHuntingChargesMasterCombinedSlice";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { fetchCompanies } from "@/lib/companyMasterSlice";
 import { fetchCurrencies } from "@/lib/currencyMasterSlice";
 import { fetchAnimals } from "@/lib/animalMasterSlice";
@@ -65,6 +66,7 @@ export default function AnimalHuntingChargesMasterPage() {
   const authUser = useAppSelector((s) => s.auth.user);
   const sessionYear = authUser?.yearProcess || String(new Date().getFullYear());
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(188);
 
   const [search, setSearch] = useState("");
   const [hdrStatusFilter, setHdrStatusFilter] = useState<string>("ALL");
@@ -323,6 +325,7 @@ export default function AnimalHuntingChargesMasterPage() {
         USER: "Admin",
         MAC_ADDRESS: "WEB",
         ROLE: role,
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
@@ -338,6 +341,17 @@ export default function AnimalHuntingChargesMasterPage() {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error saving animal hunting charges"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSubmit = async (item: any) => {
+    if (!item?.ANIMAL_HUNT_CHARGE_ID) return;
+    try {
+      const res = await dispatch(submitAnimalHuntingChargesMaster(item.ANIMAL_HUNT_CHARGE_ID)).unwrap();
+      toast({ title: res?.message ?? "Animal hunting charges submitted successfully", duration: DEFAULT_TOAST_DURATION });
+      dispatch(fetchAnimalHuntingChargesMaster());
+    } catch (e: any) {
+      toast({ title: typeof e === "string" ? e : (e?.message || "Error submitting animal hunting charges"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }
   };
 
@@ -473,6 +487,7 @@ export default function AnimalHuntingChargesMasterPage() {
                   <tr key={item.id || idx} className="border-b hover:bg-muted/30 transition-colors">
                     <td className="p-3 flex gap-2">
                       <button onClick={() => openEdit(item)} className="p-1.5 rounded hover:bg-muted transition-colors"><Pencil className="w-4 h-4 text-muted-foreground" /></button>
+                      {isAdmin && <button onClick={() => handleSubmit(item)} className="p-1.5 rounded hover:bg-primary/10 transition-colors" title="Submit"><Send className="w-4 h-4 text-primary" /></button>}
                       {isAdmin && <button onClick={() => setDeleteId(item.id)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4 text-destructive" /></button>}
                     </td>
                     <td className="p-3 font-medium">{item.ANIMAL_HUNT_CHARGE_ID || "-"}</td>

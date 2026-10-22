@@ -10,6 +10,7 @@ export interface BloodGroupMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const toInt = (v: any): number | null =>
@@ -30,13 +31,14 @@ export const getAllBloodGroupMasterService = async (status?: string) => {
   }
 };
 
-export const getBloodGroupMasterByIdService = async (id: number) => {
+export const getBloodGroupMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
   try {
     const result = await pool
       .request()
       .input("BLOOD_GROUP_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_BLOOD_GROUP_MASTER");
     return result.recordset[0] || null;
   } catch (error) {
@@ -57,6 +59,7 @@ export const saveBloodGroupMasterService = async (data: BloodGroupMasterData) =>
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_BLOOD_GROUP_MASTER");
     const { message, data: id } = parseSprocResult(result.recordset?.[0], "Failed to save blood group");
     return { message: message || "Blood group saved successfully", BLOOD_GROUP_ID: id || Number(data.BLOOD_GROUP_ID ?? 0) };
@@ -78,6 +81,7 @@ export const updateBloodGroupMasterService = async (data: BloodGroupMasterData) 
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_BLOOD_GROUP_MASTER");
     const { message } = parseSprocResult(result.recordset?.[0], "Failed to update blood group");
     return { message: message || "Blood group updated successfully" };

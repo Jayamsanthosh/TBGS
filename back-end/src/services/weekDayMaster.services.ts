@@ -10,6 +10,7 @@ export interface WeekDayMasterData {
   USER?: string;
   ROLE?: string;
   MAC_ADDRESS?: string;
+  LINK_ID?: number | null;
 }
 
 /**
@@ -74,7 +75,7 @@ export const getAllWeekDayMasterService = async (status?: string) => {
   }
 };
 
-export const getWeekDayMasterByIdService = async (id: number) => {
+export const getWeekDayMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -82,6 +83,7 @@ export const getWeekDayMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("WEEK_DAY_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_WEEK_DAY_MASTER");
 
     const row = result.recordset[0] || null;
@@ -105,6 +107,7 @@ export const saveWeekDayMasterService = async (data: WeekDayMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_WEEK_DAY_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save week day");
@@ -127,11 +130,12 @@ export const updateWeekDayMasterService = async (data: WeekDayMasterData) => {
     const result = await pool
       .request()
       .input("WEEK_DAY_ID", sql.Int, data.WEEK_DAY_ID ?? 0)
-      .input("WEEK_DAY_NAME", sql.VarChar(50), data.WEEK_DAY_NAME ?? null)
-      .input("REMARKS", sql.VarChar(1000), data.REMARKS ?? null)
-      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
-      .input("USER", sql.VarChar(50), data.USER ?? "Admin")
-      .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("WEEK_DAY_NAME", sql.VarChar(50), data.WEEK_DAY_NAME || null)
+      .input("REMARKS", sql.VarChar(1000), data.REMARKS || null)
+      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
+      .input("USER", sql.VarChar(50), data.USER || "Admin")
+      .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_WEEK_DAY_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update week day");

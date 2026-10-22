@@ -21,6 +21,7 @@ export const getAllDepartmentMaster = async (_req: Request, res: Response): Prom
 
 export const getDepartmentMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const link_id = parseInt(req.query.link_id as string, 10) || 0;
 
   if (!id) {
     res.status(400).json({ success: false, message: "Department ID is required" });
@@ -28,7 +29,7 @@ export const getDepartmentMasterById = async (req: Request, res: Response): Prom
   }
 
   try {
-    const department = await getDepartmentMasterByIdService(parseInt(id as string, 10));
+    const department = await getDepartmentMasterByIdService(parseInt(id as string, 10), link_id);
 
     if (!department) {
       res.status(404).json({ success: false, message: "Department not found" });

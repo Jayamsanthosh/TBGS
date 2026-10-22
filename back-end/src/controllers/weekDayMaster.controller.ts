@@ -22,6 +22,7 @@ export const getAllWeekDayMaster = async (req: Request, res: Response): Promise<
 
 export const getWeekDayMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const { LINK_ID } = req.query as any;
 
   if (!id) {
     res.status(400).json({ success: false, message: "Week Day ID is required" });
@@ -29,7 +30,7 @@ export const getWeekDayMasterById = async (req: Request, res: Response): Promise
   }
 
   try {
-    const weekDay = await getWeekDayMasterByIdService(parseInt(id as string, 10));
+    const weekDay = await getWeekDayMasterByIdService(parseInt(id as string, 10), LINK_ID ? Number(LINK_ID) : null);
 
     if (!weekDay) {
       res.status(404).json({ success: false, message: "Week day not found" });

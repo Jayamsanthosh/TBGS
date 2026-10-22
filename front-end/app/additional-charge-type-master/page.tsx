@@ -13,6 +13,7 @@ import {
   AdditionalChargeTypeGridData,
 } from "@/lib/additionalChargeTypeMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +50,7 @@ export default function AdditionalChargeTypeMasterPage() {
   const dispatch = useAppDispatch();
   const { items, total, loading, error } = useAppSelector((s) => s.additionalChargeTypeMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(264);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -117,8 +119,8 @@ export default function AdditionalChargeTypeMasterPage() {
   }, [filtered, currentPage, effectivePageSize]);
 
   useEffect(() => {
-    dispatch(fetchAdditionalChargeTypes({}));
-  }, [dispatch]);
+    dispatch(fetchAdditionalChargeTypes({ link_id: linkPagesId }));
+  }, [dispatch, linkPagesId]);
 
   useEffect(() => {
     if (error) {
@@ -147,7 +149,7 @@ export default function AdditionalChargeTypeMasterPage() {
   const openEdit = async (item: any) => {
     setEditing(item);
     const detail = item && item.id != null
-      ? await dispatch(fetchAdditionalChargeTypeById(Number(item.id))).unwrap().catch(() => null)
+      ? await dispatch(fetchAdditionalChargeTypeById({ id: Number(item.id), link_id: linkPagesId })).unwrap().catch(() => null)
       : null;
     const src: any = detail ? detail : item;
     setForm({
@@ -197,6 +199,7 @@ export default function AdditionalChargeTypeMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
@@ -209,7 +212,7 @@ export default function AdditionalChargeTypeMasterPage() {
         toast({ title: res?.message ?? "Additional Charge Type created successfully", duration: DEFAULT_TOAST_DURATION });
       }
       setDialogOpen(false);
-      dispatch(fetchAdditionalChargeTypes({}));
+      dispatch(fetchAdditionalChargeTypes({ link_id: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error saving additional charge type"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }
@@ -221,7 +224,7 @@ export default function AdditionalChargeTypeMasterPage() {
       const res = await dispatch(deleteAdditionalChargeType(deleteId)).unwrap();
       setDeleteId(null);
       toast({ title: res?.message ?? "Additional Charge Type deleted successfully", duration: DEFAULT_TOAST_DURATION });
-      dispatch(fetchAdditionalChargeTypes({}));
+      dispatch(fetchAdditionalChargeTypes({ link_id: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error deleting additional charge type"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }

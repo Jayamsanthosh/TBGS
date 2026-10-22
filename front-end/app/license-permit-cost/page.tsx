@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchLicensePermitCosts, addLicensePermitCost, updateLicensePermitCost, deleteLicensePermitCost, clearLicensePermitCostError, LicensePermitCostGridData } from "@/lib/licensePermitCostSlice";
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 
@@ -71,6 +72,7 @@ export default function LicensePermitCostPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.licensePermitCost);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(91);
   const [currentStatus, setCurrentStatus] = useState<string>("");
 
   const handleStatusFilterChange = useCallback((value: string) => {
@@ -208,12 +210,12 @@ export default function LicensePermitCostPage() {
     data: enrichedData,
     isLoading: loading,
     add: async (item: LicensePermitCostGridData) => {
-      const res = await dispatch(addLicensePermitCost(item)).unwrap();
+      const res = await dispatch(addLicensePermitCost({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchLicensePermitCosts(currentStatus));
       return res;
     },
     update: async (item: LicensePermitCostGridData) => {
-      const res = await dispatch(updateLicensePermitCost(item)).unwrap();
+      const res = await dispatch(updateLicensePermitCost({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchLicensePermitCosts(currentStatus));
       return res;
     },
@@ -230,7 +232,7 @@ export default function LicensePermitCostPage() {
       dispatch(fetchLicensePermitCosts(currentStatus));
       return res;
     },
-  }), [enrichedData, loading, dispatch, currentStatus]);
+  }), [enrichedData, loading, dispatch, currentStatus, linkPagesId]);
 
   return (
     <MasterCrudPage
@@ -245,7 +247,7 @@ export default function LicensePermitCostPage() {
       onBeforeEdit={async (item) => {
         const id = Number(item.SNO ?? item.id);
         if (!id) return undefined;
-        const res = await fetch(`${API_URL}/license-permit-cost/${id}`);
+        const res = await fetch(`${API_URL}/license-permit-cost/${id}?link_id=${linkPagesId}`);
         if (!res.ok) return undefined;
         const json = await res.json();
         return json.data;

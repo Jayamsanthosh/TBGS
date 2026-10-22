@@ -40,7 +40,10 @@ export const getTripTemplateMasterById = async (req: Request, res: Response): Pr
   }
 
   try {
-    const tripTemplate = await getTripTemplateMasterByIdService(parseInt(id as string, 10));
+    const tripTemplate = await getTripTemplateMasterByIdService(
+      parseInt(id as string, 10),
+      req.query.LINK_ID ? parseInt(req.query.LINK_ID as string, 10) : null
+    );
 
     if (!tripTemplate) {
       res.status(404).json({ success: false, message: "Trip template not found" });

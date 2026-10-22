@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 interface DropdownItem {
   value: string;
@@ -40,6 +41,7 @@ export default function CompanyCampStoreMappingPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.companyCampStoreMapping);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(189);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -187,10 +189,10 @@ export default function CompanyCampStoreMappingPage() {
 
       if (editing) {
         payload.MAP_ID = Number(editing.id);
-        const res = await dispatch(updateMapping(payload as MappingGridData)).unwrap();
+        const res = await dispatch(updateMapping({ ...payload, LINK_ID: linkPagesId } as MappingGridData)).unwrap();
         toast({ title: res?.message ?? "Mapping updated successfully", duration: DEFAULT_TOAST_DURATION });
       } else {
-        const res = await dispatch(addMapping(payload as MappingGridData)).unwrap();
+        const res = await dispatch(addMapping({ ...payload, LINK_ID: linkPagesId } as MappingGridData)).unwrap();
         toast({ title: res?.message ?? "Mapping created successfully", duration: DEFAULT_TOAST_DURATION });
       }
       setDialogOpen(false);

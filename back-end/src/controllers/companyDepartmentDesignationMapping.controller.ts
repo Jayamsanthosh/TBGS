@@ -22,6 +22,8 @@ export const getAllMapping = async (req: Request, res: Response): Promise<void> 
 
 export const getMappingById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const linkIdParam = req.query.link_id;
+  const linkId = linkIdParam !== undefined && linkIdParam !== null ? parseInt(String(linkIdParam), 10) : 0;
 
   if (!id) {
     res.status(400).json({ success: false, message: "SNO is required" });
@@ -29,7 +31,7 @@ export const getMappingById = async (req: Request, res: Response): Promise<void>
   }
 
   try {
-    const item = await getMappingByIdService(parseInt(id as string, 10));
+    const item = await getMappingByIdService(parseInt(id as string, 10), isNaN(linkId) ? 0 : linkId);
 
     if (!item) {
       res.status(404).json({ success: false, message: "Mapping not found" });

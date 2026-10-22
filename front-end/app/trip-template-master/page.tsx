@@ -14,6 +14,7 @@ import {
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const columns = [
@@ -46,6 +47,7 @@ export default function TripTemplateMasterPage() {
   const dispatch = useAppDispatch();
   const { tripTemplates, loading, error } = useAppSelector((s) => s.tripTemplate);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(98);
   const [currentStatus, setCurrentStatus] = useState<string>("AC");
 
   const { data: locations } = useApiQuery("trip-template-locations", async () => {
@@ -105,12 +107,12 @@ export default function TripTemplateMasterPage() {
       data: tripTemplates,
       isLoading: loading,
       add: async (item: TripTemplateGridData) => {
-        const res = await dispatch(addTripTemplate(item)).unwrap();
+        const res = await dispatch(addTripTemplate({ ...item, LINK_ID: linkPagesId })).unwrap();
         dispatch(fetchTripTemplates(currentStatus));
         return res;
       },
       update: async (item: TripTemplateGridData) => {
-        const res = await dispatch(updateTripTemplate(item)).unwrap();
+        const res = await dispatch(updateTripTemplate({ ...item, LINK_ID: linkPagesId })).unwrap();
         dispatch(fetchTripTemplates(currentStatus));
         return res;
       },
@@ -128,7 +130,7 @@ export default function TripTemplateMasterPage() {
         return res;
       },
     }),
-    [tripTemplates, loading, dispatch, currentStatus]
+    [tripTemplates, loading, dispatch, currentStatus, linkPagesId]
   );
 
   return (

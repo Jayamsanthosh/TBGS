@@ -30,7 +30,8 @@ export const getAnimalCategoryMasterById = async (req: Request, res: Response): 
   }
 
   try {
-    const item = await getAnimalCategoryMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const item = await getAnimalCategoryMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!item) {
       res.status(404).json({ success: false, message: "Animal category not found" });

@@ -29,7 +29,8 @@ export const getAnimalPartsMasterById = async (req: Request, res: Response): Pro
   }
 
   try {
-    const item = await getAnimalPartsMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const item = await getAnimalPartsMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!item) {
       res.status(404).json({ success: false, message: "Animal parts not found" });

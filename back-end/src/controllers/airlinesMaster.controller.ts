@@ -28,8 +28,11 @@ export const getAirlinesMasterById = async (req: Request, res: Response): Promis
     return;
   }
 
+  const linkId =
+    req.query.link_id != null && req.query.link_id !== "" ? Number(req.query.link_id) : 0;
+
   try {
-    const airline = await getAirlinesMasterByIdService(parseInt(id as string, 10));
+    const airline = await getAirlinesMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!airline) {
       res.status(404).json({ success: false, message: "Airline not found" });

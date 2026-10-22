@@ -8,6 +8,7 @@ import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const fields: MasterField[] = [
   {
@@ -120,6 +121,8 @@ export default function CostCentreMasterPage() {
     });
   }, [centres, companies]);
 
+  const linkPagesId = useLinkPagesId(80);
+
   useEffect(() => {
     dispatch(fetchCostCentres());
   }, [dispatch]);
@@ -135,12 +138,12 @@ export default function CostCentreMasterPage() {
     data: enrichedData,
     isLoading: loading,
     add: async (item: CostCentreGridData) => {
-      const res = await dispatch(addCostCentre(item)).unwrap();
+      const res = await dispatch(addCostCentre({ ...item, LINK_ID: linkPagesId } as CostCentreGridData)).unwrap();
       dispatch(fetchCostCentres());
       return res;
     },
     update: async (item: CostCentreGridData) => {
-      const res = await dispatch(updateCostCentre(item)).unwrap();
+      const res = await dispatch(updateCostCentre({ ...item, LINK_ID: linkPagesId } as CostCentreGridData)).unwrap();
       dispatch(fetchCostCentres());
       return res;
     },
@@ -157,7 +160,7 @@ export default function CostCentreMasterPage() {
       dispatch(fetchCostCentres());
       return res;
     },
-  }), [enrichedData, loading, dispatch]);
+  }), [enrichedData, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

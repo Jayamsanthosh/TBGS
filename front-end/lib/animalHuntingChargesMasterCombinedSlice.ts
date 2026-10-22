@@ -28,6 +28,7 @@ export interface AnimalHuntingChargesMasterGridData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
   dtls?: any[];
   deletedIds?: number[];
 }
@@ -132,6 +133,26 @@ export const updateAnimalHuntingChargesMaster = createAsyncThunk(
       return await response.json();
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to update animal hunting charges");
+    }
+  }
+);
+
+export const submitAnimalHuntingChargesMaster = createAsyncThunk(
+  "animalHuntingChargesMaster/submitAnimalHuntingChargesMaster",
+  async (id: string | number, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_URL}/animal-hunting-charges-master/${id}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return rejectWithValue(errorData.message || "Failed to submit animal hunting charges");
+      }
+      return await response.json();
+    } catch (error: any) {
+      return rejectWithValue(error.message || "Failed to submit animal hunting charges");
     }
   }
 );

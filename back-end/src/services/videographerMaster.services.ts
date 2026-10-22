@@ -12,6 +12,7 @@ export interface VideographerMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const serializeRecordset = (rows: any[]) =>
@@ -46,7 +47,7 @@ export const getAllVideographerMasterService = async (status?: string) => {
   }
 };
 
-export const getVideographerMasterByIdService = async (id: number) => {
+export const getVideographerMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -54,6 +55,7 @@ export const getVideographerMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("VIDEOGRAPHER_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_VIDEOGRAPHER_MASTER");
 
     return result.recordset[0] || null;
@@ -78,6 +80,7 @@ export const saveVideographerMasterService = async (data: VideographerMasterData
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_VIDEOGRAPHER_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save videographer");
@@ -104,6 +107,7 @@ export const updateVideographerMasterService = async (data: VideographerMasterDa
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_VIDEOGRAPHER_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update videographer");

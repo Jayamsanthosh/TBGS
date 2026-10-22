@@ -53,6 +53,7 @@ export interface TruckMasterHdrData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const toInt = (v: any): number | null =>
@@ -127,6 +128,7 @@ const truckRequest = (pool: any, data: TruckMasterHdrData, includeId = true) => 
   req.input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null);
   req.input("USER", sql.VarChar(50), data.USER || "Admin");
   req.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+  req.input("LINK_ID", sql.Int, toInt(data.LINK_ID));
   return req;
 };
 
@@ -159,7 +161,7 @@ export const getAllTruckMasterHdrService = async (status?: string) => {
   }
 };
 
-export const getTruckMasterHdrByIdService = async (id: number) => {
+export const getTruckMasterHdrByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -167,6 +169,7 @@ export const getTruckMasterHdrByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("TRUCK_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, toInt(linkId))
       .execute("VMaster.GET_TRUCK_MASTER_HDR");
 
     const row = result.recordset[0] || null;

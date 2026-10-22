@@ -29,7 +29,8 @@ export const getAttendanceTypeMasterById = async (req: Request, res: Response): 
   }
 
   try {
-    const attendanceType = await getAttendanceTypeMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const attendanceType = await getAttendanceTypeMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!attendanceType) {
       res.status(404).json({ success: false, message: "Attendance type not found" });

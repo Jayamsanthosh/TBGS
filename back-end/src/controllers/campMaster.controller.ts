@@ -28,7 +28,8 @@ export const getCampMasterById = async (req: Request, res: Response): Promise<vo
   }
 
   try {
-    const camp = await getCampMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const camp = await getCampMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!camp) {
       res.status(404).json({ success: false, message: "Camp not found" });

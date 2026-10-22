@@ -8,6 +8,7 @@ export interface AntiPoachingFindingsMasterGridData {
   ANTI_POACHING_FINDINGS_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface AntiPoachingFindingsMasterState {
@@ -41,9 +42,9 @@ export const fetchAntiPoachingFindingsMasters = createAsyncThunk(
 
 export const fetchAntiPoachingFindingsMasterById = createAsyncThunk(
   "antiPoachingFindingsMaster/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async ({ id, linkId }: { id: number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/anti-poaching-findings-master/${id}`);
+      const response = await fetch(`${API_URL}/anti-poaching-findings-master/${id}${linkId ? `?link_id=${linkId}` : ""}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch finding");

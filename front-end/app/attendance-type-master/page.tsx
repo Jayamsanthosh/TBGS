@@ -12,6 +12,7 @@ import {
   AttendanceTypeGridData,
 } from "@/lib/attendanceTypeMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const statusFormatter = (val: any) => {
@@ -25,6 +26,7 @@ export default function AttendanceTypeMasterPage() {
   const dispatch = useAppDispatch();
   const { attendanceTypes, loading, error } = useAppSelector((s) => s.attendanceType);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(193);
 
   useEffect(() => {
     dispatch(fetchAttendanceTypes("ALL"));
@@ -107,12 +109,12 @@ export default function AttendanceTypeMasterPage() {
     data: attendanceTypes,
     isLoading: loading,
     add: async (item: AttendanceTypeGridData) => {
-      const res = await dispatch(addAttendanceType(cleanPayload(item))).unwrap();
+      const res = await dispatch(addAttendanceType({ ...cleanPayload(item), LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchAttendanceTypes("ALL"));
       return res;
     },
     update: async (item: AttendanceTypeGridData) => {
-      const res = await dispatch(updateAttendanceType(cleanPayload(item))).unwrap();
+      const res = await dispatch(updateAttendanceType({ ...cleanPayload(item), LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchAttendanceTypes("ALL"));
       return res;
     },
@@ -129,7 +131,7 @@ export default function AttendanceTypeMasterPage() {
       dispatch(fetchAttendanceTypes("ALL"));
       return res;
     },
-  }), [attendanceTypes, loading, dispatch]);
+  }), [attendanceTypes, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

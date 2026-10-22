@@ -8,6 +8,7 @@ export interface BookingStatusGridData {
   BOOKING_STATUS_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface BookingStatusState {

@@ -31,13 +31,14 @@ export const getAllTruckMasterHdr = async (req: Request, res: Response): Promise
 };
 
 export const getTruckMasterHdrById = async (req: Request, res: Response): Promise<void> => {
-  const id = parseId(req.params.id);
+  const id = Number(req.params.id);
   if (!id) {
-    res.status(400).json({ success: false, message: "A valid Truck ID is required" });
+    res.status(400).json({ success: false, message: "Truck ID is required" });
     return;
   }
+  const { LINK_ID } = req.query as any;
   try {
-    const truck = await getTruckMasterHdrByIdService(id);
+    const truck = await getTruckMasterHdrByIdService(id, LINK_ID ? Number(LINK_ID) : null);
     if (!truck) {
       res.status(404).json({ success: false, message: "Truck not found" });
       return;

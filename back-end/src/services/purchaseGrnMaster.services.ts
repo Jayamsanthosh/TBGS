@@ -8,6 +8,7 @@ export interface PurchaseGrnDtl {
   PURCHASE_GRN_REF_NO?: string;
   PURCHASE_ORDER_NO?: string;
   PURCHASE_ORDER_DTL_ID?: number;
+  PURCHASE_INVOICE_DTL_ID?: number;
   LINE_NO?: number;
   MAIN_CATEGORY_ID?: number;
   SUB_CATEGORY_ID?: number;
@@ -37,6 +38,7 @@ export interface PurchaseGrnDtl {
   STATUS_ENTRY?: string;
   BATCH_MAPPED_QUANTITY?: any;
   BALANCE_TO_MAP_BATCH_QTY?: any;
+  LINK_ID?: number | null;
 }
 
 export interface PurchaseGrnData {
@@ -54,6 +56,14 @@ export interface PurchaseGrnData {
   SUPPLIER_BP_ID?: number | null;
   SUPPLIER_DELIVERY_NOTE_NO?: string;
   SUPPLIER_DELIVERY_NOTE_DATE?: string;
+  PURCHASE_INVOICE_REF_NO?: string;
+  CONTAINER_NO?: string;
+  VEHICLE_SOURCE_STATUS?: string;
+  VEHICLE_ID?: number | null;
+  VEHICLE_NAME?: string;
+  DRIVER_NAME?: string;
+  DRIVER_PHONE_NUMBER?: string;
+  SEAL_NUMBER?: string;
   CURRENCY_ID?: number | null;
   EXCHANGE_RATE?: any;
   TOTAL_QUANTITY?: any;
@@ -65,6 +75,7 @@ export interface PurchaseGrnData {
   RESPONSE_REMARKS?: string;
   REMARKS?: string;
   LINK_PAGES_ID?: number | null;
+  LINK_ID?: number | null;
   STATUS_ENTRY?: string;
   USER?: string;
   MAC_ADDRESS?: string;
@@ -235,14 +246,17 @@ export const getPurchaseGrnListService = async (filter: PurchaseGrnListFilter = 
 };
 
 /* --------------------------------------------------------- single header */
-export const getPurchaseGrnHdrService = async (refNo: string) => {
+export const getPurchaseGrnHdrService = async (refNo: string, linkPagesId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
   try {
+    /* GET_PURCHASE_GRN_HDR filters on PURCHASE_GRN_REF_NO + LINK_PAGES_ID, so the
+       page link id has to be supplied by the caller. */
     const result = await pool
       .request()
       .input("PURCHASE_GRN_REF_NO", sql.VarChar(50), refNo)
+      .input("LINK_PAGES_ID", sql.Int, numOrNull(linkPagesId))
       .execute("VInventory.GET_PURCHASE_GRN_HDR");
 
     const row = result.recordset?.[0] || null;
@@ -255,6 +269,22 @@ export const getPurchaseGrnHdrService = async (refNo: string) => {
 };
 
 /* -------------------------------------------------------------- details */
+/* The GRN line procs read PO_QUANTITY and LINK_ID. Both are created by
+   src/SPs/purchase_grn_migration.sql, so a database where the migration has
+   not been run fails with a raw "Invalid column name", which does not say
+   what to do about it. Say it in plain words instead. */
+const explainGrnSchemaError = (error: any): any => {
+  const message = String(error?.message || "");
+  if (/Invalid column name '(PO_QUANTITY|PO_INVOICE_QUANTITY|LINK_ID)'/i.test(message)) {
+    const friendly = new Error(
+      "The Purchase GRN database is not up to date. Run back-end/src/SPs/purchase_grn_migration.sql (it renames PO_INVOICE_QUANTITY to PO_QUANTITY and adds LINK_ID) and deploy the procedures again."
+    ) as Error & { httpStatus?: number };
+    friendly.httpStatus = 500;
+    return friendly;
+  }
+  return error;
+};
+
 export const getPurchaseGrnDtlsService = async (refNo: string) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
@@ -272,7 +302,7 @@ export const getPurchaseGrnDtlsService = async (refNo: string) => {
     );
   } catch (error) {
     console.error("SHOW_PURCHASE_GRN_DTL SP error:", error);
-    throw error;
+    throw explainGrnSchemaError(error);
   }
 };
 
@@ -291,13 +321,21 @@ export const getPurchaseGrnDtlService = async (id: number) => {
     return row;
   } catch (error) {
     console.error("GET_PURCHASE_GRN_DTL SP error:", error);
-    throw error;
+    throw explainGrnSchemaError(error);
   }
 };
 
-/* Shared DTL input chain - the column order must match the deployed
+/* A request for one write: inside the caller's transaction when one is given,
+   straight from the pool otherwise. Every write of a combined save / update
+   runs inside one transaction, so a failure halfway cannot leave a GRN with
+   its header updated and its lines half written. */
+const newRequest = (pool: any, tx?: sql.Transaction) =>
+  tx ? new sql.Request(tx) : pool.request();
+
+/* Shared DTL input chain - the parameter names must match the deployed
    SAVE/UPDATE_PURCHASE_GRN_DTL signatures exactly (node-mssql binds the
-   inputs positionally). UPDATE primes @PURCHASE_GRN_DTL_ID first. */
+   inputs by name, so a name that the proc does not declare fails the call).
+   UPDATE primes @PURCHASE_GRN_DTL_ID first. */
 const grnDtlRequest = (
   req: any,
   refNo: string,
@@ -309,6 +347,7 @@ const grnDtlRequest = (
     .input("PURCHASE_GRN_REF_NO", sql.VarChar(50), refNo)
     .input("PURCHASE_ORDER_NO", sql.VarChar(50), c.PURCHASE_ORDER_NO || data.PURCHASE_ORDER_NO || null)
     .input("PURCHASE_ORDER_DTL_ID", sql.Int, numOrNull(c.PURCHASE_ORDER_DTL_ID))
+    .input("PURCHASE_INVOICE_DTL_ID", sql.Int, numOrNull(c.PURCHASE_INVOICE_DTL_ID))
     .input("LINE_NO", sql.Int, numOrNull(c.LINE_NO) ?? 0)
     .input("MAIN_CATEGORY_ID", sql.Int, numOrNull(c.MAIN_CATEGORY_ID))
     .input("SUB_CATEGORY_ID", sql.Int, numOrNull(c.SUB_CATEGORY_ID))
@@ -346,61 +385,81 @@ const grnDtlRequest = (
 const savePurchaseGrnDtlService = async (
   refNo: string,
   dtl: PurchaseGrnDtl,
-  data: PurchaseGrnData
+  data: PurchaseGrnData,
+  tx?: sql.Transaction
 ) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
-  const result = await grnDtlRequest(
-    pool.request(),
-    refNo,
-    { ...dtl, STATUS_ENTRY: dtl.STATUS_ENTRY || "AC" },
-    data
-  ).execute("VInventory.SAVE_PURCHASE_GRN_DTL");
+  try {
+    const result = await grnDtlRequest(
+      newRequest(pool, tx),
+      refNo,
+      { ...dtl, STATUS_ENTRY: dtl.STATUS_ENTRY || "AC" },
+      data
+    ).execute("VInventory.SAVE_PURCHASE_GRN_DTL");
 
-  const row = pickResultRow(result);
-  parseSprocResult(row, "Failed to save purchase GRN detail");
-  return row;
+    const row = pickResultRow(result);
+    parseSprocResult(row, "Failed to save purchase GRN detail");
+    return row;
+  } catch (error) {
+    console.error("SAVE_PURCHASE_GRN_DTL SP error:", error);
+    throw explainGrnSchemaError(error);
+  }
 };
 
 /* ------------------------------------------------------------ dtl update */
 const updatePurchaseGrnDtlService = async (
   refNo: string,
   dtl: PurchaseGrnDtl,
-  data: PurchaseGrnData
-) => {
-  const pool = getPool();
-  if (!pool) throw new Error("Database not connected");
-
-  const base = pool
-    .request()
-    .input("PURCHASE_GRN_DTL_ID", sql.Int, numOrNull(dtl.PURCHASE_GRN_DTL_ID) ?? 0);
-
-  const result = await grnDtlRequest(base, refNo, dtl, data).execute(
-    "VInventory.UPDATE_PURCHASE_GRN_DTL"
-  );
-
-  const row = pickResultRow(result);
-  parseSprocResult(row, "Failed to update purchase GRN detail");
-  return row;
-};
-
-/* -------------------------------------------------------- dtl deletion */
-export const deletePurchaseGrnDtlService = async (
-  id: number,
-  user: string,
-  role: string,
-  macAddress: string
+  data: PurchaseGrnData,
+  tx?: sql.Transaction
 ) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const result = await pool
-      .request()
+    const base = newRequest(pool, tx).input(
+      "PURCHASE_GRN_DTL_ID",
+      sql.Int,
+      numOrNull(dtl.PURCHASE_GRN_DTL_ID) ?? 0
+    );
+
+    /* UPDATE_PURCHASE_GRN_DTL declares @LINK_ID as its final parameter, while
+       SAVE_PURCHASE_GRN_DTL does not take it at all. Add it here (after the
+       shared chain) so SAVE never sends an extra argument. */
+    const req = grnDtlRequest(base, refNo, dtl, data);
+    req.input("LINK_ID", sql.Int, numOrNull(dtl.LINK_ID ?? data.LINK_PAGES_ID));
+
+    const result = await req.execute("VInventory.UPDATE_PURCHASE_GRN_DTL");
+
+    const row = pickResultRow(result);
+    parseSprocResult(row, "Failed to update purchase GRN detail");
+    return row;
+  } catch (error) {
+    console.error("UPDATE_PURCHASE_GRN_DTL SP error:", error);
+    throw explainGrnSchemaError(error);
+  }
+};
+
+/* -------------------------------------------------------- dtl deletion */
+/* Deleting a GRN line is an Admin only action - the delete proc enforces the
+   same rule. The role is never defaulted: an empty role is not an Admin. */
+export const deletePurchaseGrnDtlService = async (
+  id: number,
+  user: string,
+  role: string,
+  macAddress: string,
+  tx?: sql.Transaction
+) => {
+  const pool = getPool();
+  if (!pool) throw new Error("Database not connected");
+
+  try {
+    const result = await newRequest(pool, tx)
       .input("PURCHASE_GRN_DTL_ID", sql.Int, id)
       .input("USER", sql.VarChar(50), user || "Admin")
-      .input("ROLE", sql.VarChar(50), role || "Admin")
+      .input("ROLE", sql.VarChar(50), role || "")
       .input("MAC_ADDRESS", sql.VarChar(50), macAddress || "WEB")
       .execute("VInventory.DELETE_PURCHASE_GRN_DTL");
 
@@ -413,27 +472,38 @@ export const deletePurchaseGrnDtlService = async (
 };
 
 /* Header input chain - must match SAVE/UPDATE_PURCHASE_GRN_HDR (UPDATE primes
-   @SNO first). */
+   @SNO first). The parameter widths match the header columns, so a value can
+   never be longer than the column it goes into. */
 const grnHdrRequest = (
   pool: any,
   data: PurchaseGrnData,
-  refNo: string | null
+  refNo: string | null,
+  tx?: sql.Transaction
 ) => {
   const derived = computeHeaderTotals(
     data,
     (data.dtls || []).map((d) => computeDtlAmounts(d, data.EXCHANGE_RATE))
   );
 
-  return pool
-    .request()
+  return newRequest(pool, tx)
+    .input("DRAFT_REF_NO", sql.VarChar(50), (data as any).DRAFT_REF_NO || null)
     .input("PURCHASE_GRN_REF_NO", sql.VarChar(50), refNo)
     .input("PURCHASE_GRN_DATE", sql.DateTime, dateOrNull(derived.PURCHASE_GRN_DATE))
-    .input("PURCHASE_ORDER_NO", sql.VarChar(50), derived.PURCHASE_ORDER_NO || null)
     .input("COMPANY_ID", sql.Int, numOrNull(derived.COMPANY_ID))
     .input("CAMP_ID", sql.Int, numOrNull(derived.CAMP_ID))
     .input("STORE_ID", sql.Int, numOrNull(derived.STORE_ID))
     .input("LOCATION_ID", sql.Int, numOrNull(derived.LOCATION_ID))
     .input("SUPPLIER_BP_ID", sql.Int, numOrNull(derived.SUPPLIER_BP_ID))
+    .input("PURCHASE_INVOICE_REF_NO", sql.VarChar(50), derived.PURCHASE_INVOICE_REF_NO || null)
+    .input("PURCHASE_ORDER_NO", sql.VarChar(50), derived.PURCHASE_ORDER_NO || null)
+    .input("SUPPLIER_INVOICE_NUMBER", sql.VarChar(100), (derived as any).SUPPLIER_INVOICE_NUMBER || null)
+    .input("CONTAINER_NO", sql.VarChar(50), derived.CONTAINER_NO || null)
+    .input("VEHICLE_SOURCE_STATUS", sql.VarChar(50), derived.VEHICLE_SOURCE_STATUS || null)
+    .input("VEHICLE_ID", sql.Int, numOrNull(derived.VEHICLE_ID))
+    .input("VEHICLE_NAME", sql.VarChar(100), derived.VEHICLE_NAME || null)
+    .input("DRIVER_NAME", sql.VarChar(100), derived.DRIVER_NAME || null)
+    .input("DRIVER_PHONE_NUMBER", sql.VarChar(50), derived.DRIVER_PHONE_NUMBER || null)
+    .input("SEAL_NUMBER", sql.VarChar(50), derived.SEAL_NUMBER || null)
     .input("SUPPLIER_DELIVERY_NOTE_NO", sql.VarChar(100), derived.SUPPLIER_DELIVERY_NOTE_NO || null)
     .input("SUPPLIER_DELIVERY_NOTE_DATE", sql.DateTime, dateOrNull(derived.SUPPLIER_DELIVERY_NOTE_DATE))
     .input("CURRENCY_ID", sql.Int, numOrNull(derived.CURRENCY_ID))
@@ -452,12 +522,137 @@ const grnHdrRequest = (
     .input("MAC_ADDRESS", sql.VarChar(50), derived.MAC_ADDRESS || "WEB");
 };
 
+/* A column can be missing while the database has not been migrated yet - the
+   migration (src/SPs/purchase_grn_migration.sql) renames PO_INVOICE_QUANTITY
+   to PO_QUANTITY and adds LINK_ID to the GRN lines. Writing to a column that
+   is not there fails the whole save with "Invalid column name", so the column
+   is looked up first and the write is skipped when it is missing. The answer
+   is cached for a minute, so the check costs one query per table and minute. */
+const columnExistsCache = new Map<string, { at: number; found: boolean }>();
+const COLUMN_CACHE_MS = 60_000;
+
+const columnExists = async (
+  pool: any,
+  schema: string,
+  table: string,
+  column: string
+): Promise<boolean> => {
+  const key = `${schema}.${table}.${column}`;
+  const cached = columnExistsCache.get(key);
+  const now = Date.now();
+  if (cached && now - cached.at < COLUMN_CACHE_MS) return cached.found;
+
+  const r = await pool
+    .request()
+    .input("SCHEMA_NAME", sql.VarChar(50), schema)
+    .input("TABLE_NAME", sql.VarChar(100), table)
+    .input("COLUMN_NAME", sql.VarChar(100), column)
+    .query(
+      `SELECT 1 AS HIT
+         FROM sys.columns c
+         JOIN sys.objects o ON o.object_id = c.object_id
+         JOIN sys.schemas s ON s.schema_id = o.schema_id
+        WHERE s.name = @SCHEMA_NAME
+          AND o.name = @TABLE_NAME
+          AND c.name = @COLUMN_NAME`
+    );
+
+  const found = Number(r.recordset?.[0]?.HIT || 0) > 0;
+  columnExistsCache.set(key, { at: now, found });
+  return found;
+};
+
+const warnedColumns = new Set<string>();
+const warnMissingColumn = (key: string, message: string) => {
+  if (warnedColumns.has(key)) return;
+  warnedColumns.add(key);
+  console.warn(`[purchase GRN] ${message}`);
+};
+
+/* The HDR procs take @LINK_PAGES_ID but not the dedicated LINK_ID column, so
+   mirror the page link id into LINK_ID after the write. */
+const syncGrnHdrLinkId = async (pool: any, refNo: string, linkId: any, tx?: sql.Transaction) => {
+  const value = numOrNull(linkId);
+  if (!refNo || value === null) return;
+  if (!(await columnExists(pool, "VInventory", "TBL_PURCHASE_GRN_HDR", "LINK_ID"))) {
+    warnMissingColumn(
+      "hdr_link_id",
+      "TBL_PURCHASE_GRN_HDR.LINK_ID is missing - run back-end/src/SPs/purchase_grn_migration.sql"
+    );
+    return;
+  }
+  await newRequest(pool, tx)
+    .input("REF_NO", sql.VarChar(50), refNo)
+    .input("LINK_ID", sql.Int, value)
+    .query(
+      "UPDATE [VInventory].[TBL_PURCHASE_GRN_HDR] SET LINK_ID = @LINK_ID WHERE PURCHASE_GRN_REF_NO = @REF_NO"
+    );
+};
+
+/* SAVE_PURCHASE_GRN_DTL has no @LINK_ID parameter (the update proc does), so
+   the lines created on a new GRN are stamped the same way as the header. */
+const syncGrnDtlLinkId = async (pool: any, refNo: string, linkId: any, tx?: sql.Transaction) => {
+  const value = numOrNull(linkId);
+  if (!refNo || value === null) return;
+  if (!(await columnExists(pool, "VInventory", "TBL_PURCHASE_GRN_DTL", "LINK_ID"))) {
+    warnMissingColumn(
+      "dtl_link_id",
+      "TBL_PURCHASE_GRN_DTL.LINK_ID is missing - run back-end/src/SPs/purchase_grn_migration.sql"
+    );
+    return;
+  }
+  await newRequest(pool, tx)
+    .input("REF_NO", sql.VarChar(50), refNo)
+    .input("LINK_ID", sql.Int, value)
+    .query(
+      "UPDATE [VInventory].[TBL_PURCHASE_GRN_DTL] SET LINK_ID = @LINK_ID WHERE PURCHASE_GRN_REF_NO = @REF_NO"
+    );
+};
+
+/* UPDATE_PURCHASE_GRN_HDR has no parameters for the newer transport / invoice
+   columns (the SAVE proc does), so they are written directly after the update
+   so editing a GRN does not silently drop them. */
+const syncGrnHdrTransportFields = async (
+  pool: any,
+  refNo: string,
+  data: PurchaseGrnData,
+  tx?: sql.Transaction
+) => {
+  if (!refNo) return;
+  await newRequest(pool, tx)
+    .input("REF_NO", sql.VarChar(50), refNo)
+    .input("PURCHASE_INVOICE_REF_NO", sql.VarChar(50), data.PURCHASE_INVOICE_REF_NO || null)
+    .input("CONTAINER_NO", sql.VarChar(50), data.CONTAINER_NO || null)
+    .input("VEHICLE_SOURCE_STATUS", sql.VarChar(50), data.VEHICLE_SOURCE_STATUS || null)
+    .input("VEHICLE_ID", sql.Int, numOrNull(data.VEHICLE_ID))
+    .input("VEHICLE_NAME", sql.VarChar(100), data.VEHICLE_NAME || null)
+    .input("DRIVER_NAME", sql.VarChar(100), data.DRIVER_NAME || null)
+    .input("DRIVER_PHONE_NUMBER", sql.VarChar(50), data.DRIVER_PHONE_NUMBER || null)
+    .input("SEAL_NUMBER", sql.VarChar(50), data.SEAL_NUMBER || null)
+    .query(
+      `UPDATE [VInventory].[TBL_PURCHASE_GRN_HDR]
+         SET PURCHASE_INVOICE_REF_NO = @PURCHASE_INVOICE_REF_NO,
+             CONTAINER_NO = @CONTAINER_NO,
+             VEHICLE_SOURCE_STATUS = @VEHICLE_SOURCE_STATUS,
+             VEHICLE_ID = @VEHICLE_ID,
+             VEHICLE_NAME = @VEHICLE_NAME,
+             DRIVER_NAME = @DRIVER_NAME,
+             DRIVER_PHONE_NUMBER = @DRIVER_PHONE_NUMBER,
+             SEAL_NUMBER = @SEAL_NUMBER
+       WHERE PURCHASE_GRN_REF_NO = @REF_NO`
+    );
+};
+
 /* ----------------------------------------------------- combined save */
 export const savePurchaseGrnCombinedService = async (raw: PurchaseGrnData) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
+  const tx = new sql.Transaction(pool);
+
   try {
+    await tx.begin();
+
     const dtls = (Array.isArray(raw.dtls) ? raw.dtls : []).map((d) =>
       computeDtlAmounts(d, raw.EXCHANGE_RATE)
     );
@@ -465,7 +660,8 @@ export const savePurchaseGrnCombinedService = async (raw: PurchaseGrnData) => {
     const hdrResult = await grnHdrRequest(
       pool,
       { ...raw, dtls, STATUS_ENTRY: raw.STATUS_ENTRY || "CF" },
-      ""
+      "",
+      tx
     ).execute("VInventory.SAVE_PURCHASE_GRN_HDR");
 
     const { message, data: parsedData } = parseSprocResult(
@@ -478,12 +674,19 @@ export const savePurchaseGrnCombinedService = async (raw: PurchaseGrnData) => {
       throw new Error("Can't Generate Purchase GRN Reference Number. Contact Admin");
     }
 
+    await syncGrnHdrLinkId(pool, refNo, raw.LINK_ID ?? raw.LINK_PAGES_ID, tx);
+
     for (const dtl of dtls) {
-      await savePurchaseGrnDtlService(refNo, dtl, raw);
+      await savePurchaseGrnDtlService(refNo, dtl, raw, tx);
     }
+
+    await syncGrnDtlLinkId(pool, refNo, raw.LINK_ID ?? raw.LINK_PAGES_ID, tx);
+
+    await tx.commit();
 
     return { message: message || "Purchase GRN created successfully", PURCHASE_GRN_REF_NO: refNo };
   } catch (error) {
+    await tx.rollback().catch(() => undefined);
     console.error("SAVE_PURCHASE_GRN_HDR/DTL combined error:", error);
     throw error;
   }
@@ -497,13 +700,56 @@ export const updatePurchaseGrnCombinedService = async (raw: PurchaseGrnData) => 
   const refNo = String(raw.PURCHASE_GRN_REF_NO || "").trim();
   if (!refNo) throw new Error("Purchase GRN Reference No is required");
 
-  try {
-    const dtls = (Array.isArray(raw.dtls) ? raw.dtls : []).map((d) =>
-      computeDtlAmounts(d, raw.EXCHANGE_RATE)
-    );
+  const dtls = (Array.isArray(raw.dtls) ? raw.dtls : []).map((d) =>
+    computeDtlAmounts(d, raw.EXCHANGE_RATE)
+  );
+  const deletedIds = (Array.isArray(raw.deletedIds) ? raw.deletedIds : [])
+    .map((id) => numOrNull(id))
+    .filter((id): id is number => id !== null);
 
-    const hdrResult = await pool
-      .request()
+  /* Removing a line is an Admin only action - the delete proc enforces the
+     same rule. It is checked before anything is written, so a user without
+     the right can never end up with a half updated GRN. */
+  if (deletedIds.length > 0 && String(raw.ROLE || "").trim() !== "Admin") {
+    const error = new Error(
+      "Only an Admin can remove a Purchase GRN line. The record was not changed."
+    ) as Error & { httpStatus?: number };
+    error.httpStatus = 403;
+    throw error;
+  }
+
+  const tx = new sql.Transaction(pool);
+
+  try {
+    await tx.begin();
+
+    /* The header totals are rolled up from the lines that are being saved.
+       The update path used to take them from the request, and the request
+       never carried them, so every edit blanked the totals on the GRN list. */
+    const derived = computeHeaderTotals(raw, dtls);
+
+    /* Removed lines go first: an added line re-uses the line number of the
+       line that was removed, and the line numbers have to be unique within
+       the GRN. */
+    for (const id of deletedIds) {
+      await deletePurchaseGrnDtlService(
+        id,
+        raw.USER || "Admin",
+        raw.ROLE || "",
+        raw.MAC_ADDRESS || "WEB",
+        tx
+      );
+    }
+
+    for (const dtl of dtls) {
+      if (numOrNull(dtl.PURCHASE_GRN_DTL_ID)) {
+        await updatePurchaseGrnDtlService(refNo, dtl, raw, tx);
+      } else {
+        await savePurchaseGrnDtlService(refNo, dtl, raw, tx);
+      }
+    }
+
+    const hdrResult = await newRequest(pool, tx)
       .input("SNO", sql.Int, numOrNull(raw.SNO) ?? 0)
       .input("PURCHASE_GRN_REF_NO", sql.VarChar(50), refNo)
       .input("PURCHASE_GRN_DATE", sql.DateTime, dateOrNull(raw.PURCHASE_GRN_DATE))
@@ -517,9 +763,9 @@ export const updatePurchaseGrnCombinedService = async (raw: PurchaseGrnData) => 
       .input("SUPPLIER_DELIVERY_NOTE_DATE", sql.DateTime, dateOrNull(raw.SUPPLIER_DELIVERY_NOTE_DATE))
       .input("CURRENCY_ID", sql.Int, numOrNull(raw.CURRENCY_ID))
       .input("EXCHANGE_RATE", sql.Decimal(15, 6), numOrNull(raw.EXCHANGE_RATE))
-      .input("TOTAL_QUANTITY", sql.Decimal(15, 3), numOrNull(raw.TOTAL_QUANTITY))
-      .input("TOTAL_VALUE_FC", sql.Decimal(15, 3), numOrNull(raw.TOTAL_VALUE_FC))
-      .input("TOTAL_VALUE_LC", sql.Decimal(15, 3), numOrNull(raw.TOTAL_VALUE_LC))
+      .input("TOTAL_QUANTITY", sql.Decimal(15, 3), numOrNull(derived.TOTAL_QUANTITY))
+      .input("TOTAL_VALUE_FC", sql.Decimal(15, 3), numOrNull(derived.TOTAL_VALUE_FC))
+      .input("TOTAL_VALUE_LC", sql.Decimal(15, 3), numOrNull(derived.TOTAL_VALUE_LC))
       .input("STATUS_ID", sql.Int, numOrNull(raw.STATUS_ID))
       .input("RESPONSE_BY_EMP_ID", sql.Int, numOrNull(raw.RESPONSE_BY_EMP_ID))
       .input("RESPONSE_DATE", sql.DateTime, dateOrNull(raw.RESPONSE_DATE))
@@ -534,23 +780,14 @@ export const updatePurchaseGrnCombinedService = async (raw: PurchaseGrnData) => 
     const hdrResponse = pickResultRow(hdrResult);
     const { message } = parseSprocResult(hdrResponse, "Failed to update purchase GRN header");
 
-    /* Delete removed lines first: an added line can reuse the LINE_NO of a line
-       queued for deletion, and the SAVE proc rejects a duplicate LINE_NO. */
-    const deletedIds = Array.isArray(raw.deletedIds) ? raw.deletedIds : [];
-    for (const id of deletedIds) {
-      await deletePurchaseGrnDtlService(id, raw.USER || "Admin", raw.ROLE || "Admin", raw.MAC_ADDRESS || "WEB");
-    }
+    await syncGrnHdrLinkId(pool, refNo, raw.LINK_ID ?? raw.LINK_PAGES_ID, tx);
+    await syncGrnHdrTransportFields(pool, refNo, raw, tx);
 
-    for (const dtl of dtls) {
-      if (numOrNull(dtl.PURCHASE_GRN_DTL_ID)) {
-        await updatePurchaseGrnDtlService(refNo, dtl, raw);
-      } else {
-        await savePurchaseGrnDtlService(refNo, dtl, raw);
-      }
-    }
+    await tx.commit();
 
     return { message: message || "Purchase GRN updated successfully", PURCHASE_GRN_REF_NO: refNo };
   } catch (error) {
+    await tx.rollback().catch(() => undefined);
     console.error("UPDATE_PURCHASE_GRN_HDR/DTL combined error:", error);
     throw error;
   }
@@ -565,6 +802,18 @@ export const deletePurchaseGrnHdrService = async (
 ) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
+
+  /* Deleting a GRN is an Admin only action - the delete procs enforce the same
+     rule. It is checked up front, because the child lines are removed before
+     the header and a refusal half way through would leave a header without
+     its lines. */
+  if (String(role || "").trim() !== "Admin") {
+    const error = new Error(
+      "Only an Admin can delete a Purchase GRN. The record was not changed."
+    ) as Error & { httpStatus?: number };
+    error.httpStatus = 403;
+    throw error;
+  }
 
   try {
     /* The DELETE proc removes only the header row, so the child lines have to
@@ -585,7 +834,7 @@ export const deletePurchaseGrnHdrService = async (
       .request()
       .input("PURCHASE_GRN_REF_NO", sql.VarChar(50), refNo)
       .input("USER", sql.VarChar(50), user || "Admin")
-      .input("ROLE", sql.VarChar(50), role || "Admin")
+      .input("ROLE", sql.VarChar(50), role || "")
       .input("MAC_ADDRESS", sql.VarChar(50), macAddress || "WEB")
       .execute("VInventory.DELETE_PURCHASE_GRN_HDR");
 
@@ -605,6 +854,18 @@ export const deletePurchaseGrnHdrService = async (
       error.httpStatus = 400;
       throw error;
     }
+
+    /* The batches mapped to the GRN go with it. A GRN reference number is
+       generated from MAX(...) + 1, so a deleted reference number is re-used
+       and the orphaned batches of the old GRN would re-attach to the new one.
+       (The delete proc removes them as well - this is the safety net for a
+       database where that proc has not been redeployed yet.) */
+    await pool
+      .request()
+      .input("BATCH_SOURCE_REF_NO", sql.VarChar(50), refNo)
+      .query(
+        `DELETE FROM [VInventory].[TBL_BATCH_MASTER] WHERE BATCH_SOURCE_REF_NO = @BATCH_SOURCE_REF_NO`
+      );
 
     return { message: msg.message || "Purchase GRN deleted successfully" };
   } catch (error) {

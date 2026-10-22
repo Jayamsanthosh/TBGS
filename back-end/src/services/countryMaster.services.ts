@@ -15,6 +15,7 @@ export interface CountryMasterData {
   User?: string;
   Mac_Address?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllCountryMasterService = async () => {
@@ -32,7 +33,7 @@ export const getAllCountryMasterService = async () => {
   }
 };
 
-export const getCountryMasterByIdService = async (id: number) => {
+export const getCountryMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -40,6 +41,7 @@ export const getCountryMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("Country_Id", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_COUNTRY_MASTER");
 
     return result.recordset[0] || null;
@@ -67,6 +69,7 @@ export const saveCountryMasterService = async (data: CountryMasterData) => {
       .input("Status_Master", sql.VarChar(50), data.Status_Master || null)
       .input("User", sql.VarChar(50), data.User || "Admin")
       .input("Mac_Address", sql.VarChar(50), data.Mac_Address || "WEB")
+      .input("LINK_ID", sql.Int, (data as any).LINK_ID ?? null)
       .execute("VMaster.SAVE_COUNTRY_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save country");
@@ -96,6 +99,7 @@ export const updateCountryMasterService = async (data: CountryMasterData) => {
       .input("Status_Master", sql.VarChar(50), data.Status_Master ?? null)
       .input("User", sql.VarChar(50), data.User ?? "Admin")
       .input("Mac_Address", sql.VarChar(50), data.Mac_Address ?? "WEB")
+      .input("LINK_ID", sql.Int, (data as any).LINK_ID ?? null)
       .execute("VMaster.UPDATE_COUNTRY_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update country");

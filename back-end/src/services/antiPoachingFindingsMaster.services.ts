@@ -18,6 +18,7 @@ export interface AntiPoachingFindingsMasterData {
   STATUS_MASTER?: string;
   USER?: string;
   MAC_ADDRESS?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllAntiPoachingFindingsMasterService = async () => {
@@ -43,7 +44,7 @@ export const getAllAntiPoachingFindingsMasterService = async () => {
   }
 };
 
-export const getAntiPoachingFindingsMasterByIdService = async (id: number) => {
+export const getAntiPoachingFindingsMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -51,6 +52,7 @@ export const getAntiPoachingFindingsMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("ANTI_POACHING_FINDINGS_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_ANTI_POACHING_FINDINGS_MASTER");
     return result.recordset[0] || null;
   } catch (error) {
@@ -73,6 +75,7 @@ export const saveAntiPoachingFindingsMasterService = async (data: AntiPoachingFi
       .input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER))
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("Link_Id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_ANTI_POACHING_FINDINGS_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save anti-poaching findings");
@@ -98,6 +101,7 @@ export const updateAntiPoachingFindingsMasterService = async (data: AntiPoaching
       .input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER))
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("Link_Id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_ANTI_POACHING_FINDINGS_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to update anti-poaching findings");

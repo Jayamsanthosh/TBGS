@@ -15,7 +15,14 @@ export interface AmmunitionBrandMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
+
+const toNullableInt = (v: any): number | null => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+};
 
 export const getAllAmmunitionBrandMasterService = async (status = "AC") => {
   const pool = getPool();
@@ -38,7 +45,7 @@ export const getAllAmmunitionBrandMasterService = async (status = "AC") => {
   }
 };
 
-export const getAmmunitionBrandMasterByIdService = async (id: number) => {
+export const getAmmunitionBrandMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -46,6 +53,7 @@ export const getAmmunitionBrandMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("AMMUNITION_BRAND_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, toNullableInt(linkId))
       .execute("VMaster.GET_AMMUNITION_BRAND_MASTER");
 
     return result.recordset[0] || null;
@@ -73,6 +81,7 @@ export const saveAmmunitionBrandMasterService = async (data: AmmunitionBrandMast
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("Link_Id", sql.Int, toNullableInt(data.LINK_ID))
       .execute("VMaster.SAVE_AMMUNITION_BRAND_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save ammunition brand");

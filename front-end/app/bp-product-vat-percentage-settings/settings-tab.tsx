@@ -38,6 +38,7 @@ import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast } from "@/hooks/use-toast";
 import FilesViewerDialog from "./files-viewer-dialog";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -84,6 +85,7 @@ export default function SettingsTab({ onViewFiles }: { onViewFiles?: (settingId:
     return "Manager";
   });
   const isAdmin = role === "Admin" || role === "Super Admin" || role === "Administrator";
+  const linkPagesId = useLinkPagesId(186);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -241,7 +243,7 @@ export default function SettingsTab({ onViewFiles }: { onViewFiles?: (settingId:
     fillForm(item);
     try {
       const res: any = await dispatch(
-        fetchBpProductVatById(Number(item.BP_PROD_VAT_ID) || Number(item.id))
+        fetchBpProductVatById({ id: Number(item.BP_PROD_VAT_ID) || Number(item.id), linkId: linkPagesId })
       ).unwrap();
       if (res) {
         fillForm(res);
@@ -286,13 +288,14 @@ export default function SettingsTab({ onViewFiles }: { onViewFiles?: (settingId:
         REMARKS: form.REMARKS?.trim(),
         VAT_PERCENTAGE: Math.max(0, Number(form.VAT_PERCENTAGE) || 0),
       };
+      const payload = { ...cleanForm, LINK_ID: linkPagesId };
       if (editing) {
         const res: any = await dispatch(
-          updateBpProductVat({ ...cleanForm, BP_PROD_VAT_ID: Number(editing.BP_PROD_VAT_ID) || Number(editing.id) })
+          updateBpProductVat({ ...payload, BP_PROD_VAT_ID: Number(editing.BP_PROD_VAT_ID) || Number(editing.id) })
         ).unwrap();
         toast({ title: res?.message ?? "Record updated successfully!" });
       } else {
-        const res: any = await dispatch(addBpProductVat({ ...cleanForm })).unwrap();
+        const res: any = await dispatch(addBpProductVat({ ...payload })).unwrap();
         if (!res?.BP_PROD_VAT_ID) {
           throw new Error(res?.message || "Failed to retrieve new record ID");
         }

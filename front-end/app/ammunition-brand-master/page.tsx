@@ -8,6 +8,7 @@ import type { AmmunitionBrandGridData } from "@/lib/ammunitionBrandMasterSlice";
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,7 @@ export default function AmmunitionBrandMasterPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.ammunitionBrand);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(126);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -177,6 +179,7 @@ export default function AmmunitionBrandMasterPage() {
         const res = await dispatch(updateAmmunitionBrand(payload as AmmunitionBrandGridData)).unwrap();
         toast({ title: res?.message ?? "Brand updated successfully", duration: DEFAULT_TOAST_DURATION });
       } else {
+        payload.LINK_ID = linkPagesId;
         const res = await dispatch(addAmmunitionBrand(payload as AmmunitionBrandGridData)).unwrap();
         toast({ title: res?.message ?? "Brand created successfully", duration: DEFAULT_TOAST_DURATION });
       }

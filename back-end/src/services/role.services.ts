@@ -11,6 +11,7 @@ export interface RoleData {
   USER?: string;
   ROLE?: string;
   MAC_ADDRESS?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllRolesService = async () => {
@@ -26,7 +27,7 @@ export const getAllRolesService = async () => {
   }
 };
 
-export const getRoleByIdService = async (id: number) => {
+export const getRoleByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -34,6 +35,7 @@ export const getRoleByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("ROLE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_ROLE_MASTER");
 
     return result.recordset[0] || null;
@@ -56,6 +58,7 @@ export const saveRoleService = async (role: RoleData) => {
       .input("STATUS_MASTER", sql.VarChar(20), role.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), role.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), role.MAC_ADDRESS ?? null)
+      .input("LINK_ID", sql.Int, role.LINK_ID ?? null)
       .execute("VMaster.SAVE_ROLE_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save role");
@@ -81,6 +84,7 @@ export const updateRoleService = async (role: RoleData) => {
       .input("STATUS_MASTER", sql.VarChar(20), role.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), role.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), role.MAC_ADDRESS ?? null)
+      .input("LINK_ID", sql.Int, role.LINK_ID ?? null)
       .execute("VMaster.UPDATE_ROLE_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to update role");

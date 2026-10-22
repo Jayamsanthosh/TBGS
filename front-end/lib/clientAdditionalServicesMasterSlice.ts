@@ -14,6 +14,7 @@ export interface ClientAdditionalServicesGridData {
   SECTION_HEAD_RESPONSE_REMARKS?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface ClientAdditionalServicesState {

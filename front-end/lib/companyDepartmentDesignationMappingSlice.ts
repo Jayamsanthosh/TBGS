@@ -10,6 +10,7 @@ export interface MappingGridData {
   DEPARTMENT_GROUP_ID?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface MappingState {

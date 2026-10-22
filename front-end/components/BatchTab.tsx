@@ -49,6 +49,7 @@ export default function BatchTab({
   lines,
   header,
   dtlIdKey,
+  pendingLineIdKey = "LINE_NO",
   productOptions = [],
   uomOptions = [],
   documentLabel = "document",
@@ -61,6 +62,10 @@ export default function BatchTab({
   lines: BatchTabLine[];
   header: BatchHeaderContext;
   dtlIdKey: string;
+  /* Which field identifies a line while the document is not saved yet. The
+     default is the line number; a host that renumbers its lines when one is
+     removed can pass a stable row key instead. */
+  pendingLineIdKey?: string;
   productOptions?: Option[];
   uomOptions?: Option[];
   documentLabel?: string;
@@ -70,7 +75,7 @@ export default function BatchTab({
   openFor?: { dtlId: string; nonce: number } | null;
   /* Create (unsaved) mode: batches are held in memory until the host document
      is saved, because the document ref / detail ids do not exist yet. Lines are
-     keyed by LINE_NO in this mode and re-pointed after the save. */
+     keyed by pendingLineIdKey in this mode and re-pointed after the save. */
   pendingBatches?: BatchMasterData[];
   onPendingBatchesChange?: (batches: BatchMasterData[]) => void;
 }) {
@@ -117,10 +122,15 @@ export default function BatchTab({
     uomOptions.find((o) => o.value === String(id ?? ""))?.label || (id ? String(id) : "-");
 
   /* A line is keyed by its real detail id once saved; before the document is
-     saved every line only has a LINE_NO, so that is the fallback key. */
+     saved the line only has the key the host uses (pendingLineIdKey, the line
+     number by default). */
   const idOfLine = (l: BatchTabLine | undefined): any => {
     if (!l) return "";
     if (l[dtlIdKey] != null && l[dtlIdKey] !== "") return l[dtlIdKey];
+    if (isPending && pendingLineIdKey) {
+      const pending = l[pendingLineIdKey];
+      if (pending != null && pending !== "") return pending;
+    }
     return l.LINE_NO != null && l.LINE_NO !== "" ? l.LINE_NO : "";
   };
 
@@ -131,7 +141,7 @@ export default function BatchTab({
       if (id !== "") map.set(String(id), l);
     });
     return map;
-  }, [lines, dtlIdKey]);
+  }, [lines, dtlIdKey, isPending, pendingLineIdKey]);
 
   const lineOptions = useMemo(() => {
     return (Array.isArray(lines) ? lines : [])
@@ -141,7 +151,7 @@ export default function BatchTab({
         label: `Line ${l.LINE_NO ?? "?"} - ${productName(l.PRODUCT_ID)}`,
         line: l,
       }));
-  }, [lines, dtlIdKey, productOptions]);
+  }, [lines, dtlIdKey, isPending, pendingLineIdKey, productOptions]);
 
   const toIsoDate = (v: any) => {
     if (!v) return "";
@@ -258,8 +268,22 @@ export default function BatchTab({
     (pendingBatches || []).reduce((m, b) => Math.max(m, Number(b.BATCH_ID) || 0), 0) + 1;
 
   const handleSave = async () => {
-    const dtlId = toNumOrNull(form.BATCH_SOURCE_DTL_ID);
-    if (!dtlId) {
+    /* A detail line is addressed by a key: the stored detail id once the
+       document is saved, the row key of the line while the document is still
+       being entered. Both are compared as text - a row key is not a number,
+       so it must never be forced through a numeric conversion. */
+    const lineKey = String(form.BATCH_SOURCE_DTL_ID ?? "").trim();
+    const line = lineKey ? lineByDtlId.get(lineKey) : undefined;
+    if (!line) {
+      toast({ title: "Select a detail line", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
+
+    /* Only a saved document can write the line id into the batch table. Until
+       then the batch keeps the row key of its line and is re-pointed to the
+       real detail id once the document has been saved. */
+    const dtlId = isPending ? lineKey : toNumOrNull(lineKey);
+    if (!isPending && !dtlId) {
       toast({ title: "Select a detail line", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
       return;
     }
@@ -276,9 +300,8 @@ export default function BatchTab({
       return;
     }
 
-    const line = lineByDtlId.get(String(dtlId));
     const remaining = remainingForDtl(
-      dtlId,
+      lineKey,
       editing?.BATCH_ID != null ? Number(editing.BATCH_ID) : undefined
     );
     if (Number(form.BATCH_QTY) > remaining) {

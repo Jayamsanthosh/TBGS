@@ -20,6 +20,7 @@ export interface CustomerWiseTripTemplatePriceMappingGridData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 interface CustomerWiseTripTemplatePriceMappingState {

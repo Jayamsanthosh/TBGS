@@ -27,7 +27,8 @@ export const getMainMenuById = async (req: Request, res: Response): Promise<void
   }
 
   try {
-    const menu = await getMainMenuByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const menu = await getMainMenuByIdService(parseInt(id as string, 10), linkId);
 
     if (!menu) {
       res.status(404).json({ success: false, message: "Main Menu not found" });

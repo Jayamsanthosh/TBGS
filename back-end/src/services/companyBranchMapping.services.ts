@@ -13,6 +13,7 @@ export interface CompanyBranchMappingData {
   CREATED_MAC_ADDRESS?: string;
   MODIFIED_BY?: string;
   MODIFIED_MAC_ADDRESS?: string;
+  LINK_ID?: number | null;
 }
 
 export const MAPPING_STATUSES = ["AC", "IA"];
@@ -80,13 +81,14 @@ export const loadMappingService = async (companyId?: number, branchId?: number, 
 };
 
 /** Returns null when the row is absent so the controller can answer 404. */
-export const getMappingByIdService = async (id: number) => {
+export const getMappingByIdService = async (id: number, linkId: number | null = null) => {
   const pool = pool_();
 
   try {
     const result = await pool
       .request()
       .input("MAPPING_ID", sql.Int, id)
+      .input("link_id", sql.Int, linkId ?? null)
       .execute("VMaster.SP_COMPANY_BRANCH_MAPPING_GET_BY_ID");
 
     return result.recordset?.[0] || null;
@@ -111,6 +113,7 @@ export const saveMappingService = async (data: CompanyBranchMappingData) => {
     request.input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || "AC");
     request.input("CREATED_BY", sql.VarChar(50), data.CREATED_BY || "Admin");
     request.input("CREATED_MAC_ADDRESS", sql.VarChar(50), data.CREATED_MAC_ADDRESS || "WEB");
+    request.input("link_id", sql.Int, data.LINK_ID ?? null);
 
     const result = await request.execute("VMaster.SP_COMPANY_BRANCH_MAPPING_SAVE");
 
@@ -141,6 +144,7 @@ export const updateMappingService = async (data: CompanyBranchMappingData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || "AC")
       .input("MODIFIED_BY", sql.VarChar(50), data.MODIFIED_BY || "Admin")
       .input("MODIFIED_MAC_ADDRESS", sql.VarChar(50), data.MODIFIED_MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SP_COMPANY_BRANCH_MAPPING_UPDATE");
 
     const { message, data: updatedData } = parseSprocResult(

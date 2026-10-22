@@ -11,6 +11,7 @@ export interface VisaStatusMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllVisaStatusMasterService = async (status = "ALL") => {
@@ -42,7 +43,7 @@ export const getAllVisaStatusMasterService = async (status = "ALL") => {
   }
 };
 
-export const getVisaStatusMasterByIdService = async (id: number) => {
+export const getVisaStatusMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -50,6 +51,7 @@ export const getVisaStatusMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("VISA_STATUS_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_VISA_STATUS_MASTER");
 
     return result.recordset[0] || null;
@@ -73,6 +75,7 @@ export const saveVisaStatusMasterService = async (data: VisaStatusMasterData) =>
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_VISA_STATUS_MASTER");
 
     const { message, data: id } = parseSprocResult(result.recordset?.[0], "Failed to save visa status");
@@ -97,6 +100,7 @@ export const updateVisaStatusMasterService = async (data: VisaStatusMasterData) 
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_VISA_STATUS_MASTER");
 
     const { message } = parseSprocResult(result.recordset?.[0], "Failed to update visa status");

@@ -7,7 +7,7 @@ import DMSFilesTab from "@/app/truck-master/files-tab";
 import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 export default function DriverMasterPage() {
-  const linkPagesId = useLinkPagesId(0);
+  const linkPagesId = useLinkPagesId(181);
   const [selectedDriverEmpId, setSelectedDriverEmpId] = useState<string>("");
   const [activeTab, setActiveTab] = useState("drivers");
 

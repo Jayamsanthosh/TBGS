@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { validateTanzaniaPhone, validateTin, formatTanzaniaPhone, cleanPhoneForStorage } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
 import EntityFilesViewerDialog from "@/components/EntityFilesViewerDialog";
+import { DMS_LINK_ID } from "@/lib/dmsSlice";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -423,7 +424,7 @@ export default function TrucksTab({ onViewFiles, linkPagesId }: { onViewFiles?: 
     fillForm(item);
     try {
       const res: any = await dispatch(
-        fetchTruckById(Number(item.TRUCK_ID) || Number(item.id))
+        fetchTruckById({ id: Number(item.TRUCK_ID) || Number(item.id), link_id: linkPagesId })
       ).unwrap();
       if (res) {
         fillForm(res);
@@ -471,11 +472,11 @@ export default function TrucksTab({ onViewFiles, linkPagesId }: { onViewFiles?: 
       };
       if (editing) {
         const res: any = await dispatch(
-          updateTruck({ ...cleanForm, TRUCK_ID: Number(editing.TRUCK_ID) || Number(editing.id) })
+          updateTruck({ ...cleanForm, TRUCK_ID: Number(editing.TRUCK_ID) || Number(editing.id), LINK_ID: linkPagesId })
         ).unwrap();
         toast({ title: res?.message ?? "Truck updated successfully!" });
       } else {
-        const res: any = await dispatch(addTruck({ ...cleanForm })).unwrap();
+        const res: any = await dispatch(addTruck({ ...cleanForm, LINK_ID: linkPagesId })).unwrap();
         if (!res?.TRUCK_ID) {
           throw new Error(res?.message || "Failed to retrieve new Truck ID");
         }
@@ -977,7 +978,7 @@ export default function TrucksTab({ onViewFiles, linkPagesId }: { onViewFiles?: 
           if (!open) setViewerTruckId(null);
         }}
         listUrl={`${API_URL}/dms?linkPagesId=${encodeURIComponent(String(linkPagesId ?? 0))}&pageRefNo=${encodeURIComponent(String(viewerTruckNo ?? ""))}&status=ALL`}
-        contentUrlBuilder={(row) => `${API_URL}/dms/${Number(row?.DMS_ID) || ""}`}
+        contentUrlBuilder={(row) => `${API_URL}/dms/${Number(row?.DMS_ID) || ""}?link_id=${DMS_LINK_ID}`}
         emptyMessage="No files attached to this truck"
       />
     </div>

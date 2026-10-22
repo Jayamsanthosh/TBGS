@@ -39,11 +39,33 @@ export const getNavigationHierarchyService = async (roleName: string) => {
 
         const subMenusWithLinks = await Promise.all(
           subMenus.map(async (subMenu) => {
+            // NOTE: VMaster.Load_Link_Using_Role_Sub_Menu_Id selects an
+            // unqualified `link_id`, which is ambiguous now that both
+            // vmaster.tbl_role_to_link_and_page and vmaster.tbl_links_and_pages
+            // have a LINK_ID column. The SP is left untouched; qualify the
+            // columns here instead so the sidebar loads.
             const linkResult = await pool
               .request()
               .input("Role_Id", sql.Int, roleId)
               .input("Sub_Menu_Id", sql.Int, subMenu.sub_menu_id)
-              .execute("VMaster.Load_Link_Using_Role_Sub_Menu_Id");
+              .query(`
+                SELECT
+                  b.link_id              AS link_id,
+                  b.link_name            AS link_name,
+                  b.page_action          AS page_action,
+                  b.redirection_type     AS redirection_type,
+                  b.link_Location        AS link_Location,
+                  b.link_seq_id          AS link_seq_id,
+                  ISNULL(b.style_css,'') AS style_css
+                FROM vmaster.tbl_role_to_link_and_page AS A
+                INNER JOIN vmaster.tbl_links_and_pages AS b
+                  ON a.link_id_role_to_link = b.link_id
+                WHERE a.role_id_role_to_link = @Role_Id
+                  AND b.sub_menu_id = @Sub_Menu_Id
+                  AND a.status_role_to_link = 'AC'
+                  AND b.status_master = 'AC'
+                ORDER BY b.link_seq_id
+              `);
 
             return {
               ...subMenu,

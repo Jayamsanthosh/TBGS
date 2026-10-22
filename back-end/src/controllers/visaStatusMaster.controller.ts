@@ -23,6 +23,7 @@ export const getAllVisaStatusMaster = async (req: Request, res: Response): Promi
 
 export const getVisaStatusMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const { LINK_ID } = req.query as any;
 
   if (!id) {
     res.status(400).json({ success: false, message: "Visa Status ID is required" });
@@ -30,7 +31,7 @@ export const getVisaStatusMasterById = async (req: Request, res: Response): Prom
   }
 
   try {
-    const visaStatus = await getVisaStatusMasterByIdService(parseInt(id as string, 10));
+    const visaStatus = await getVisaStatusMasterByIdService(parseInt(id as string, 10), LINK_ID ? Number(LINK_ID) : null);
 
     if (!visaStatus) {
       res.status(404).json({ success: false, message: "Visa Status not found" });

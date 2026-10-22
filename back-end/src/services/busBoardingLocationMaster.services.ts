@@ -11,6 +11,7 @@ export interface BusBoardingLocationMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllBusBoardingLocationMasterService = async (status?: string) => {
@@ -29,13 +30,14 @@ export const getAllBusBoardingLocationMasterService = async (status?: string) =>
   }
 };
 
-export const getBusBoardingLocationMasterByIdService = async (id: number) => {
+export const getBusBoardingLocationMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
   try {
     const result = await pool
       .request()
       .input("BUS_BOARDING_LOCATION_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_BUS_BOARDING_LOCATION_MASTER");
     return result.recordset[0] || null;
   } catch (error) {
@@ -56,6 +58,7 @@ export const saveBusBoardingLocationMasterService = async (data: BusBoardingLoca
       .input("STATUS_MASTER", sql.VarChar(50), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_BUS_BOARDING_LOCATION_MASTER");
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save bus boarding location");
 
@@ -79,6 +82,7 @@ export const updateBusBoardingLocationMasterService = async (data: BusBoardingLo
       .input("STATUS_MASTER", sql.VarChar(50), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_BUS_BOARDING_LOCATION_MASTER");
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update bus boarding location");
 

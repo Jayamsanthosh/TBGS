@@ -150,7 +150,11 @@ import purchaseQuotationConversationReducer from "./purchaseQuotationConversatio
 import purchaseOrderMasterReducer from "./purchaseOrderMasterSlice";
 import openingStockMasterReducer from "./openingStockMasterSlice";
 import purchaseGrnMasterReducer from "./purchaseGrnMasterSlice";
+import purchaseInvoiceMasterReducer from "./purchaseInvoiceMasterSlice";
+import purchaseInvoiceConversationReducer from "./purchaseInvoiceConversationSlice";
 import batchMasterReducer from "./batchMasterSlice";
+import approvalStageReducer from "./approvalStageSlice";
+import approvalTemplateReducer from "./approvalTemplateSlice";
 
 import { useAppDispatch, useAppSelector } from "./hooks";
 
@@ -309,7 +313,11 @@ export const store = configureStore({
 purchaseOrderMaster: purchaseOrderMasterReducer,
     openingStockMaster: openingStockMasterReducer,
     purchaseGrnMaster: purchaseGrnMasterReducer,
+    purchaseInvoiceMaster: purchaseInvoiceMasterReducer,
+    purchaseInvoiceConversation: purchaseInvoiceConversationReducer,
     batchMaster: batchMasterReducer,
+    approvalStage: approvalStageReducer,
+    approvalTemplate: approvalTemplateReducer,
 
   },
 });

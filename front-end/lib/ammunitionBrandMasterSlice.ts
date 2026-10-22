@@ -13,6 +13,7 @@ export interface AmmunitionBrandGridData {
   WEBSITE?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface AmmunitionBrandState {

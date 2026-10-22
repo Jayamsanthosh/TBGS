@@ -50,12 +50,13 @@ export const getDocumentTypes = async (req: Request, res: Response): Promise<voi
 
 export const getDocumentById = async (req: Request, res: Response): Promise<void> => {
   const id = parseId(req.params.id);
+  const linkId = req.query.link_id != null ? Number(req.query.link_id) : 0;
   if (id === null) {
     res.status(400).json({ success: false, message: "A valid document ID is required" });
     return;
   }
   try {
-    const item = await getDocumentByIdService(id);
+    const item = await getDocumentByIdService(id, Number.isNaN(linkId) ? 0 : linkId);
     if (!item) {
       res.status(404).json({ success: false, message: "Document not found" });
       return;

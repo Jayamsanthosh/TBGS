@@ -29,7 +29,10 @@ export const getVatPercentageSettingById = async (req: Request, res: Response): 
   }
 
   try {
-    const record = await getVatPercentageSettingByIdService(parseInt(id as string, 10));
+    const record = await getVatPercentageSettingByIdService(
+      parseInt(id as string, 10),
+      req.query.LINK_ID ? parseInt(req.query.LINK_ID as string, 10) : null
+    );
     if (!record) {
       res.status(404).json({ success: false, message: "VAT percentage setting not found" });
       return;

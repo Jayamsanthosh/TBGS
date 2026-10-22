@@ -7,6 +7,7 @@ export interface PurchaseGrnDtl {
   PURCHASE_GRN_REF_NO?: string;
   PURCHASE_ORDER_NO?: string;
   PURCHASE_ORDER_DTL_ID?: number;
+  PURCHASE_INVOICE_DTL_ID?: number;
   LINE_NO?: number;
   MAIN_CATEGORY_ID?: number;
   MAIN_CATEGORY_NAME?: string;
@@ -68,6 +69,14 @@ export interface PurchaseGrnGridData {
   supplierName?: string;
   SUPPLIER_DELIVERY_NOTE_NO?: string;
   SUPPLIER_DELIVERY_NOTE_DATE?: string;
+  PURCHASE_INVOICE_REF_NO?: string | null;
+  CONTAINER_NO?: string | null;
+  VEHICLE_SOURCE_STATUS?: string | null;
+  VEHICLE_ID?: number | null;
+  VEHICLE_NAME?: string | null;
+  DRIVER_NAME?: string | null;
+  DRIVER_PHONE_NUMBER?: string | null;
+  SEAL_NUMBER?: string | null;
   CURRENCY_ID?: number;
   CURRENCY_NAME?: string;
   currencyName?: string;
@@ -126,9 +135,15 @@ export const fetchPurchaseGrns = createAsyncThunk(
 
 export const fetchPurchaseGrnHdr = createAsyncThunk(
   "purchaseGrnMaster/fetchHdr",
-  async (refNo: string, { rejectWithValue }) => {
+  async (
+    arg: string | { refNo: string; linkPagesId?: number | string | null },
+    { rejectWithValue }
+  ) => {
+    const refNo = typeof arg === "string" ? arg : arg.refNo;
+    const linkPagesId = typeof arg === "string" ? null : arg.linkPagesId;
     try {
-      const response = await fetch(`${API_URL}/purchase-grn/hdr/${encodeURIComponent(refNo)}`);
+      const qs = linkPagesId != null && linkPagesId !== "" ? `?linkPagesId=${encodeURIComponent(String(linkPagesId))}` : "";
+      const response = await fetch(`${API_URL}/purchase-grn/hdr/${encodeURIComponent(refNo)}${qs}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch purchase GRN header");

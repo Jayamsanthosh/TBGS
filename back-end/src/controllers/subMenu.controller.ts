@@ -27,7 +27,8 @@ export const getSubMenuById = async (req: Request, res: Response): Promise<void>
   }
 
   try {
-    const menu = await getSubMenuByIdService(parseInt(id as string, 10));
+    const linkId = req.query.link_id ? parseInt(req.query.link_id as string, 10) : 0;
+    const menu = await getSubMenuByIdService(parseInt(id as string, 10), Number.isNaN(linkId) ? 0 : linkId);
 
     if (!menu) {
       res.status(404).json({ success: false, message: "Sub Menu not found" });

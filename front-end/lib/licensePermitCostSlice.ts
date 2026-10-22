@@ -4,6 +4,7 @@ import { API_URL } from "./config";
 export interface LicensePermitCostGridData {
   id?: string | number;
   SNO?: number;
+  LINK_ID?: number | null;
   LICENSE_PERMIT_ID?: number;
   SALES_PACKAGE_TYPE_ID?: number;
   PRICE_TYPE_ID?: number;

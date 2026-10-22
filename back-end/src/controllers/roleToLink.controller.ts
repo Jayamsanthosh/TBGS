@@ -27,8 +27,9 @@ export const getRoleToLinkById = async (req: Request, res: Response): Promise<vo
     return;
   }
 
+  const linkId = req.query.link_id != null ? Number(req.query.link_id) : 0;
   try {
-    const link = await getRoleToLinkByIdService(parseInt(id as string, 10));
+    const link = await getRoleToLinkByIdService(parseInt(id as string, 10), Number.isNaN(linkId) ? 0 : linkId);
 
     if (!link) {
       res.status(404).json({ success: false, message: "Role link not found" });
@@ -87,6 +88,7 @@ export const syncRoleToLink = async (req: Request, res: Response): Promise<void>
     const result = await syncRoleToLinkService({
       ROLE_ID_TO_LINK: Number(body.ROLE_ID_TO_LINK),
       LINK_ID_ROLE_TO_LINK: linkIds,
+      LINK_ID: body.LINK_ID != null ? Number(body.LINK_ID) : null,
       STATUS_ROLE_TO_LINK: body.STATUS_ROLE_TO_LINK || body.STATUS_MASTER || 'AC',
       USER_ROLE_TO_LINK: body.USER_ROLE_TO_LINK,
       MAC_ADDR_ROLE_TO_LINK: body.MAC_ADDR_ROLE_TO_LINK,

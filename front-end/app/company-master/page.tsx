@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { MONTHS, TIMEZONES } from "@/lib/utils";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { validateTin, validateEmail, validateWebsite, validateTanzaniaPhone, formatTanzaniaPhone, cleanPhoneForStorage, enforceValidation } from "@/lib/validation";
 
 const logoFields: Array<{ key: string; label: string }> = [
@@ -206,6 +207,8 @@ export default function CompanyMasterPage() {
     });
   }, [companies, currencies]);
 
+  const linkPagesId = useLinkPagesId(14);
+
   useEffect(() => {
     dispatch(fetchCompanies());
   }, [dispatch]);
@@ -221,12 +224,12 @@ export default function CompanyMasterPage() {
     data: enrichedData,
     isLoading: loading,
     add: async (item: CompanyGridData) => {
-      const res = await dispatch(addCompany(item)).unwrap();
+      const res = await dispatch(addCompany({ ...item, LINK_ID: linkPagesId } as CompanyGridData)).unwrap();
       dispatch(fetchCompanies());
       return res;
     },
     update: async (item: CompanyGridData) => {
-      const res = await dispatch(updateCompany(item)).unwrap();
+      const res = await dispatch(updateCompany({ ...item, LINK_ID: linkPagesId } as CompanyGridData)).unwrap();
       dispatch(fetchCompanies());
       return res;
     },
@@ -243,7 +246,7 @@ export default function CompanyMasterPage() {
       dispatch(fetchCompanies());
       return res;
     },
-  }), [enrichedData, loading, dispatch]);
+  }), [enrichedData, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

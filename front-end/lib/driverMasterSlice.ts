@@ -19,6 +19,7 @@ export interface DriverMasterGridData {
   VEHICLE_CATEGORIES_LICENSED?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface DriverMasterState {
@@ -52,9 +53,12 @@ export const fetchDrivers = createAsyncThunk(
 
 export const fetchDriverById = createAsyncThunk(
   "driverMaster/fetchDriverById",
-  async (id: string | number, { rejectWithValue }) => {
+  async (args: string | number | { id: string | number; linkId?: number | string | null }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/driver-master/${id}`);
+      const id = typeof args === "object" && args !== null ? args.id : args;
+      const linkId = typeof args === "object" && args !== null ? args.linkId : null;
+      const qs = linkId != null && linkId !== "" ? `?link_id=${encodeURIComponent(String(linkId))}` : "";
+      const response = await fetch(`${API_URL}/driver-master/${id}${qs}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch driver");

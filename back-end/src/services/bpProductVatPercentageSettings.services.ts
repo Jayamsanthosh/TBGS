@@ -18,6 +18,7 @@ export interface BpProductVatData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const STATUSES = ["AC", "IN", "CL", "CA"];
@@ -69,6 +70,7 @@ const buildRequest = (pool: any, data: BpProductVatData, includeId = true) => {
   req.input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null);
   req.input("USER", sql.VarChar(50), data.USER || "Admin");
   req.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+  req.input("LINK_ID", sql.Int, (data as any).LINK_ID ?? null);
   return req;
 };
 
@@ -100,7 +102,7 @@ export const getAllService = async (status?: string) => {
   }
 };
 
-export const getByIdService = async (id: number) => {
+export const getByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -108,6 +110,7 @@ export const getByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("BP_PROD_VAT_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_BP_PRODUCT_VAT_PERCENTAGE_SETTINGS_HDR");
 
     return result.recordset[0] || null;

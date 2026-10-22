@@ -4,6 +4,7 @@ import { API_URL } from "./config";
 export interface DriverTruckMasterMappingGridData {
   id?: string | number;
   SNO?: number;
+  LINK_ID?: number | null;
   DRIVER_EMP_ID?: number;
   TRUCK_ID?: number;
   EFFECTIVE_FROM?: string;

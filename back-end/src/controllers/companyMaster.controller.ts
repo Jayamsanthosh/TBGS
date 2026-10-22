@@ -21,6 +21,8 @@ export const getAllCompanyMaster = async (_req: Request, res: Response): Promise
 
 export const getCompanyMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const linkIdParam = req.query.link_id;
+  const linkId = linkIdParam !== undefined && linkIdParam !== null ? parseInt(String(linkIdParam), 10) : 0;
 
   if (!id) {
     res.status(400).json({ success: false, message: "Company ID is required" });
@@ -28,7 +30,7 @@ export const getCompanyMasterById = async (req: Request, res: Response): Promise
   }
 
   try {
-    const company = await getCompanyMasterByIdService(parseInt(id as string, 10));
+    const company = await getCompanyMasterByIdService(parseInt(id as string, 10), isNaN(linkId) ? 0 : linkId);
 
     if (!company) {
       res.status(404).json({ success: false, message: "Company not found" });

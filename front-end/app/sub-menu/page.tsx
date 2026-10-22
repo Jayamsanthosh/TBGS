@@ -10,6 +10,7 @@ import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchSubMenus, addSubMenu, updateSubMenu, deleteSubMenu, clearSubMenusError, SubMenuGridData } from "@/lib/subMenuSlice";
 import { refreshNavigationForUser } from "@/lib/navigationSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const getUser = () => {
   if (typeof window === 'undefined') return 'Admin';
@@ -66,6 +67,7 @@ export default function SubMenuPage() {
   const authUser = useAppSelector((s: any) => s.auth.user);
   const { subMenus, loading, error } = useAppSelector((s) => s.subMenus);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(11);
 
   useEffect(() => {
     dispatch(fetchSubMenus());
@@ -172,6 +174,7 @@ export default function SubMenuPage() {
         MAIN_MENU_ID: Number(item.MAIN_MENU_ID) || 0,
         SUB_MENU_SEQ_ID: Number(item.SUB_MENU_SEQ_ID) || 0,
         USER: getUser(),
+        LINK_ID: linkPagesId,
       };
       const res = await dispatch(addSubMenu(payload)).unwrap();
       dispatch(fetchSubMenus());
@@ -184,6 +187,7 @@ export default function SubMenuPage() {
         MAIN_MENU_ID: Number(item.MAIN_MENU_ID) || 0,
         SUB_MENU_SEQ_ID: Number(item.SUB_MENU_SEQ_ID) || 0,
         USER: getUser(),
+        LINK_ID: linkPagesId,
       };
       const res = await dispatch(updateSubMenu(payload)).unwrap();
       dispatch(fetchSubMenus());
@@ -206,7 +210,7 @@ export default function SubMenuPage() {
       dispatch(refreshNavigationForUser(authUser));
       return res;
     },
-  }), [subMenus, loading, dispatch, authUser]);
+  }), [subMenus, loading, dispatch, authUser, linkPagesId]);
 
   return (
     <MasterCrudPage

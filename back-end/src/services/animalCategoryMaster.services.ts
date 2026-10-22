@@ -10,7 +10,14 @@ export interface AnimalCategoryMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
+
+const toNullableInt = (v: any): number | null => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+};
 
 const serializeRecordset = (rows: any[]) =>
   (rows || []).map((r: any) => ({ ...r, id: r.ANIMAL_CATEGORY_ID }));
@@ -44,7 +51,7 @@ export const getAllAnimalCategoryMasterService = async (status?: string) => {
   }
 };
 
-export const getAnimalCategoryMasterByIdService = async (id: number) => {
+export const getAnimalCategoryMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -52,6 +59,7 @@ export const getAnimalCategoryMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("ANIMAL_CATEGORY_ID", sql.Int, id)
+      .input("Link_Id", sql.Int, toNullableInt(linkId))
       .execute("VMaster.GET_ANIMAL_CATEGORY_MASTER");
 
     return result.recordset[0] || null;
@@ -74,6 +82,7 @@ export const saveAnimalCategoryMasterService = async (data: AnimalCategoryMaster
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("Link_Id", sql.Int, toNullableInt(data.LINK_ID))
       .execute("VMaster.SAVE_ANIMAL_CATEGORY_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save animal category");
@@ -98,6 +107,7 @@ export const updateAnimalCategoryMasterService = async (data: AnimalCategoryMast
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("Link_Id", sql.Int, toNullableInt(data.LINK_ID))
       .execute("VMaster.UPDATE_ANIMAL_CATEGORY_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update animal category");

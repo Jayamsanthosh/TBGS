@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { connectDB, getPool } from "../config/db";
 import { patchRequestedByReadSprocs } from "./patchRequestedByReadSprocs";
+import { SP_FILES } from "./spFiles";
 
 /* Deploys stored procedures from src/SPs.
 
@@ -16,19 +17,7 @@ import { patchRequestedByReadSprocs } from "./patchRequestedByReadSprocs";
    statement in its batch. */
 /* Purchase request procs are ordered so the read fix lands in the same pass:
    submit first, then the grid projection. */
-const FILES = [
-  "purchase_request_submit.sql",
-  "purchase_quotation_submit.sql",
-  "purchase_request_load_grid_fields.sql",
-  "purchase_request_requested_by_name.sql",
-  /* The quotation wizard copies lines from a request via this read; without
-     PRODUCT_ID every imported line arrived unnamed and failed to save. */
-  "purchase_request_dtl_product_id_fix.sql",
-  /* The save proc took REQUIRED_DATE / REASON / REMARKS / ITEM_TYPE /
-     STATUS_ENTRY as parameters but left them out of the INSERT, so every
-     quotation line stored STATUS_ENTRY = NULL. */
-  "purchase_quotation_dtl_save_fix.sql",
-];
+const FILES = SP_FILES;
 
 const dir = path.join(__dirname, "..", "SPs");
 
@@ -58,6 +47,17 @@ const paramCount = (def: string) => {
   await connectDB();
   const p: any = getPool();
 
+  /* The GRN procedures read and write columns that the migration creates
+     (PO_QUANTITY on the lines, LINK_ID on the lines). A procedure can be
+     created even when the column is not there - the name is only resolved
+     when it runs - so a deployment without the migration looks fine and the
+     first save fails with "Invalid column name". The state is checked before
+     the procedures go out, and the missing columns are named. */
+  const requiredColumns = [
+    { table: "TBL_PURCHASE_GRN_DTL", column: "PO_QUANTITY" },
+    { table: "TBL_PURCHASE_GRN_DTL", column: "LINK_ID" },
+  ];
+
   for (const f of FILES) {
     const full = path.join(dir, f);
     const sql = fs.readFileSync(full, "utf8");
@@ -66,23 +66,85 @@ const paramCount = (def: string) => {
       .map((b) => b.trim())
       .filter(Boolean);
 
-    for (const b of batches) await p.request().batch(b);
+    /* All the batches of a file run on one connection. The session options a
+       procedure is created with are part of its metadata, and the pool can
+       hand a different connection to the next request - the file level
+       "SET QUOTED_IDENTIFIER ON" would then be lost before the CREATE. */
+    const conn = await p.connect();
+    try {
+      await conn.request().batch("SET QUOTED_IDENTIFIER ON; SET ANSI_NULLS ON;");
+      for (const b of batches) await conn.request().batch(b);
+    } finally {
+      conn.release();
+    }
 
-    /* Take the name from the CREATE OR ALTER line. Reading OBJECT_NAME(...)
-       out of the file misses plain "CREATE OR ALTER PROCEDURE [s].[p]"
-       declarations, which is how these are written. */
-    const procName =
-      /(?:CREATE|ALTER)\s+(?:OR\s+ALTER\s+)?PROCEDURE\s+\[?[\w]+\]?\.\[?(\w+)\]?/i.exec(sql)?.[1] ??
-      f.replace(/\.sql$/i, "");
-    const r = await p.request().query(
-      `SELECT OBJECT_DEFINITION(OBJECT_ID('VPurchase.${procName}')) AS def`
-    );
-    const def = String(r.recordset[0].def || "");
-    console.log(
-      def
-        ? `${f}\n  -> VPurchase.${procName} deployed (${paramCount(def)} parameters)`
-        : `${f}\n  -> WARNING: applied, but VPurchase.${procName} not found afterwards`
-    );
+    /* Take the schema and the name from the CREATE OR ALTER lines. Reading
+       OBJECT_NAME(...) out of the file misses plain
+       "CREATE OR ALTER PROCEDURE [s].[p]" declarations, which is how these are
+       written. A file can hold more than one procedure, so every one of them
+       is reported. */
+    const procNames = Array.from(
+      sql.matchAll(
+        /(?:CREATE|ALTER)\s+(?:OR\s+ALTER\s+)?PROCEDURE\s+\[?(\w+)\]?\.\[?(\w+)\]?/gi
+      )
+    ).map((m) => ({ schema: m[1], name: m[2] }));
+
+    for (const proc of procNames.length
+      ? procNames
+      : [{ schema: "VPurchase", name: f.replace(/\.sql$/i, "") }]) {
+      const r = await p.request().query(
+        `SELECT OBJECT_DEFINITION(OBJECT_ID('[${proc.schema}].[${proc.name}]')) AS def`
+      );
+      const def = String(r.recordset[0]?.def || "");
+      console.log(
+        def
+          ? `${f}\n  -> ${proc.schema}.${proc.name} deployed (${paramCount(def)} parameters)`
+          : `${f}\n  -> WARNING: applied, but ${proc.schema}.${proc.name} not found afterwards`
+      );
+    }
+
+    /* The check runs after the migration file of this same run, so it only
+       fails when the migration did not do its job. */
+    if (f === "purchase_grn_fix.sql") {
+      const missing: string[] = [];
+      for (const c of requiredColumns) {
+        const r = await p.request()
+          .input("TABLE_NAME", c.table)
+          .input("COLUMN_NAME", c.column)
+          .query(
+            `SELECT 1 AS HIT
+               FROM sys.columns
+               WHERE object_id = OBJECT_ID('VInventory.' + @TABLE_NAME)
+                 AND name = @COLUMN_NAME`
+          );
+        if (!r.recordset?.length) missing.push(`VInventory.${c.table}.${c.column}`);
+      }
+      if (missing.length) {
+        console.error(
+          `  -> ERROR: ${missing.join(", ")} missing. The Purchase GRN procedures need them; run back-end/src/SPs/purchase_grn_migration.sql.`
+        );
+        process.exit(1);
+      }
+
+      /* A procedure keeps the session options it was created with. The header
+         table has a filtered index, so a procedure created with
+         QUOTED_IDENTIFIER OFF fails every write to it with "UPDATE failed
+         because the following SET options have incorrect settings". */
+      const r = await p.request().query(
+        `SELECT OBJECT_NAME(object_id) AS PROC_NAME
+           FROM sys.sql_modules
+          WHERE object_id IN (SELECT object_id FROM sys.objects WHERE type = 'P')
+            AND name LIKE '%PURCHASE_GRN%'
+            AND uses_quoted_identifier = 0`
+      );
+      const bad = (r.recordset || []).map((x: any) => x.PROC_NAME);
+      if (bad.length) {
+        console.error(
+          `  -> ERROR: ${bad.join(", ")} were created with QUOTED_IDENTIFIER OFF. Recreate them in a session with "SET QUOTED_IDENTIFIER ON" (deployProcs.ts does that).`
+        );
+        process.exit(1);
+      }
+    }
   }
 
   /* GET_PURCHASE_REQUEST_HDR and GET_APPROVAL_LIST_PURCHASE_REQUEST have no file

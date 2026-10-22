@@ -8,6 +8,7 @@ export interface BulletTypeGridData {
   DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface BulletTypeState {

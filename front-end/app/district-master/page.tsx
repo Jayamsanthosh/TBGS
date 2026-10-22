@@ -7,6 +7,7 @@ import { fetchDistricts, addDistrict, updateDistrict, deleteDistrict, clearDistr
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 import { TANZANIA_ZONES } from "@/lib/validation";
 
@@ -108,6 +109,7 @@ export default function DistrictMasterPage() {
   const dispatch = useAppDispatch();
   const { districts, loading, error } = useAppSelector((s) => s.districts);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(18);
 
   const { data: countries } = useApiQuery("district-country-list", async () => {
     const res = await fetch(`${API_URL}/country-master`);
@@ -196,12 +198,12 @@ export default function DistrictMasterPage() {
     data: enrichedData,
     isLoading: loading,
     add: async (item: DistrictGridData) => {
-      const res = await dispatch(addDistrict(item)).unwrap();
+      const res = await dispatch(addDistrict({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchDistricts());
       return res;
     },
     update: async (item: DistrictGridData) => {
-      const res = await dispatch(updateDistrict(item)).unwrap();
+      const res = await dispatch(updateDistrict({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchDistricts());
       return res;
     },
@@ -218,7 +220,7 @@ export default function DistrictMasterPage() {
       dispatch(fetchDistricts());
       return res;
     },
-  }), [enrichedData, loading, dispatch]);
+  }), [enrichedData, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

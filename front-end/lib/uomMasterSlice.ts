@@ -8,6 +8,7 @@ export interface UomGridData {
   KG_PER_UOM?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface UomsState {

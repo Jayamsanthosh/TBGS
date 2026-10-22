@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchUsers, addUser, updateUser, deleteUser, clearUsersError, UserGridData } from "@/lib/usersSlice";
 import { fetchRoles } from "@/lib/rolesSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { validateEmail, validateTanzaniaPhone, formatTanzaniaPhone, cleanPhoneForStorage } from "@/lib/validation";
 
 const columns = [
@@ -41,6 +42,7 @@ export default function UsersPage() {
   const currentUser = useAppSelector((s) => s.auth.user);
   const rolesList = useAppSelector((s) => s.roles.roles);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(9);
 
   useEffect(() => {
     dispatch(fetchUsers());
@@ -110,12 +112,12 @@ export default function UsersPage() {
     data: filteredUsers,
     isLoading: loading,
     add: async (item: UserGridData) => {
-      const res = await dispatch(addUser(item)).unwrap();
+      const res = await dispatch(addUser({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchUsers());
       return res;
     },
     update: async (item: UserGridData) => {
-      const res = await dispatch(updateUser(item)).unwrap();
+      const res = await dispatch(updateUser({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchUsers());
       return res;
     },
@@ -132,7 +134,7 @@ export default function UsersPage() {
       dispatch(fetchUsers());
       return res;
     },
-  }), [users, loading, dispatch]);
+  }), [users, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

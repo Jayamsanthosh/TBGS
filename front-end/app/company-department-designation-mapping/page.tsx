@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ export default function CompanyDepartmentDesignationMappingPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.companyDepartmentDesignationMapping);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(33);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -264,6 +266,7 @@ export default function CompanyDepartmentDesignationMappingPage() {
               STATUS_MASTER: form.STATUS_MASTER,
               USER: "Admin",
               MAC_ADDRESS: "WEB",
+              LINK_ID: linkPagesId,
             };
             lastRes = await dispatch(addMapping(payload as MappingGridData)).unwrap();
           }
@@ -288,6 +291,7 @@ export default function CompanyDepartmentDesignationMappingPage() {
                 STATUS_MASTER: form.STATUS_MASTER,
                 USER: "Admin",
                 MAC_ADDRESS: "WEB",
+                LINK_ID: linkPagesId,
               });
             } else {
               toDelete.push(Number(x.SNO));
@@ -314,6 +318,7 @@ export default function CompanyDepartmentDesignationMappingPage() {
               STATUS_MASTER: form.STATUS_MASTER,
               USER: "Admin",
               MAC_ADDRESS: "WEB",
+              LINK_ID: linkPagesId,
             };
             lastRes = await dispatch(addMapping(payload as MappingGridData)).unwrap();
           }
@@ -331,8 +336,9 @@ export default function CompanyDepartmentDesignationMappingPage() {
             REMARKS: remark,
             STATUS_MASTER: form.STATUS_MASTER,
             USER: "Admin",
-            MAC_ADDRESS: "WEB",
-          };
+              MAC_ADDRESS: "WEB",
+              LINK_ID: linkPagesId,
+            };
           lastRes = await dispatch(addMapping(payload as MappingGridData)).unwrap();
         }
         toast({ title: lastRes?.message ?? "Mapping(s) created successfully", duration: DEFAULT_TOAST_DURATION });

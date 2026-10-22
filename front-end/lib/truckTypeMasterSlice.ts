@@ -8,6 +8,7 @@ export interface TruckTypeGridData {
   TRUCK_TYPE_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface TruckTypeState {

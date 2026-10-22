@@ -12,6 +12,7 @@ export interface AirportGridData {
   AIRPORT_ADDRESS?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface AirportState {

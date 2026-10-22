@@ -6,6 +6,7 @@ import {
   getAnimalHuntingChargesMasterDtlService,
   saveAnimalHuntingChargesMasterCombinedService,
   updateAnimalHuntingChargesMasterCombinedService,
+  submitAnimalHuntingChargesMasterService,
   deleteAnimalHuntingChargesMasterDtlService,
   deleteAnimalHuntingChargesMasterHdrService,
   AnimalHuntingChargesMasterData
@@ -30,7 +31,8 @@ export const getAnimalHuntingChargesMasterHdr = async (req: Request, res: Respon
   }
 
   try {
-    const data = await getAnimalHuntingChargesMasterHdrService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const data = await getAnimalHuntingChargesMasterHdrService(parseInt(id as string, 10), linkId);
     res.json({ success: true, data });
   } catch (error: any) {
     console.error("GetAnimalHuntingChargesMasterHdr error:", error);
@@ -91,6 +93,27 @@ export const updateAnimalHuntingChargesMaster = async (req: Request, res: Respon
     res.json({ success: true, message: result.message || "Animal hunting charges updated successfully" });
   } catch (error: any) {
     console.error("UpdateAnimalHuntingChargesMaster error:", error);
+    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};
+
+export const submitAnimalHuntingChargesMaster = async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { USER, ROLE, MAC_ADDRESS } = identityFrom(req);
+
+  if (!id) {
+    res.status(400).json({ success: false, message: "Hunting charge ID is required" });
+    return;
+  }
+
+  try {
+    const result = await submitAnimalHuntingChargesMasterService(
+      parseInt(id as string, 10),
+      ROLE || "Administrator"
+    );
+    res.json({ success: true, message: result.message || "Animal hunting charges submitted successfully" });
+  } catch (error: any) {
+    console.error("SubmitAnimalHuntingChargesMaster error:", error);
     res.status(500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

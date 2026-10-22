@@ -29,7 +29,8 @@ export const getBusinessPartnerMasterById = async (req: Request, res: Response):
   }
 
   try {
-    const partner = await getBusinessPartnerMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || "0", 10) || 0;
+    const partner = await getBusinessPartnerMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!partner) {
       res.status(404).json({ success: false, message: "Business partner not found" });

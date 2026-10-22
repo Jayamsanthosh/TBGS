@@ -8,7 +8,7 @@ export interface CurrencyGridData {
   ADDRESS?: string;
   Exchange_Rate?: number;
   REMARKS?: string;
-  STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface CurrenciesState {

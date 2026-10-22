@@ -11,6 +11,7 @@ export interface TripTemplateGridData {
   DISTANCE_KM?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number;
 }
 
 interface TripTemplateState {
@@ -47,9 +48,14 @@ export const fetchTripTemplates = createAsyncThunk(
 
 export const getTripTemplateById = createAsyncThunk(
   "tripTemplate/getTripTemplateById",
-  async (id: string | number, { rejectWithValue }) => {
+  async (arg: string | number | { id: string | number; link_id?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/trip-template-master/${id}`);
+      const id = typeof arg === "object" ? arg.id : arg;
+      const linkId = typeof arg === "object" ? arg.link_id : undefined;
+      const url = linkId
+        ? `${API_URL}/trip-template-master/${id}?LINK_ID=${encodeURIComponent(String(linkId))}`
+        : `${API_URL}/trip-template-master/${id}`;
+      const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch trip template");

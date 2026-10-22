@@ -10,6 +10,7 @@ export interface CaliberGridData {
   DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface CaliberState {

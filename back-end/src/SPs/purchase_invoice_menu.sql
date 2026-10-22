@@ -1,0 +1,54 @@
+USE [TBGS]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+/* Registers /purchase-invoice under Masters > Purchase and grants it to Admin.
+   Re-runnable: matches the link on LINK_LOCATION and grants on (role, link). */
+
+DECLARE @MAIN_MENU_ID INT = (
+    SELECT MAIN_MENU_ID FROM VMaster.TBL_MAIN_MENU WHERE MAIN_MENU_NAME = 'Masters'
+);
+DECLARE @SUB_MENU_ID INT = (
+    SELECT SUB_MENU_ID FROM VMaster.TBL_SUB_MENU
+    WHERE MAIN_MENU_ID = @MAIN_MENU_ID AND SUB_MENU_NAME = 'Purchase'
+);
+DECLARE @LINK_SEQ INT = ISNULL((
+    SELECT MAX(LINK_SEQ_ID) FROM VMaster.TBL_LINKS_AND_PAGES WHERE SUB_MENU_ID = @SUB_MENU_ID
+), 0) + 1;
+DECLARE @LINK_ID INT = (
+    SELECT LINK_ID FROM VMaster.TBL_LINKS_AND_PAGES WHERE LINK_LOCATION = '/purchase-invoice'
+);
+
+IF @LINK_ID IS NULL AND @SUB_MENU_ID IS NOT NULL
+BEGIN
+    INSERT INTO VMaster.TBL_LINKS_AND_PAGES
+        (SUB_MENU_ID, LINK_NAME, PAGE_ACTION, REDIRECTION_TYPE, LINK_LOCATION, LINK_SEQ_ID, STYLE_CSS, STATUS_MASTER, CREATED_BY, CREATED_DATE)
+    VALUES
+        (@SUB_MENU_ID, 'Purchase Invoice', '/purchase-invoice', 'internal', '/purchase-invoice', @LINK_SEQ, 'FileText', 'AC', 'System', GETDATE());
+
+    SET @LINK_ID = SCOPE_IDENTITY();
+END
+
+IF @LINK_ID IS NOT NULL
+BEGIN
+    INSERT INTO VMaster.TBL_ROLE_TO_LINK_AND_PAGE
+        (ROLE_ID_ROLE_TO_LINK, LINK_ID_ROLE_TO_LINK, STATUS_ROLE_TO_LINK, CREATED_USER_ROLE_TO_LINK, CREATED_DATE_ROLE_TO_LINK)
+    SELECT R.ROLE_ID, @LINK_ID, 'AC', 'System', GETDATE()
+    FROM VMaster.TBL_ROLE_MASTER R
+    WHERE R.ROLE_NAME IN ('Admin', 'Manager', 'clerk')
+      AND NOT EXISTS (
+        SELECT 1 FROM VMaster.TBL_ROLE_TO_LINK_AND_PAGE X
+        WHERE X.ROLE_ID_ROLE_TO_LINK = R.ROLE_ID
+          AND X.LINK_ID_ROLE_TO_LINK = @LINK_ID
+      );
+
+    PRINT 'Purchase Invoice link ready (LINK_ID = ' + CAST(@LINK_ID AS VARCHAR(10)) + ').';
+END
+ELSE
+BEGIN
+    PRINT 'Purchase menu/sub-menu or link was not found - check Masters > Purchase.';
+END
+GO

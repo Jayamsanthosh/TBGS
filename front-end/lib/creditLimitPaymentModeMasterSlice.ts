@@ -7,7 +7,7 @@ export interface CreditLimitPaymentModeGridData {
   PAYMENT_MODE_NAME: string;
   PAYMENT_MODE_PERCENTAGE?: number;
   REMARKS?: string;
-  STATUS_ENTRY?: string;
+  LINK_ID?: number | null;
 }
 
 interface CreditLimitPaymentModeState {

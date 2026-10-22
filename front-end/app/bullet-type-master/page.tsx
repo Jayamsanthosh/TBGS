@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchBulletTypes, addBulletType, updateBulletType, deleteBulletType, clearBulletTypeError } from "@/lib/bulletTypeMasterSlice";
 import type { BulletTypeGridData } from "@/lib/bulletTypeMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,7 @@ export default function BulletTypeMasterPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.bulletType);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(123);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -135,9 +137,10 @@ export default function BulletTypeMasterPage() {
         BULLET_TYPE_NAME: form.BULLET_TYPE_NAME.trim(),
         DESCRIPTION: form.DESCRIPTION?.trim() || null,
         REMARKS: form.REMARKS?.trim() || null,
-        STATUS_MASTER: "AC",
+        STATUS_MASTER: form.STATUS_MASTER || "AC",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

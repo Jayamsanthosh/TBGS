@@ -16,6 +16,7 @@ export interface UserData {
   REMARKS?: string;
   USER?: string;
   MAC_ADDRESS?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllUsersService = async () => {
@@ -31,7 +32,7 @@ export const getAllUsersService = async () => {
   }
 };
 
-export const showUserByIdService = async (id: number) => {
+export const showUserByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -39,6 +40,7 @@ export const showUserByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("LOGIN_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_USER_INFO_HDR");
 
     return result.recordset[0] || null;
@@ -70,6 +72,7 @@ export const updateUserInfoService = async (user: UserData) => {
       .input("REMARKS", sql.VarChar(1000), user.REMARKS ?? null)
       .input("USER", sql.VarChar(50), user.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), user.MAC_ADDRESS ?? null)
+      .input("LINK_ID", sql.Int, user.LINK_ID ?? null)
       .execute("VMaster.UPDATE_USER_INFO_HDR");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update user");
@@ -104,6 +107,7 @@ export const saveUserInfoService = async (user: UserData) => {
       .input("REMARKS", sql.VarChar(1000), user.REMARKS ?? null)
       .input("USER", sql.VarChar(50), user.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), user.MAC_ADDRESS ?? null)
+      .input("LINK_ID", sql.Int, user.LINK_ID ?? null)
       .execute("VMaster.SAVE_USER_INFO_HDR");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save user");

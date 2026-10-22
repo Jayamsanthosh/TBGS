@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchCurrencies, addCurrency, updateCurrency, deleteCurrency, clearCurrenciesError, CurrencyGridData } from "@/lib/currencyMasterSlice";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const fields: MasterField[] = [
   { key: "CURRENCY_NAME", label: "Currency Name", type: "text", required: true, placeholder: "e.g., USD" },
@@ -72,6 +73,8 @@ export default function CurrencyMasterPage() {
     dispatch(fetchCurrencies());
   }, [dispatch]);
 
+  const linkPagesId = useLinkPagesId(19);
+
   useEffect(() => {
     if (error) {
       toast({ variant: 'destructive', title: 'Error', description: error });
@@ -83,12 +86,12 @@ export default function CurrencyMasterPage() {
     data: currencies,
     isLoading: loading,
     add: async (item: CurrencyGridData) => {
-      const res = await dispatch(addCurrency(item)).unwrap();
+      const res = await dispatch(addCurrency({ ...item, LINK_ID: linkPagesId } as CurrencyGridData)).unwrap();
       dispatch(fetchCurrencies());
       return res;
     },
     update: async (item: CurrencyGridData) => {
-      const res = await dispatch(updateCurrency(item)).unwrap();
+      const res = await dispatch(updateCurrency({ ...item, LINK_ID: linkPagesId } as CurrencyGridData)).unwrap();
       dispatch(fetchCurrencies());
       return res;
     },
@@ -105,7 +108,7 @@ export default function CurrencyMasterPage() {
       dispatch(fetchCurrencies());
       return res;
     },
-  }), [currencies, loading, dispatch]);
+  }), [currencies, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

@@ -14,6 +14,7 @@ export interface DistrictMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number;
 }
 
 export const getAllDistrictMasterService = async () => {
@@ -31,7 +32,7 @@ export const getAllDistrictMasterService = async () => {
   }
 };
 
-export const getDistrictMasterByIdService = async (id: number) => {
+export const getDistrictMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -39,6 +40,7 @@ export const getDistrictMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("DISTRICT_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_DISTRICT_MASTER");
 
     return result.recordset[0] || null;
@@ -65,6 +67,7 @@ export const saveDistrictMasterService = async (data: DistrictMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("lINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_DISTRICT_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save district");
@@ -93,6 +96,7 @@ export const updateDistrictMasterService = async (data: DistrictMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("lINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_DISTRICT_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update district");

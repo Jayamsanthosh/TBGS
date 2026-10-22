@@ -7,7 +7,7 @@ import DMSFilesTab from "./files-tab";
 import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 export default function TruckMasterPage() {
-  const linkPagesId = useLinkPagesId(0);
+  const linkPagesId = useLinkPagesId(180);
   const [selectedTruckNo, setSelectedTruckNo] = useState<string>("");
   const [activeTab, setActiveTab] = useState("trucks");
 
