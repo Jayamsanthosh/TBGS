@@ -51,10 +51,12 @@ export const addLicensePermitCost = createAsyncThunk(
   "licensePermitCost/add",
   async (item: LicensePermitCostGridData, { rejectWithValue }) => {
     try {
+      const payload = { ...item };
+      if (payload.LINK_ID == null) payload.LINK_ID = 91;
       const response = await fetch(`${API_URL}/license-permit-cost`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -72,6 +74,7 @@ export const updateLicensePermitCost = createAsyncThunk(
   async (item: LicensePermitCostGridData, { rejectWithValue }) => {
     try {
       const payload = { ...item, SNO: Number(item.id) || item.SNO };
+      if (payload.LINK_ID == null) payload.LINK_ID = 91;
       const response = await fetch(`${API_URL}/license-permit-cost/${payload.SNO}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

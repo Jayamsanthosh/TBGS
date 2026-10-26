@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchLicensePermitTypes, addLicensePermitType, updateLicensePermitType, deleteLicensePermitType, clearLicensePermitTypesError, LicensePermitTypeGridData } from "@/lib/licensePermitTypeSlice";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const fields: MasterField[] = [
   { key: "LICENSE_PERMIT_NAME", label: "License Permit Name", type: "text", required: true, placeholder: "e.g. Fireworks License" },
@@ -53,6 +54,7 @@ export default function LicensePermitTypePage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.licensePermitTypes);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(90);
 
   useEffect(() => {
     dispatch(fetchLicensePermitTypes());
@@ -69,12 +71,12 @@ export default function LicensePermitTypePage() {
     data: items,
     isLoading: loading,
     add: async (item: LicensePermitTypeGridData) => {
-      const res = await dispatch(addLicensePermitType(item)).unwrap();
+      const res = await dispatch(addLicensePermitType({ ...(item as any), LINK_ID: linkPagesId ?? 90 })).unwrap();
       dispatch(fetchLicensePermitTypes());
       return res;
     },
     update: async (item: LicensePermitTypeGridData) => {
-      const res = await dispatch(updateLicensePermitType(item)).unwrap();
+      const res = await dispatch(updateLicensePermitType({ ...(item as any), LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchLicensePermitTypes());
       return res;
     },

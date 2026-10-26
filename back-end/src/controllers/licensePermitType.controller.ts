@@ -15,7 +15,7 @@ export const getAllLicensePermitType = async (_req: Request, res: Response): Pro
     res.json({ success: true, count: items.length, data: items });
   } catch (error: any) {
     console.error("GetAllLicensePermitType error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -38,7 +38,7 @@ export const getLicensePermitTypeById = async (req: Request, res: Response): Pro
     res.json({ success: true, data: item });
   } catch (error: any) {
     console.error("GetLicensePermitTypeById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -51,11 +51,14 @@ export const saveLicensePermitType = async (req: Request, res: Response): Promis
   }
 
   try {
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
     const result = await saveLicensePermitTypeService(data);
     res.json({ success: true, message: result.message || "License permit type saved successfully" });
   } catch (error: any) {
     console.error("SaveLicensePermitType error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -67,12 +70,15 @@ export const updateLicensePermitType = async (req: Request, res: Response): Prom
     if (!data.LICENSE_PERMIT_ID && id) {
       data.LICENSE_PERMIT_ID = parseInt(id as string, 10);
     }
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
 
     const result = await updateLicensePermitTypeService(data);
     res.json({ success: true, message: result.message || "License permit type updated successfully" });
   } catch (error: any) {
     console.error("UpdateLicensePermitType error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -95,6 +101,6 @@ export const deleteLicensePermitType = async (req: Request, res: Response): Prom
     res.json({ success: true, message: result.message || "License permit type deleted successfully" });
   } catch (error: any) {
     console.error("DeleteLicensePermitType error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

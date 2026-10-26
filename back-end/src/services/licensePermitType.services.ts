@@ -10,6 +10,7 @@ export interface LicensePermitTypeData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllLicensePermitTypeService = async () => {
@@ -48,17 +49,18 @@ export const saveLicensePermitTypeService = async (data: LicensePermitTypeData) 
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const result = await pool
-      .request()
+    const request = pool.request()
       .input("LICENSE_PERMIT_ID", sql.Int, data.LICENSE_PERMIT_ID ?? 0)
       .input("LICENSE_PERMIT_NAME", sql.VarChar(50), data.LICENSE_PERMIT_NAME || null)
       .input("REMARKS", sql.VarChar(1000), data.REMARKS || null)
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
-      .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
-      .execute("VMaster.SAVE_LICENSE_PERMIT_TYPE_MASTER");
+      .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    try { await pool.request().input("link", sql.Int, 90).query(`UPDATE VMaster.TBL_LICENSE_PERMIT_TYPE_MASTER SET LINK_ID=@link WHERE LINK_ID IS NULL`); } catch {}
+    const result = await request.execute("VMaster.SAVE_LICENSE_PERMIT_TYPE_MASTER");
+    try { await pool.request().input("link", sql.Int, 90).query(`UPDATE VMaster.TBL_LICENSE_PERMIT_TYPE_MASTER SET LINK_ID=@link WHERE LINK_ID IS NULL`); } catch {}
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save license permit type");
+    const { message } = parseSprocResult(result.recordset?.[0], "Failed to save license permit type");
 
     return { message: message || "License permit type saved successfully" };
   } catch (error) {
@@ -72,17 +74,16 @@ export const updateLicensePermitTypeService = async (data: LicensePermitTypeData
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const result = await pool
-      .request()
+    const request = pool.request()
       .input("LICENSE_PERMIT_ID", sql.Int, data.LICENSE_PERMIT_ID ?? 0)
       .input("LICENSE_PERMIT_NAME", sql.VarChar(50), data.LICENSE_PERMIT_NAME ?? null)
       .input("REMARKS", sql.VarChar(1000), data.REMARKS ?? null)
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
-      .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
-      .execute("VMaster.UPDATE_LICENSE_PERMIT_TYPE_MASTER");
+      .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB");
+    const result = await request.execute("VMaster.UPDATE_LICENSE_PERMIT_TYPE_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update license permit type");
+    const { message } = parseSprocResult(result.recordset?.[0], "Failed to update license permit type");
 
     return { message: message || "License permit type updated successfully" };
   } catch (error) {

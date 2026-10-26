@@ -29,8 +29,14 @@ export const getHotelRoomTypeMasterById = async (req: Request, res: Response): P
     return;
   }
 
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+
   try {
-    const item = await getHotelRoomTypeMasterByIdService(parseInt(id as string, 10));
+    const item = await getHotelRoomTypeMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!item) {
       res.status(404).json({ success: false, message: "Hotel room type not found" });
@@ -40,7 +46,7 @@ export const getHotelRoomTypeMasterById = async (req: Request, res: Response): P
     res.json({ success: true, data: item });
   } catch (error: any) {
     console.error("GetHotelRoomTypeMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -60,11 +66,17 @@ export const saveHotelRoomTypeMaster = async (req: Request, res: Response): Prom
   }
 
   try {
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+    const rawLinkId = (data as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 251;
+    (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 251;
     const result = await saveHotelRoomTypeMasterService(data);
     res.json({ success: true, message: result.message || "Data saved successfully", ROOM_TYPE_ID: result.ROOM_TYPE_ID });
   } catch (error: any) {
     console.error("SaveHotelRoomTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -86,12 +98,18 @@ export const updateHotelRoomTypeMaster = async (req: Request, res: Response): Pr
     if (!data.ROOM_TYPE_ID && id) {
       data.ROOM_TYPE_ID = parseInt(id as string, 10);
     }
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+    const rawLinkId = (data as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 251;
+    (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 251;
 
     const result = await updateHotelRoomTypeMasterService(data);
     res.json({ success: true, message: result.message || "Record updated successfully" });
   } catch (error: any) {
     console.error("UpdateHotelRoomTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 

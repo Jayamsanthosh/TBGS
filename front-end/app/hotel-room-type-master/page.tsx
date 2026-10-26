@@ -132,16 +132,26 @@ export default function HotelRoomTypeMasterPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (item: any) => {
+  const openEdit = async (item: any) => {
+    const id = item.id || item.ROOM_TYPE_ID;
+    let full = item;
+    try {
+      const res = await fetch(`${API_URL}/hotel-room-type-master/${id}?LINK_ID=251`);
+      if (res.ok) {
+        const json = await res.json();
+        full = json.data || item;
+      }
+    } catch {}
     setForm({
-      ROOM_TYPE_NAME: item.ROOM_TYPE_NAME || "",
-      DESCRIPTION: item.DESCRIPTION || "",
-      REMARKS: item.REMARKS || "",
-      STATUS_MASTER: item.STATUS_MASTER === "ACTIVE" ? "AC" : item.STATUS_MASTER === "INACTIVE" ? "IN" : (item.STATUS_MASTER || "AC"),
+      ROOM_TYPE_NAME: full.ROOM_TYPE_NAME || "",
+      DESCRIPTION: full.DESCRIPTION || "",
+      REMARKS: full.REMARKS || "",
+      STATUS_MASTER: full.STATUS_MASTER === "ACTIVE" ? "AC" : full.STATUS_MASTER === "INACTIVE" ? "IN" : (full.STATUS_MASTER || "AC"),
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: full.LINK_ID ?? 251,
     });
-    setEditing(item);
+    setEditing({ ...item, ...full });
     setDialogOpen(true);
   };
 
@@ -162,6 +172,7 @@ export default function HotelRoomTypeMasterPage() {
       STATUS_MASTER: editing ? form.STATUS_MASTER : "AC",
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: form.LINK_ID ?? 251,
     };
 
     try {

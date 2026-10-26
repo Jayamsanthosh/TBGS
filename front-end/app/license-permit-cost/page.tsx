@@ -247,10 +247,10 @@ export default function LicensePermitCostPage() {
       onBeforeEdit={async (item) => {
         const id = Number(item.SNO ?? item.id);
         if (!id) return undefined;
-        const res = await fetch(`${API_URL}/license-permit-cost/${id}?link_id=${linkPagesId}`);
-        if (!res.ok) return undefined;
-        const json = await res.json();
-        return json.data;
+      const res = await fetch(`${API_URL}/license-permit-cost/${id}?LINK_ID=${linkPagesId}`);
+      if (!res.ok) return undefined;
+      const json = await res.json();
+      return json.data;
       }}
       statusOptions={[
         { label: "All Status", value: "" },

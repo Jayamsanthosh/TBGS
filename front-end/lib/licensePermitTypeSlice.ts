@@ -4,9 +4,10 @@ import { API_URL } from "./config";
 export interface LicensePermitTypeGridData {
   id?: string | number;
   LICENSE_PERMIT_ID?: number;
-  LICENSE_PERMIT_NAME: string;
+  LICENSE_PERMIT_NAME?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface LicensePermitTypesState {
