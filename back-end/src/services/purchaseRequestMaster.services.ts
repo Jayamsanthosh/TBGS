@@ -28,6 +28,7 @@ export interface PurchaseRequestData {
   REQUESTED_BY_EMP_ID?: number;
   /** Name captured at save time, so a login without an employee row still shows. */
   REQUESTED_BY_NAME?: string;
+  LINK_ID?: number | null;
   /* Employee identity taken from the verified session, injected by the controller.
      Authoritative for the requester: the client cannot choose it. */
   sessionEmployee?: {
@@ -376,6 +377,7 @@ export const savePurchaseRequestCombinedService = async (data: PurchaseRequestDa
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
       .input("DELIVERY_LOCATION_ID", sql.Int, numOrNull(data.DELIVERY_LOCATION_ID))
+      .input("link_id", sql.Int, data.LINK_ID ?? 262)
       .execute("VPurchase.SAVE_PURCHASE_REQUEST_HDR");
 
     const hdrResponse = hdrResult.recordset?.[0];
@@ -449,6 +451,7 @@ export const updatePurchaseRequestCombinedService = async (data: PurchaseRequest
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
       .input("DELIVERY_LOCATION_ID", sql.Int, numOrNull(data.DELIVERY_LOCATION_ID))
+      .input("link_id", sql.Int, data.LINK_ID ?? 262)
       .execute("VPurchase.UPDATE_PURCHASE_REQUEST_HDR");
 
     parseSprocResult(hdrResult.recordset?.[0], "Failed to update purchase request header");

@@ -8,6 +8,7 @@ export interface TrailerTypeGridData {
   TRAILER_TYPE_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface TrailerTypeState {
@@ -31,10 +32,10 @@ export const fetchTrailerTypes = createAsyncThunk(
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch trailer types");
       }
-      const json = await response.json();
-      return (json.data || []).map((u: any) => ({ ...u, id: u.TRAILER_TYPE_ID }));
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Failed to fetch trailer types");
+      const json = (await response.json()) as { data?: TrailerTypeGridData[] };
+      return (json.data || []).map((u) => ({ ...u, id: u.TRAILER_TYPE_ID }));
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to fetch trailer types");
     }
   }
 );
@@ -53,8 +54,8 @@ export const addTrailerType = createAsyncThunk(
         return rejectWithValue(errorData.message || "Failed to add trailer type");
       }
       return await response.json();
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Failed to add trailer type");
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to add trailer type");
     }
   }
 );
@@ -74,8 +75,8 @@ export const updateTrailerType = createAsyncThunk(
         return rejectWithValue(errorData.message || "Failed to update trailer type");
       }
       return await response.json();
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Failed to update trailer type");
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to update trailer type");
     }
   }
 );
@@ -84,7 +85,16 @@ export const deleteTrailerType = createAsyncThunk(
   "trailerType/deleteTrailerType",
   async (id: string | number, { rejectWithValue, getState }) => {
     try {
-      const state: any = getState();
+      const state = getState() as {
+        auth?: {
+          user?: {
+            loginName?: string;
+            LOGIN_NAME?: string;
+            role?: string;
+            ROLE?: string;
+          };
+        };
+      };
       const authUser = state.auth?.user;
       const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
       const ROLE = authUser?.role || authUser?.ROLE || "Admin";
@@ -97,8 +107,8 @@ export const deleteTrailerType = createAsyncThunk(
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to delete trailer type");
       }
-      return await response.json(); } catch (error: any) {
-      return rejectWithValue(error.message || "Failed to delete trailer type");
+      return await response.json(); } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to delete trailer type");
     }
   }
 );

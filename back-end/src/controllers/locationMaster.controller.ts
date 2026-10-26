@@ -24,7 +24,7 @@ export const getAllLocationMaster = async (req: Request, res: Response): Promise
     res.json({ success: true, count: locations.length, data: locations });
   } catch (error: any) {
     console.error("GetAllLocationMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -35,7 +35,9 @@ export const getLocationMasterById = async (req: Request, res: Response): Promis
     return;
   }
   try {
-    const location = await getLocationMasterByIdService(id);
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const location = await getLocationMasterByIdService(id, linkId != null && Number.isFinite(linkId) ? linkId : null);
     if (!location) {
       res.status(404).json({ success: false, message: "Location not found" });
       return;
@@ -43,7 +45,7 @@ export const getLocationMasterById = async (req: Request, res: Response): Promis
     res.json({ success: true, data: location });
   } catch (error: any) {
     console.error("GetLocationMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -53,12 +55,19 @@ export const saveLocationMaster = async (req: Request, res: Response): Promise<v
     res.status(400).json({ success: false, message: "Location Name is required" });
     return;
   }
+  const rawLinkId = locationData.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  locationData.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+  const { USER, MAC_ADDRESS } = authFrom(req);
+  locationData.USER = USER || locationData.USER || "Admin";
+  locationData.MAC_ADDRESS = MAC_ADDRESS || locationData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveLocationMasterService(locationData);
     res.json({ success: true, message: result.message || "Location saved successfully", LOCATION_ID: result.LOCATION_ID });
   } catch (error: any) {
     console.error("SaveLocationMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -69,13 +78,20 @@ export const updateLocationMaster = async (req: Request, res: Response): Promise
     res.status(400).json({ success: false, message: "A valid Location ID is required" });
     return;
   }
+  const rawLinkId = locationData.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  locationData.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+  const { USER, MAC_ADDRESS } = authFrom(req);
+  locationData.USER = USER || locationData.USER || "Admin";
+  locationData.MAC_ADDRESS = MAC_ADDRESS || locationData.MAC_ADDRESS || "WEB";
+
   try {
     locationData.LOCATION_ID = id;
     const result = await updateLocationMasterService(locationData);
-    res.json({ success: true, message: result.message || "Location updated successfully" });
+    res.json({ success: true, message: result.message || "Location updated successfully", LOCATION_ID: result.LOCATION_ID || id });
   } catch (error: any) {
     console.error("UpdateLocationMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -91,6 +107,6 @@ export const deleteLocationMaster = async (req: Request, res: Response): Promise
     res.json({ success: true, message: result.message || "Location deleted successfully" });
   } catch (error: any) {
     console.error("DeleteLocationMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

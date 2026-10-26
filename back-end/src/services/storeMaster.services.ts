@@ -17,7 +17,7 @@ export interface StoreMasterData {
   STATUS_MASTER?: string;
   USER?: string;
   MAC_ADDRESS?: string;
-  ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllStoreMasterService = async () => {
@@ -35,7 +35,7 @@ export const getAllStoreMasterService = async () => {
   }
 };
 
-export const getStoreMasterByIdService = async (id: number) => {
+export const getStoreMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -43,6 +43,7 @@ export const getStoreMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("STORE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_STORE_MASTER");
 
     return result.recordset[0] || null;
@@ -73,6 +74,7 @@ export const saveStoreMasterService = async (data: StoreMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_STORE_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save store");
@@ -105,11 +107,15 @@ export const updateStoreMasterService = async (data: StoreMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_STORE_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update store");
+    const { message, data: updatedId } = parseSprocResult(result.recordset?.[0], "Failed to update store");
 
-    return { message: message || "Store updated successfully" };
+    return {
+      message: message || "Store updated successfully",
+      STORE_ID: updatedId || Number(data.STORE_ID ?? 0),
+    };
   } catch (error) {
     console.error("UPDATE_STORE_MASTER SP error:", error);
     throw error;

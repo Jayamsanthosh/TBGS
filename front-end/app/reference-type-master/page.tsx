@@ -13,6 +13,7 @@ import {
   ReferenceTypeMasterGridData,
 } from "@/lib/referenceTypeMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,8 +42,10 @@ const pickVal = (src: any, keys: string[]) => {
 
 export default function ReferenceTypeMasterPage() {
   const dispatch = useAppDispatch();
-  const { items, total, loading, error } = useAppSelector((s) => s.referenceTypeMaster);
+  const { items, loading, error } = useAppSelector((s) => s.referenceTypeMaster);
   const { toast } = useToast();
+
+  const linkPagesId = useLinkPagesId(260);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -103,8 +106,8 @@ export default function ReferenceTypeMasterPage() {
   }, [filtered, currentPage, effectivePageSize]);
 
   useEffect(() => {
-    dispatch(fetchReferenceTypes({}));
-  }, [dispatch]);
+    dispatch(fetchReferenceTypes({ linkId: linkPagesId }));
+  }, [dispatch, linkPagesId]);
 
   useEffect(() => {
     if (error) {
@@ -133,7 +136,7 @@ export default function ReferenceTypeMasterPage() {
   const openEdit = async (item: any) => {
     setEditing(item);
     const detail = item && item.id != null
-      ? await dispatch(fetchReferenceTypeById(Number(item.id))).unwrap().catch(() => null)
+      ? await dispatch(fetchReferenceTypeById({ id: Number(item.id), linkId: linkPagesId })).unwrap().catch(() => null)
       : null;
     const src: any = detail ? detail : item;
     setForm({
@@ -175,6 +178,7 @@ export default function ReferenceTypeMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
@@ -187,7 +191,7 @@ export default function ReferenceTypeMasterPage() {
         toast({ title: res?.message ?? "Reference Type created successfully", duration: DEFAULT_TOAST_DURATION });
       }
       setDialogOpen(false);
-      dispatch(fetchReferenceTypes({}));
+      dispatch(fetchReferenceTypes({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error saving reference type"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }
@@ -199,7 +203,7 @@ export default function ReferenceTypeMasterPage() {
       const res = await dispatch(deleteReferenceType(deleteId)).unwrap();
       setDeleteId(null);
       toast({ title: res?.message ?? "Reference Type deleted successfully", duration: DEFAULT_TOAST_DURATION });
-      dispatch(fetchReferenceTypes({}));
+      dispatch(fetchReferenceTypes({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error deleting reference type"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }

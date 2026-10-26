@@ -121,6 +121,7 @@ export interface PurchaseOrderGridData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
   dtls?: PurchaseOrderDtl[];
   deletedIds?: number[];
 }

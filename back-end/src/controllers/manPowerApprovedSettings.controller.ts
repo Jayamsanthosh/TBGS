@@ -18,7 +18,7 @@ export const getAllManPowerApprovedSettings = async (req: Request, res: Response
     res.json({ success: true, count: items.length, data: items });
   } catch (error: any) {
     console.error("GetAllManPowerApprovedSettings error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -31,7 +31,12 @@ export const getManPowerApprovedSettingsById = async (req: Request, res: Respons
   }
 
   try {
-    const item = await getManPowerApprovedSettingsByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const item = await getManPowerApprovedSettingsByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!item) {
       res.status(404).json({ success: false, message: "Man power approved settings not found" });
@@ -41,7 +46,7 @@ export const getManPowerApprovedSettingsById = async (req: Request, res: Respons
     res.json({ success: true, data: item });
   } catch (error: any) {
     console.error("GetManPowerApprovedSettingsById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -69,6 +74,14 @@ export const saveManPowerApprovedSettings = async (req: Request, res: Response):
     return;
   }
 
+  const rawLinkId = data.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  data.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveManPowerApprovedSettingsService(data);
     res.json({
@@ -78,7 +91,7 @@ export const saveManPowerApprovedSettings = async (req: Request, res: Response):
     });
   } catch (error: any) {
     console.error("SaveManPowerApprovedSettings error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -96,11 +109,19 @@ export const updateManPowerApprovedSettings = async (req: Request, res: Response
       data.MAN_POWER_APPROVED_ID = parseInt(id as string, 10);
     }
 
+    const rawLinkId = data.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    data.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
     const result = await updateManPowerApprovedSettingsService(data);
-    res.json({ success: true, message: result.message || "Record updated successfully" });
+    res.json({ success: true, message: result.message || "Record updated successfully", MAN_POWER_APPROVED_ID: result.MAN_POWER_APPROVED_ID });
   } catch (error: any) {
     console.error("UpdateManPowerApprovedSettings error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -123,6 +144,6 @@ export const deleteManPowerApprovedSettings = async (req: Request, res: Response
     res.json({ success: true, message: result.message || "Record deleted successfully" });
   } catch (error: any) {
     console.error("DeleteManPowerApprovedSettings error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

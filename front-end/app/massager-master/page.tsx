@@ -3,7 +3,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { fetchMassagers, addMassager, updateMassager, deleteMassager, clearMassagerMasterError, type MassagerMasterGridData } from "@/lib/massagerMasterSlice";
+import { fetchMassagers, fetchMassagerById, addMassager, updateMassager, deleteMassager, clearMassagerMasterError, type MassagerMasterGridData } from "@/lib/massagerMasterSlice";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ export default function MassagerMasterPage() {
   const dispatch = useAppDispatch();
   const { massagers, loading, error } = useAppSelector((s) => s.massagerMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(129);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -95,18 +97,38 @@ export default function MassagerMasterPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (item: any) => {
-    setEditing(item);
-    setForm({
-      MASSAGER_NAME: item.MASSAGER_NAME || "",
-      ADDRESS: item.ADDRESS || "",
-      LOCATION_NAME: item.LOCATION_NAME || "",
-      REMARKS: item.REMARKS || "",
-      STATUS_MASTER: item.STATUS_MASTER === "ACTIVE" ? "AC" : item.STATUS_MASTER === "INACTIVE" ? "IA" : (item.STATUS_MASTER || "AC"),
-      USER: "Admin",
-      MAC_ADDRESS: "WEB",
-    });
-    setDialogOpen(true);
+  const openEdit = async (item: any) => {
+    const id = Number(item.MASSAGER_ID ?? item.id);
+    if (!id) return;
+    try {
+      const detail = await dispatch(fetchMassagerById({ id, linkId: linkPagesId })).unwrap();
+      const source = detail || item;
+      setEditing(source);
+      setForm({
+        MASSAGER_NAME: source.MASSAGER_NAME || "",
+        ADDRESS: source.ADDRESS || "",
+        LOCATION_NAME: source.LOCATION_NAME || "",
+        REMARKS: source.REMARKS || "",
+        STATUS_MASTER: source.STATUS_MASTER === "ACTIVE" ? "AC" : source.STATUS_MASTER === "INACTIVE" ? "IA" : (source.STATUS_MASTER || "AC"),
+        USER: "Admin",
+        MAC_ADDRESS: "WEB",
+        LINK_ID: source.LINK_ID ?? linkPagesId,
+      });
+      setDialogOpen(true);
+    } catch {
+      setEditing(item);
+      setForm({
+        MASSAGER_NAME: item.MASSAGER_NAME || "",
+        ADDRESS: item.ADDRESS || "",
+        LOCATION_NAME: item.LOCATION_NAME || "",
+        REMARKS: item.REMARKS || "",
+        STATUS_MASTER: item.STATUS_MASTER === "ACTIVE" ? "AC" : item.STATUS_MASTER === "INACTIVE" ? "IA" : (item.STATUS_MASTER || "AC"),
+        USER: "Admin",
+        MAC_ADDRESS: "WEB",
+        LINK_ID: item.LINK_ID ?? linkPagesId,
+      });
+      setDialogOpen(true);
+    }
   };
 
   const handleSave = async () => {
@@ -128,6 +150,7 @@ export default function MassagerMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

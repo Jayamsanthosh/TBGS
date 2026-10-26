@@ -7,6 +7,7 @@ import { fetchRackMasters, addRackMaster, updateRackMaster, deleteRackMaster, fe
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,8 @@ export default function RackMasterPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.rackMaster);
   const { toast } = useToast();
+
+  const linkPagesId = useLinkPagesId(114);
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -84,8 +87,8 @@ export default function RackMasterPage() {
     return json.data || [];
   });
 
-  const { data: rackSections } = useApiQuery("rm-rack-section", async () => {
-    const res = await fetch(`${API_URL}/rack-section-master`);
+  const { data: rackSections } = useApiQuery("rm-rack-section-113", async () => {
+    const res = await fetch(`${API_URL}/rack-section-master?link_id=113`);
     if (!res.ok) throw new Error("Failed");
     const json = await res.json();
     return (json.data || []).map((c: any) => ({ ...c, id: c.RACK_SECTION_ID }));
@@ -175,8 +178,8 @@ export default function RackMasterPage() {
   }, [filtered, currentPage, effectivePageSize]);
 
   useEffect(() => {
-    dispatch(fetchRackMasters());
-  }, [dispatch]);
+    dispatch(fetchRackMasters({ linkId: linkPagesId }));
+  }, [dispatch, linkPagesId]);
 
   useEffect(() => {
     if (error) {
@@ -209,7 +212,7 @@ export default function RackMasterPage() {
     setLoadingEdit(true);
     setEditing(item);
     try {
-      const response = await dispatch(fetchRackMasterById(Number(item.RACK_ID))).unwrap();
+      const response = await dispatch(fetchRackMasterById({ id: Number(item.RACK_ID), linkId: linkPagesId })).unwrap();
       if (response) {
         setForm({
           RACK_NAME: response.RACK_NAME || "",
@@ -261,6 +264,7 @@ export default function RackMasterPage() {
         REMARKS: form.REMARKS?.trim() || null,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
@@ -273,7 +277,7 @@ export default function RackMasterPage() {
         toast({ title: res?.message ?? "Rack created successfully", duration: DEFAULT_TOAST_DURATION });
       }
       setDialogOpen(false);
-      dispatch(fetchRackMasters());
+      dispatch(fetchRackMasters({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error saving rack"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }
@@ -285,7 +289,7 @@ export default function RackMasterPage() {
       const res = await dispatch(deleteRackMaster(deleteId)).unwrap();
       setDeleteId(null);
       toast({ title: res?.message ?? "Rack deleted successfully", duration: DEFAULT_TOAST_DURATION });
-      dispatch(fetchRackMasters());
+      dispatch(fetchRackMasters({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error deleting rack"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }

@@ -17,9 +17,17 @@ export const getAllReferenceTypeMaster = async (req: Request, res: Response): Pr
   const page = req.query.page != null && req.query.page !== "" ? Number(req.query.page) : null;
   const pageSize =
     req.query.pageSize != null && req.query.pageSize !== "" ? Number(req.query.pageSize) : null;
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
 
   try {
-    const result = await getReferenceTypeMasterListService({ status, search, page, pageSize });
+    const result = await getReferenceTypeMasterListService({
+      status,
+      search,
+      page,
+      pageSize,
+      linkId: linkId != null && Number.isFinite(linkId) ? linkId : null,
+    });
     res.json({ success: true, total: result.total, count: result.rows.length, data: result.rows });
   } catch (error: any) {
     console.error("GetAllReferenceTypeMaster error:", error);
@@ -37,7 +45,12 @@ export const getReferenceTypeMasterById = async (req: Request, res: Response): P
   }
 
   try {
-    const referenceTypeRow = await getReferenceTypeMasterByIdService(idNumber);
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const referenceTypeRow = await getReferenceTypeMasterByIdService(
+      idNumber,
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!referenceTypeRow) {
       res.status(404).json({ success: false, message: "Reference Type not found" });
@@ -76,6 +89,10 @@ export const saveReferenceTypeMaster = async (req: Request, res: Response): Prom
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  referenceTypeData.USER = USER || referenceTypeData.USER || "Admin";
+  referenceTypeData.MAC_ADDRESS = MAC_ADDRESS || referenceTypeData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveReferenceTypeMasterService(referenceTypeData);
     res.json({
@@ -113,9 +130,17 @@ export const updateReferenceTypeMaster = async (req: Request, res: Response): Pr
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  referenceTypeData.USER = USER || referenceTypeData.USER || "Admin";
+  referenceTypeData.MAC_ADDRESS = MAC_ADDRESS || referenceTypeData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await updateReferenceTypeMasterService(referenceTypeData);
-    res.json({ success: true, message: result.message || "Reference Type updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Reference Type updated successfully",
+      REFERENCE_TYPE_ID: result.REFERENCE_TYPE_ID,
+    });
   } catch (error: any) {
     console.error("UpdateReferenceTypeMaster error:", error);
     res.status((error as any)?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });

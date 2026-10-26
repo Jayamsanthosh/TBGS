@@ -253,8 +253,8 @@ export default function OpeningStockPage() {
   }, [filtered, currentPage, effectivePageSize]);
 
   useEffect(() => {
-    dispatch(fetchOpeningStocks({}));
-  }, [dispatch]);
+    dispatch(fetchOpeningStocks({ linkId: linkPagesId }));
+  }, [dispatch, linkPagesId]);
 
   /* A new record starts at DRAFT. The default is applied once the id is known
      from the status master rather than baked into the initial state, because the
@@ -329,6 +329,7 @@ export default function OpeningStockPage() {
     REMARKS: "",
     STATUS_ENTRY: "CF",
     LINK_PAGES_ID: String(linkPagesId),
+    LINK_ID: String(linkPagesId),
   });
 
   /* SHOW_CURRENCY_MASTER returns the rate as "Exchange_Rate", so both spellings
@@ -431,7 +432,7 @@ export default function OpeningStockPage() {
     setPendingBatches([]);
     try {
       const refNo = item.openingStockNo ?? item.OPENING_STOCK_REF_NO ?? item.refNo;
-      const hdr = await dispatch(fetchOpeningStockHdr(refNo)).unwrap();
+      const hdr = await dispatch(fetchOpeningStockHdr({ refNo, linkId: linkPagesId })).unwrap();
       const toStr = (v: any) => (v == null || v === "" ? "" : String(v));
       setForm({
         SNO: hdr.SNO != null ? Number(hdr.SNO) : undefined,
@@ -450,6 +451,7 @@ export default function OpeningStockPage() {
         REMARKS: hdr.REMARKS || "",
         STATUS_ENTRY: hdr.STATUS_ENTRY || "CF",
         LINK_PAGES_ID: toStr(hdr.LINK_PAGES_ID ?? linkPagesId),
+        LINK_ID: toStr(hdr.LINK_ID ?? linkPagesId),
       });
 
       const showRows = await dispatch(fetchOpeningStockDtls(refNo)).unwrap();
@@ -588,6 +590,7 @@ export default function OpeningStockPage() {
         REMARKS: form.REMARKS?.trim() || null,
         STATUS_ENTRY: form.STATUS_ENTRY || "CF",
         LINK_PAGES_ID: toNum(form.LINK_PAGES_ID),
+        LINK_ID: toNum(form.LINK_ID ?? form.LINK_PAGES_ID),
         dtls: validRows.map((r: any) => ({
           OPENING_STOCK_DTL_ID: r.OPENING_STOCK_DTL_ID || undefined,
           LINE_NO: toNum(r.LINE_NO),
@@ -659,7 +662,7 @@ export default function OpeningStockPage() {
       setStepErrors({});
       setLineErrors({});
       setFocusRequest(null);
-      dispatch(fetchOpeningStocks({}));
+      dispatch(fetchOpeningStocks({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error saving opening stock"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     } finally {
@@ -673,7 +676,7 @@ export default function OpeningStockPage() {
       const res = await dispatch(deleteOpeningStockHdr(deleteId)).unwrap();
       setDeleteId(null);
       toast({ title: res?.message ?? "Opening Stock deleted successfully", duration: DEFAULT_TOAST_DURATION });
-      dispatch(fetchOpeningStocks({}));
+      dispatch(fetchOpeningStocks({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error deleting opening stock"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }

@@ -30,7 +30,12 @@ export const getPriorityMasterById = async (req: Request, res: Response): Promis
   }
 
   try {
-    const priority = await getPriorityMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const priority = await getPriorityMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!priority) {
       res.status(404).json({ success: false, message: "Priority not found" });
@@ -40,7 +45,7 @@ export const getPriorityMasterById = async (req: Request, res: Response): Promis
     res.json({ success: true, data: priority });
   } catch (error: any) {
     console.error("GetPriorityMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -52,12 +57,20 @@ export const savePriorityMaster = async (req: Request, res: Response): Promise<v
     return;
   }
 
+  const rawLinkId = priorityData.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  priorityData.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  priorityData.USER = USER || priorityData.USER || "Admin";
+  priorityData.MAC_ADDRESS = MAC_ADDRESS || priorityData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await savePriorityMasterService(priorityData);
     res.json({ success: true, message: result.message || "Data saved successfully", PRIORITY_ID: result.PRIORITY_ID });
   } catch (error: any) {
     console.error("SavePriorityMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -70,11 +83,23 @@ export const updatePriorityMaster = async (req: Request, res: Response): Promise
       priorityData.PRIORITY_ID = parseInt(id as string, 10);
     }
 
+    const rawLinkId = priorityData.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    priorityData.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    priorityData.USER = USER || priorityData.USER || "Admin";
+    priorityData.MAC_ADDRESS = MAC_ADDRESS || priorityData.MAC_ADDRESS || "WEB";
+
     const result = await updatePriorityMasterService(priorityData);
-    res.json({ success: true, message: result.message || "Record updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Record updated successfully",
+      PRIORITY_ID: result.PRIORITY_ID,
+    });
   } catch (error: any) {
     console.error("UpdatePriorityMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -97,6 +122,6 @@ export const deletePriorityMaster = async (req: Request, res: Response): Promise
     res.json({ success: true, message: result.message || "Record deleted successfully" });
   } catch (error: any) {
     console.error("DeletePriorityMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

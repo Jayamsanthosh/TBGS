@@ -141,7 +141,7 @@ export const getPurchaseRequestLoad = async (req: Request, res: Response): Promi
     );
     res.json({ success: true, count: options.length, data: options });
   } catch (error: any) {
-    console.error("GetPurchaseRequestLoad error:", error);
+    console.error("GetPurchaseRequestList error:", error);
     res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
@@ -170,6 +170,12 @@ export const savePurchaseRequest = async (req: Request, res: Response): Promise<
     res.status(400).json({ success: false, message: "Company is required" });
     return;
   }
+  const rawLinkId = (data as any)?.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 262;
+  (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 262;
+  const idAuth = identityFrom(req);
+  (data as any).USER = idAuth.USER || (data as any).USER || "Admin";
+  (data as any).MAC_ADDRESS = idAuth.MAC_ADDRESS || (data as any).MAC_ADDRESS || "WEB";
 
   const dtls = Array.isArray(data.dtls) ? data.dtls : [];
   if (!dtls.length) {
@@ -206,6 +212,12 @@ export const updatePurchaseRequest = async (req: Request, res: Response): Promis
     res.status(400).json({ success: false, message: "Company is required" });
     return;
   }
+  const rawLinkId = (data as any)?.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 262;
+  (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 262;
+  const idAuth = identityFrom(req);
+  (data as any).USER = idAuth.USER || (data as any).USER || "Admin";
+  (data as any).MAC_ADDRESS = idAuth.MAC_ADDRESS || (data as any).MAC_ADDRESS || "WEB";
 
   try {
     if (!data.PURCHASE_REQUEST_NO && refNo) {

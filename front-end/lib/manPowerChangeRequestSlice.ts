@@ -33,6 +33,7 @@ export interface ManPowerChangeRequestGridData {
   FINAL_RESPONSE_REMARKS?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface ManPowerChangeRequestState {
@@ -71,17 +72,18 @@ export const fetchManPowerChangeRequests = createAsyncThunk(
 
 export const getManPowerChangeRequestById = createAsyncThunk(
   "manPowerChangeRequest/getManPowerChangeRequestById",
-  async (id: string | number, { rejectWithValue }) => {
+  async (params: { id: string | number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/man-power-change-request/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/man-power-change-request/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch man power change request");
       }
       const json = await response.json();
       return json.data || null;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Failed to fetch man power change request");
+    } catch (error: unknown) {
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to fetch man power change request");
     }
   }
 );

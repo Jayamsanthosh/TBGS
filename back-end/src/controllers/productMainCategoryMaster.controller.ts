@@ -28,7 +28,12 @@ export const getProductMainCategoryById = async (req: Request, res: Response): P
   }
 
   try {
-    const category = await getProductMainCategoryByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const category = await getProductMainCategoryByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!category) {
       res.status(404).json({ success: false, message: "Main category not found" });
@@ -38,7 +43,7 @@ export const getProductMainCategoryById = async (req: Request, res: Response): P
     res.json({ success: true, data: category });
   } catch (error: any) {
     console.error("GetProductMainCategoryById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -50,12 +55,24 @@ export const saveProductMainCategory = async (req: Request, res: Response): Prom
     return;
   }
 
+  const rawLinkId = categoryData.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  categoryData.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  categoryData.USER = USER || categoryData.USER || "Admin";
+  categoryData.MAC_ADDRESS = MAC_ADDRESS || categoryData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveProductMainCategoryService(categoryData);
-    res.json({ success: true, message: result.message || "Main category saved successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Main category saved successfully",
+      MAIN_CATEGORY_ID: result.MAIN_CATEGORY_ID,
+    });
   } catch (error: any) {
     console.error("SaveProductMainCategory error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -68,11 +85,23 @@ export const updateProductMainCategory = async (req: Request, res: Response): Pr
       categoryData.MAIN_CATEGORY_ID = parseInt(id as string, 10);
     }
 
+    const rawLinkId = categoryData.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    categoryData.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    categoryData.USER = USER || categoryData.USER || "Admin";
+    categoryData.MAC_ADDRESS = MAC_ADDRESS || categoryData.MAC_ADDRESS || "WEB";
+
     const result = await updateProductMainCategoryService(categoryData);
-    res.json({ success: true, message: result.message || "Main category updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Main category updated successfully",
+      MAIN_CATEGORY_ID: result.MAIN_CATEGORY_ID,
+    });
   } catch (error: any) {
     console.error("UpdateProductMainCategory error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -95,6 +124,6 @@ export const deleteProductMainCategory = async (req: Request, res: Response): Pr
     res.json({ success: true, message: result.message || "Main category deleted successfully" });
   } catch (error: any) {
     console.error("DeleteProductMainCategory error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

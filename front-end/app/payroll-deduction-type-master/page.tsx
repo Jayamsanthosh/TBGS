@@ -88,6 +88,7 @@ export default function PayrollDeductionTypeMasterPage() {
     STATUS_MASTER: "AC",
     USER: "Admin",
     MAC_ADDRESS: "WEB",
+    LINK_ID: 221,
   });
 
   const openAdd = () => {
@@ -106,6 +107,7 @@ export default function PayrollDeductionTypeMasterPage() {
       STATUS_MASTER: item.STATUS_MASTER || "AC",
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: item.LINK_ID ?? 221,
     });
     setDialogOpen(true);
   };
@@ -133,6 +135,7 @@ export default function PayrollDeductionTypeMasterPage() {
         DEDUCTION_TYPE_DESCRIPTION: form.DEDUCTION_TYPE_DESCRIPTION?.trim() || null,
         REMARKS: form.REMARKS?.trim() || null,
         STATUS_MASTER: form.STATUS_MASTER,
+        LINK_ID: form.LINK_ID ?? 221,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
       };

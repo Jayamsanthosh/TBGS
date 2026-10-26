@@ -25,6 +25,7 @@ export interface ProductOpeningStockData {
   STATUS_MASTER?: string;
   USER?: string;
   MAC_ADDRESS?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllProductOpeningStockService = async () => {
@@ -42,7 +43,7 @@ export const getAllProductOpeningStockService = async () => {
   }
 };
 
-export const getProductOpeningStockByIdService = async (id: number) => {
+export const getProductOpeningStockByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -50,6 +51,7 @@ export const getProductOpeningStockByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("SNO", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_PRODUCT_OPENING_STOCK");
 
     return result.recordset[0] || null;
@@ -80,6 +82,7 @@ export const saveProductOpeningStockService = async (data: ProductOpeningStockDa
       .input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER))
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_PRODUCT_OPENING_STOCK");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save product opening stock");
@@ -112,6 +115,7 @@ export const updateProductOpeningStockService = async (data: ProductOpeningStock
       .input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER))
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_PRODUCT_OPENING_STOCK");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to update product opening stock");

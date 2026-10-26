@@ -8,6 +8,7 @@ export interface ProductCompanyMainCategoryMappingGridData {
   MAIN_CATEGORY_NAME?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface ProductCompanyMainCategoryMappingState {
@@ -45,9 +46,10 @@ export const fetchProductCompanyMainCategoryMappings = createAsyncThunk(
 
 export const fetchProductCompanyMainCategoryMappingById = createAsyncThunk(
   "productCompanyMainCategoryMapping/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/product-company-main-category-mapping/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/product-company-main-category-mapping/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch mapping");

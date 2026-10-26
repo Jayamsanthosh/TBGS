@@ -66,6 +66,7 @@ export interface OpeningStockGridData {
   STATUS_ENTRY?: string;
   REMARKS?: string;
   LINK_PAGES_ID?: number;
+  LINK_ID?: number | null;
   RESPONSE_BY_EMP_ID?: number;
   RESPONSE_DATE?: string;
   RESPONSE_REMARKS?: string;
@@ -90,9 +91,13 @@ const initialState: OpeningStockMasterState = {
 
 export const fetchOpeningStocks = createAsyncThunk(
   "openingStockMaster/fetchAll",
-  async (_params: { companyId?: number } = {}, { rejectWithValue }) => {
+  async (params: { companyId?: number; linkId?: number } = {}, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/opening-stock`);
+      const search = new URLSearchParams();
+      if (params.companyId) search.set("companyId", String(params.companyId));
+      if (params.linkId) search.set("link_id", String(params.linkId));
+      const qs = search.toString();
+      const response = await fetch(`${API_URL}/opening-stock${qs ? `?${qs}` : ""}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch opening stock records");
@@ -111,9 +116,10 @@ export const fetchOpeningStocks = createAsyncThunk(
 
 export const fetchOpeningStockHdr = createAsyncThunk(
   "openingStockMaster/fetchHdr",
-  async (refNo: string, { rejectWithValue }) => {
+  async (params: { refNo: string; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/opening-stock/hdr/${encodeURIComponent(refNo)}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/opening-stock/hdr/${encodeURIComponent(params.refNo)}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch opening stock header");

@@ -11,6 +11,7 @@ export interface PriceTypeData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllPriceTypeService = async () => {
@@ -28,7 +29,7 @@ export const getAllPriceTypeService = async () => {
   }
 };
 
-export const getPriceTypeByIdService = async (id: number) => {
+export const getPriceTypeByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -36,6 +37,7 @@ export const getPriceTypeByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("PRICE_TYPE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_PRICE_TYPE_MASTER");
     return result.recordset[0] || null;
   } catch (error) {
@@ -58,11 +60,15 @@ export const savePriceTypeService = async (data: PriceTypeData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_PRICE_TYPE_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save price type");
+    const { message, data: savedId } = parseSprocResult(result.recordset?.[0], "Failed to save price type");
 
-    return { message: message || "Price type saved successfully" };
+    return {
+      message: message || "Price type saved successfully",
+      PRICE_TYPE_ID: Number(savedId) || Number(data.PRICE_TYPE_ID ?? 0),
+    };
   } catch (error) {
     console.error("SAVE_PRICE_TYPE_MASTER SP error:", error);
     throw error;
@@ -83,11 +89,15 @@ export const updatePriceTypeService = async (data: PriceTypeData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_PRICE_TYPE_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update price type");
+    const { message, data: updatedId } = parseSprocResult(result.recordset?.[0], "Failed to update price type");
 
-    return { message: message || "Price type updated successfully" };
+    return {
+      message: message || "Price type updated successfully",
+      PRICE_TYPE_ID: Number(updatedId) || Number(data.PRICE_TYPE_ID ?? 0),
+    };
   } catch (error) {
     console.error("UPDATE_PRICE_TYPE_MASTER SP error:", error);
     throw error;

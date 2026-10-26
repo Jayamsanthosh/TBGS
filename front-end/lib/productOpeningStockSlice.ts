@@ -15,6 +15,7 @@ export interface ProductOpeningStockGridData {
   APPROVED_BY?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface ProductOpeningStockState {
@@ -48,9 +49,10 @@ export const fetchProductOpeningStocks = createAsyncThunk(
 
 export const fetchProductOpeningStockById = createAsyncThunk(
   "productOpeningStock/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/product-opening-stock/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/product-opening-stock/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch product opening stock");

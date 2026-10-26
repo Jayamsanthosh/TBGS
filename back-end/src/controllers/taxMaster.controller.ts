@@ -30,7 +30,12 @@ export const getTaxMasterById = async (req: Request, res: Response): Promise<voi
   }
 
   try {
-    const record = await getTaxMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const record = await getTaxMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!record) {
       res.status(404).json({ success: false, message: "Tax not found" });
@@ -92,6 +97,10 @@ export const saveTaxMaster = async (req: Request, res: Response): Promise<void> 
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveTaxMasterService(data);
     res.json({ success: true, message: result.message || "Tax saved successfully", TAX_ID: result.TAX_ID });
@@ -110,6 +119,10 @@ export const updateTaxMaster = async (req: Request, res: Response): Promise<void
     res.status(400).json({ success: false, message: validationError });
     return;
   }
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
 
   try {
     if (!data.TAX_ID && id) {

@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchSalesTypeMasters, addSalesTypeMaster, updateSalesTypeMaster, deleteSalesTypeMaster, fetchSalesTypeMasterById, clearSalesTypeMasterError } from "@/lib/salesTypeMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,8 @@ export default function SalesTypeMasterPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.salesTypeMaster);
   const { toast } = useToast();
+
+  const linkPagesId = useLinkPagesId(106);
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -98,7 +101,7 @@ export default function SalesTypeMasterPage() {
     setLoadingEdit(true);
     setEditing(item);
     try {
-      const response = await dispatch(fetchSalesTypeMasterById(Number(item.SALES_TYPE_ID))).unwrap();
+      const response = await dispatch(fetchSalesTypeMasterById({ id: Number(item.SALES_TYPE_ID), linkId: linkPagesId })).unwrap();
       if (response) {
         setForm({
           SALES_TYPE_NAME: response.SALES_TYPE_NAME || "",
@@ -135,6 +138,7 @@ export default function SalesTypeMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

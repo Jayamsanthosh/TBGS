@@ -3,8 +3,9 @@
 import { useMemo, useEffect } from "react";
 import MasterCrudPage, { type MasterField } from "@/components/MasterCrudPage";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { fetchPriceTypes, addPriceType, updatePriceType, deletePriceType, clearPriceTypeError, PriceTypeGridData } from "@/lib/priceTypeMasterSlice";
+import { fetchPriceTypes, fetchPriceTypeById, addPriceType, updatePriceType, deletePriceType, clearPriceTypeError, PriceTypeGridData } from "@/lib/priceTypeMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
@@ -70,6 +71,7 @@ export default function PriceTypeMasterPage() {
   const dispatch = useAppDispatch();
   const { priceTypes, loading, error } = useAppSelector((s) => s.priceTypes);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(103);
 
   useEffect(() => {
     dispatch(fetchPriceTypes());
@@ -86,12 +88,12 @@ export default function PriceTypeMasterPage() {
     data: priceTypes,
     isLoading: loading,
     add: async (item: PriceTypeGridData) => {
-      const res = await dispatch(addPriceType(item)).unwrap();
+      const res = await dispatch(addPriceType({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchPriceTypes());
       return res;
     },
     update: async (item: PriceTypeGridData) => {
-      const res = await dispatch(updatePriceType(item)).unwrap();
+      const res = await dispatch(updatePriceType({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchPriceTypes());
       return res;
     },
@@ -108,7 +110,23 @@ export default function PriceTypeMasterPage() {
       dispatch(fetchPriceTypes());
       return res;
     },
-  }), [priceTypes, loading, dispatch]);
+  }), [priceTypes, loading, dispatch, linkPagesId]);
+
+  const handleBeforeEdit = async (item: Record<string, unknown>) => {
+    const id = Number(item.PRICE_TYPE_ID ?? item.id);
+    if (!id) return undefined;
+    try {
+      const detail = await dispatch(fetchPriceTypeById({ id, linkId: linkPagesId })).unwrap();
+      if (!detail) return undefined;
+      return {
+        ...detail,
+        id: detail.PRICE_TYPE_ID,
+        PRICE_TYPE_ID: detail.PRICE_TYPE_ID,
+      };
+    } catch {
+      return undefined;
+    }
+  };
 
   return (
     <MasterCrudPage
@@ -120,6 +138,7 @@ export default function PriceTypeMasterPage() {
       columns={columns}
       initialData={[]}
       customStoreOverrides={storeOverrides}
+      onBeforeEdit={handleBeforeEdit}
     />
   );
 }

@@ -12,7 +12,7 @@ export interface ReferenceTypeMasterData {
   STATUS_MASTER?: string;
   USER?: string;
   MAC_ADDRESS?: string;
-  ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export interface ReferenceTypeMasterListFilter {
@@ -20,6 +20,7 @@ export interface ReferenceTypeMasterListFilter {
   search?: string | null;
   page?: number | null;
   pageSize?: number | null;
+  linkId?: number | null;
 }
 
 const toNullablePage = (v: number | null | undefined): number | null =>
@@ -62,6 +63,7 @@ export const saveReferenceTypeMasterService = async (data: ReferenceTypeMasterDa
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || "ACTIVE")
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMASTER.SAVE_REFERENCE_TYPE_MASTER");
 
     const { status, message, data: id } = parseSprocResult(
@@ -92,14 +94,18 @@ export const updateReferenceTypeMasterService = async (data: ReferenceTypeMaster
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMASTER.UPDATE_REFERENCE_TYPE_MASTER");
 
-    const { status, message } = parseSprocResult(
+    const { message, data: updatedId } = parseSprocResult(
       result.recordset?.[0],
       "Failed to update reference type"
     );
 
-    return { message: message || "Reference Type updated successfully" };
+    return {
+      message: message || "Reference Type updated successfully",
+      REFERENCE_TYPE_ID: updatedId || Number(data.REFERENCE_TYPE_ID ?? 0),
+    };
   } catch (error) {
     console.error("UPDATE_REFERENCE_TYPE_MASTER SP error:", error);
     throw error;
@@ -155,6 +161,7 @@ export const getReferenceTypeMasterListService = async (
       .input("Search", sql.NVarChar(200), filter.search || null)
       .input("Page", sql.Int, toNullablePage(filter.page))
       .input("PageSize", sql.Int, toNullablePage(filter.pageSize))
+      .input("LINK_ID", sql.Int, filter.linkId ?? null)
       .execute("VMASTER.GET_REFERENCE_TYPE_MASTER");
 
     const recordsets = (result.recordsets || []) as any[][];
@@ -171,7 +178,7 @@ export const getReferenceTypeMasterListService = async (
   }
 };
 
-export const getReferenceTypeMasterByIdService = async (id: number) => {
+export const getReferenceTypeMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -179,6 +186,7 @@ export const getReferenceTypeMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("REFERENCE_TYPE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMASTER.GET_REFERENCE_TYPE_MASTER");
 
     return mapSingleRowToFrontend(result.recordset?.[0] || null);

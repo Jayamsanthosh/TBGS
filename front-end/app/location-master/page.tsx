@@ -14,6 +14,7 @@ import {
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const columns = [
   { key: "LOCATION_NAME", label: "Location Name" },
@@ -30,6 +31,7 @@ export default function LocationMasterPage() {
   const dispatch = useAppDispatch();
   const { locations, loading, error } = useAppSelector((s) => s.location);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(85);
   const [currentStatus, setCurrentStatus] = useState<string>("Active");
 
   const { data: countries } = useApiQuery("location-countries", async () => {
@@ -190,12 +192,12 @@ export default function LocationMasterPage() {
       data: enrichedData,
       isLoading: loading,
       add: async (item: LocationGridData) => {
-        const res = await dispatch(addLocation(item)).unwrap();
+        const res = await dispatch(addLocation({ ...(item as any), LINK_ID: linkPagesId })).unwrap();
         dispatch(fetchLocations(currentStatus));
         return res;
       },
       update: async (item: LocationGridData) => {
-        const res = await dispatch(updateLocation(item)).unwrap();
+        const res = await dispatch(updateLocation({ ...(item as any), LINK_ID: linkPagesId })).unwrap();
         dispatch(fetchLocations(currentStatus));
         return res;
       },

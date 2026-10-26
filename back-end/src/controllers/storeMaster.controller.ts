@@ -28,7 +28,12 @@ export const getStoreMasterById = async (req: Request, res: Response): Promise<v
   }
 
   try {
-    const store = await getStoreMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const store = await getStoreMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!store) {
       res.status(404).json({ success: false, message: "Store not found" });
@@ -50,6 +55,10 @@ export const saveStoreMaster = async (req: Request, res: Response): Promise<void
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  storeData.USER = USER || storeData.USER || "Admin";
+  storeData.MAC_ADDRESS = MAC_ADDRESS || storeData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveStoreMasterService(storeData);
     res.json({ success: true, message: result.message || "Store saved successfully" });
@@ -63,13 +72,17 @@ export const updateStoreMaster = async (req: Request, res: Response): Promise<vo
   const storeData: StoreMasterData = req.body;
   const { id } = req.params;
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  storeData.USER = USER || storeData.USER || "Admin";
+  storeData.MAC_ADDRESS = MAC_ADDRESS || storeData.MAC_ADDRESS || "WEB";
+
   try {
     if (!storeData.STORE_ID && id) {
       storeData.STORE_ID = parseInt(id as string, 10);
     }
 
     const result = await updateStoreMasterService(storeData);
-    res.json({ success: true, message: result.message || "Store updated successfully" });
+    res.json({ success: true, message: result.message || "Store updated successfully", STORE_ID: result.STORE_ID });
   } catch (error: any) {
     console.error("UpdateStoreMaster error:", error);
     res.status(500).json({ success: false, message: error?.message || "Internal server error" });

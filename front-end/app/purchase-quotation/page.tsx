@@ -1068,10 +1068,10 @@ export default function PurchaseQuotationPage() {
       };
 
       if (editing) {
-        const res = await dispatch(updatePurchaseQuotation(payload as PurchaseQuotationGridData)).unwrap();
+        const res = await dispatch(updatePurchaseQuotation({ ...(payload as any), LINK_ID: linkPagesId ?? 266 } as PurchaseQuotationGridData)).unwrap();
         toast({ title: res?.message ?? "Purchase Quotation updated successfully", duration: DEFAULT_TOAST_DURATION });
       } else {
-        const res = await dispatch(addPurchaseQuotation(payload as PurchaseQuotationGridData)).unwrap();
+        const res = await dispatch(addPurchaseQuotation({ ...(payload as any), LINK_ID: linkPagesId ?? 266 } as PurchaseQuotationGridData)).unwrap();
         toast({ title: res?.message ?? "Purchase Quotation created successfully", duration: DEFAULT_TOAST_DURATION });
         /* Charges staged in Add mode have no ref no, so they are written now the
            header exists. Failures warn but never roll back the quotation. */

@@ -5,6 +5,7 @@ import MasterCrudPage, { type MasterField } from "@/components/MasterCrudPage";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchSalesPackageTypes, addSalesPackageType, updateSalesPackageType, deleteSalesPackageType, clearSalesPackageTypeError, SalesPackageTypeGridData } from "@/lib/salesPackageTypeMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
@@ -64,6 +65,8 @@ export default function SalesPackageTypeMasterPage() {
   const { salesPackageTypes, loading, error } = useAppSelector((s) => s.salesPackageTypes);
   const { toast } = useToast();
 
+  const linkPagesId = useLinkPagesId(107);
+
   useEffect(() => {
     dispatch(fetchSalesPackageTypes());
   }, [dispatch]);
@@ -79,12 +82,12 @@ export default function SalesPackageTypeMasterPage() {
     data: salesPackageTypes,
     isLoading: loading,
     add: async (item: SalesPackageTypeGridData) => {
-      const res = await dispatch(addSalesPackageType(item)).unwrap();
+      const res = await dispatch(addSalesPackageType({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchSalesPackageTypes());
       return res;
     },
     update: async (item: SalesPackageTypeGridData) => {
-      const res = await dispatch(updateSalesPackageType(item)).unwrap();
+      const res = await dispatch(updateSalesPackageType({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchSalesPackageTypes());
       return res;
     },
@@ -101,7 +104,7 @@ export default function SalesPackageTypeMasterPage() {
       dispatch(fetchSalesPackageTypes());
       return res;
     },
-  }), [salesPackageTypes, loading, dispatch]);
+  }), [salesPackageTypes, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

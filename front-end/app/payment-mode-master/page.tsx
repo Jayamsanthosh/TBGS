@@ -87,6 +87,7 @@ export default function PaymentModeMasterPage() {
     STATUS_ENTRY: "AC",
     USER: "Admin",
     MAC_ADDRESS: "WEB",
+    LINK_ID: 43,
   });
 
   const openAdd = () => {
@@ -104,6 +105,7 @@ export default function PaymentModeMasterPage() {
       STATUS_ENTRY: item.STATUS_ENTRY || "AC",
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: item.LINK_ID ?? 43,
     });
     setDialogOpen(true);
   };
@@ -124,6 +126,7 @@ export default function PaymentModeMasterPage() {
         PAYMENT_MODE_PERCENTAGE: form.PAYMENT_MODE_PERCENTAGE === "" ? null : Math.max(0, Number(form.PAYMENT_MODE_PERCENTAGE) || 0),
         REMARKS: form.REMARKS?.trim() || null,
         STATUS_ENTRY: form.STATUS_ENTRY,
+        LINK_ID: form.LINK_ID ?? 43,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
       };

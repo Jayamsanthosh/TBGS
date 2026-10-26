@@ -7,6 +7,7 @@ import { fetchStores, addStore, updateStore, deleteStore, clearStoreError, Store
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 import { validateEmail, enforceStoreValidation } from "@/lib/validation";
 
@@ -141,6 +142,8 @@ export default function StoreMasterPage() {
   const { stores, loading, error } = useAppSelector((s) => s.store);
   const { toast } = useToast();
 
+  const linkPagesId = useLinkPagesId(21);
+
   const { data: camps } = useApiQuery("store-camp-list", async () => {
     const res = await fetch(`${API_URL}/camp-master`);
     if (!res.ok) throw new Error("Failed to fetch camps");
@@ -205,12 +208,12 @@ export default function StoreMasterPage() {
     data: enrichedData,
     isLoading: loading,
     add: async (item: StoreGridData) => {
-      const res = await dispatch(addStore(item)).unwrap();
+      const res = await dispatch(addStore({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchStores());
       return res;
     },
     update: async (item: StoreGridData) => {
-      const res = await dispatch(updateStore(item)).unwrap();
+      const res = await dispatch(updateStore({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchStores());
       return res;
     },
@@ -227,7 +230,7 @@ export default function StoreMasterPage() {
       dispatch(fetchStores());
       return res;
     },
-  }), [enrichedData, loading, dispatch]);
+  }), [enrichedData, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

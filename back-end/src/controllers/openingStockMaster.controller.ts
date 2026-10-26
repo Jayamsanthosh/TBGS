@@ -72,10 +72,12 @@ const validateHeader = (data: OpeningStockData, res: Response, isUpdate: boolean
 
 export const getAllOpeningStock = async (req: Request, res: Response): Promise<void> => {
   const { companyId } = req.query;
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
 
   try {
     const rows = await getOpeningStockListService({
       companyId: toPositiveInt(companyId),
+      linkId: toPositiveInt(rawLinkId),
     });
     res.json({ success: true, total: rows.length, count: rows.length, data: rows });
   } catch (error: any) {
@@ -93,7 +95,8 @@ export const getOpeningStockHdr = async (req: Request, res: Response): Promise<v
   }
 
   try {
-    const data = await getOpeningStockHdrService(refNo as string);
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const data = await getOpeningStockHdrService(refNo as string, toPositiveInt(rawLinkId));
     res.json({ success: true, data });
   } catch (error: any) {
     console.error("GetOpeningStockHdr error:", error);
@@ -141,6 +144,13 @@ export const saveOpeningStock = async (req: Request, res: Response): Promise<voi
 
   if (!validateHeader(data, res, false)) return;
 
+  const rawLinkId = data.LINK_ID ?? data.LINK_PAGES_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  data.LINK_ID = toPositiveInt(rawLinkId);
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveOpeningStockCombinedService(data);
     res.json({
@@ -163,6 +173,13 @@ export const updateOpeningStock = async (req: Request, res: Response): Promise<v
   }
 
   if (!validateHeader(data, res, true)) return;
+
+  const rawLinkId = data.LINK_ID ?? data.LINK_PAGES_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  data.LINK_ID = toPositiveInt(rawLinkId);
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
 
   try {
     const result = await updateOpeningStockCombinedService(data);

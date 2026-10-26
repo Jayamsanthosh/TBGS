@@ -12,6 +12,7 @@ export interface RegionGridData {
   ZONE_NAME?: string;
   DISTANCE_FROM_ARUSHA?: number;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface RegionsState {

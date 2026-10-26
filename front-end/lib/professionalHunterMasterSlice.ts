@@ -8,6 +8,7 @@ export interface ProfessionalHunterMasterGridData {
   PH_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface ProfessionalHunterMasterState {
@@ -24,9 +25,10 @@ const initialState: ProfessionalHunterMasterState = {
 
 export const fetchProfessionalHunterMasters = createAsyncThunk(
   "professionalHunterMaster/fetchAll",
-  async (_, { rejectWithValue }) => {
+  async (params: { linkId?: number } = {}, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/professional-hunter-master`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/professional-hunter-master${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch hunters");
@@ -41,9 +43,10 @@ export const fetchProfessionalHunterMasters = createAsyncThunk(
 
 export const fetchProfessionalHunterMasterById = createAsyncThunk(
   "professionalHunterMaster/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/professional-hunter-master/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/professional-hunter-master/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch hunter");

@@ -7,6 +7,7 @@ import { fetchProductCompanyMainCategoryMappings, addProductCompanyMainCategoryM
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,7 @@ export default function ProductCompanyMainCategoryMappingPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.productCompanyMainCategoryMapping);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(111);
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -118,6 +120,7 @@ export default function ProductCompanyMainCategoryMappingPage() {
     STATUS_MASTER: "ACTIVE",
     USER: "Admin",
     MAC_ADDRESS: "WEB",
+    LINK_ID: linkPagesId,
   });
 
   const openAdd = () => {
@@ -130,7 +133,7 @@ export default function ProductCompanyMainCategoryMappingPage() {
     setLoadingEdit(true);
     setEditing(item);
     try {
-      const response = await dispatch(fetchProductCompanyMainCategoryMappingById(Number(item.SNO))).unwrap();
+      const response = await dispatch(fetchProductCompanyMainCategoryMappingById({ id: Number(item.SNO), linkId: linkPagesId })).unwrap();
       if (response) {
         setForm({
           COMPANY_ID: String(response.COMPANY_ID || ""),
@@ -171,6 +174,7 @@ export default function ProductCompanyMainCategoryMappingPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

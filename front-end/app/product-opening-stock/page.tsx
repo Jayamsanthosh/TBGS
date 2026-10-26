@@ -7,6 +7,7 @@ import { fetchProductOpeningStocks, addProductOpeningStock, updateProductOpening
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,10 +30,26 @@ const normalizeStatus = (val: any): string => {
   return String(val || "");
 };
 
+const MONTH_ABBRS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const toDateInputValue = (value: unknown): string => {
+  const s = String(value ?? "").trim();
+  if (!s) return "";
+  const dmy = s.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/);
+  if (dmy) {
+    const month = MONTH_ABBRS.findIndex((m) => m.toLowerCase() === dmy[2].toLowerCase());
+    if (month >= 0) return `${dmy[3]}-${String(month + 1).padStart(2, "0")}-${dmy[1]}`;
+  }
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 export default function ProductOpeningStockPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.productOpeningStock);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(112);
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -254,17 +271,10 @@ export default function ProductOpeningStockPage() {
     setLoadingEdit(true);
     setEditing(item);
     try {
-      const response = await dispatch(fetchProductOpeningStockById(Number(item.SNO))).unwrap();
+      const response = await dispatch(fetchProductOpeningStockById({ id: Number(item.SNO), linkId: linkPagesId })).unwrap();
       if (response) {
-        let dateVal = "";
-        if (response.OPENING_STOCK_DATE) {
-          const d = new Date(response.OPENING_STOCK_DATE);
-          if (!isNaN(d.getTime())) {
-            dateVal = d.toISOString().split("T")[0];
-          }
-        }
         setForm({
-          OPENING_STOCK_DATE: dateVal,
+          OPENING_STOCK_DATE: toDateInputValue(response.OPENING_STOCK_DATE),
           COMPANY_ID: String(response.COMPANY_ID || ""),
           CAMP_ID: String(response.CAMP_ID || ""),
           STORE_ID: String(response.STORE_ID || ""),
@@ -274,7 +284,7 @@ export default function ProductOpeningStockPage() {
           QTY: response.QTY ?? "",
           APPROVED_BY: response.APPROVED_BY || "",
           REMARKS: response.REMARKS || "",
-          STATUS_MASTER: response.STATUS_MASTER === "AC" ? "ACTIVE" : "INACTIVE",
+          STATUS_MASTER: normalizeStatus(response.STATUS_MASTER) || "ACTIVE",
           USER: "Admin",
           MAC_ADDRESS: "WEB",
         });
@@ -320,6 +330,7 @@ export default function ProductOpeningStockPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
@@ -341,11 +352,11 @@ export default function ProductOpeningStockPage() {
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
-      const userName = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('user') || '{}').username || "Admin") : "Admin";
+      const sessionUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {};
       const res = await dispatch(deleteProductOpeningStock({
         id: deleteId,
-        USER: userName,
-        ROLE: "Admin",
+        USER: sessionUser.username || sessionUser.loginName || "Admin",
+        ROLE: sessionUser.role || "Admin",
         MAC_ADDRESS: "WEB",
       })).unwrap();
       setDeleteId(null);

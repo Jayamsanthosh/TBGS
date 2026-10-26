@@ -7,6 +7,7 @@ export interface SalesPackageTypeGridData {
   SALES_PACKAGE_TYPE_NAME?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface SalesPackageTypeState {

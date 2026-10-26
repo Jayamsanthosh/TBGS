@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { API_URL } from "./config";
 
+export const NEW_SALARY_SCALE_LINK_ID = 92;
+
 export interface SalaryScaleGridData {
   id?: string | number;
   SALARY_SCALE_ID?: number;
@@ -33,6 +35,9 @@ export interface SalaryScaleGridData {
   OT_NONOT?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
+  USER?: string;
+  MAC_ADDRESS?: string;
 }
 
 interface SalaryScaleState {
@@ -52,15 +57,19 @@ export const fetchItems = createAsyncThunk(
   async (status: string | undefined, { rejectWithValue }) => {
     try {
       const url = status
-        ? `${API_URL}/new-salary-scale?status=${encodeURIComponent(status)}`
-        : `${API_URL}/new-salary-scale`;
+        ? `${API_URL}/new-salary-scale?status=${encodeURIComponent(status)}&LINK_ID=${NEW_SALARY_SCALE_LINK_ID}`
+        : `${API_URL}/new-salary-scale?LINK_ID=${NEW_SALARY_SCALE_LINK_ID}`;
       const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch salary scales");
       }
       const json = await response.json();
-      return (json.data || []).map((u: any) => ({ ...u, id: u.SALARY_SCALE_ID }));
+      return (json.data || []).map((u: any) => ({
+        ...u,
+        id: u.SALARY_SCALE_ID,
+        LINK_ID: u.LINK_ID ?? NEW_SALARY_SCALE_LINK_ID,
+      }));
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to fetch salary scales");
     }
@@ -69,12 +78,23 @@ export const fetchItems = createAsyncThunk(
 
 export const addItem = createAsyncThunk(
   "newSalaryScale/addItem",
-  async (item: SalaryScaleGridData, { rejectWithValue }) => {
+  async (item: SalaryScaleGridData, { rejectWithValue, getState }) => {
     try {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || item.USER || "Admin";
+
+      const payload = {
+        ...item,
+        USER,
+        MAC_ADDRESS: item.MAC_ADDRESS || "WEB",
+        LINK_ID: item.LINK_ID ?? NEW_SALARY_SCALE_LINK_ID,
+      };
+
       const response = await fetch(`${API_URL}/new-salary-scale`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -89,9 +109,19 @@ export const addItem = createAsyncThunk(
 
 export const updateItem = createAsyncThunk(
   "newSalaryScale/updateItem",
-  async (item: SalaryScaleGridData, { rejectWithValue }) => {
+  async (item: SalaryScaleGridData, { rejectWithValue, getState }) => {
     try {
-      const payload = { ...item, SALARY_SCALE_ID: Number(item.id) || item.SALARY_SCALE_ID };
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || item.USER || "Admin";
+
+      const payload = {
+        ...item,
+        SALARY_SCALE_ID: Number(item.id) || item.SALARY_SCALE_ID,
+        USER,
+        MAC_ADDRESS: item.MAC_ADDRESS || "WEB",
+        LINK_ID: item.LINK_ID ?? NEW_SALARY_SCALE_LINK_ID,
+      };
       const response = await fetch(`${API_URL}/new-salary-scale/${payload.SALARY_SCALE_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -125,7 +155,8 @@ export const deleteItem = createAsyncThunk(
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to delete salary scale");
       }
-      return await response.json(); } catch (error: any) {
+      return await response.json();
+    } catch (error: any) {
       return rejectWithValue(error.message || "Failed to delete salary scale");
     }
   }

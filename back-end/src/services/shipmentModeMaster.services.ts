@@ -9,7 +9,7 @@ export interface ShipmentModeMasterData {
   STATUS_ENTRY?: string;
   USER?: string;
   MAC_ADDRESS?: string;
-  ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export interface ShipmentModeMasterListFilter {
@@ -17,6 +17,7 @@ export interface ShipmentModeMasterListFilter {
   search?: string | null;
   page?: number | null;
   pageSize?: number | null;
+  linkId?: number | null;
 }
 
 const toNullablePage = (v: number | null | undefined): number | null =>
@@ -50,6 +51,7 @@ export const saveShipmentModeMasterService = async (data: ShipmentModeMasterData
       .input("STATUS_ENTRY", sql.VarChar(50), data.STATUS_ENTRY || "AC")
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMASTER.SAVE_SHIPMENT_MODE_MASTER");
 
     const { status, message, data: id } = parseSprocResult(
@@ -77,14 +79,18 @@ export const updateShipmentModeMasterService = async (data: ShipmentModeMasterDa
       .input("STATUS_ENTRY", sql.VarChar(50), data.STATUS_ENTRY || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMASTER.UPDATE_SHIPMENT_MODE_MASTER");
 
-    const { status, message } = parseSprocResult(
+    const { message, data: updatedId } = parseSprocResult(
       result.recordset?.[0],
       "Failed to update shipment mode"
     );
 
-    return { message: message || "Shipment Mode updated successfully" };
+    return {
+      message: message || "Shipment Mode updated successfully",
+      id: Number(updatedId) || Number(data.SHIPMENT_MODE_ID ?? 0),
+    };
   } catch (error) {
     console.error("UPDATE_SHIPMENT_MODE_MASTER SP error:", error);
     throw error;
@@ -140,6 +146,7 @@ export const getShipmentModeMasterListService = async (
       .input("Search", sql.NVarChar(200), filter.search || null)
       .input("Page", sql.Int, toNullablePage(filter.page))
       .input("PageSize", sql.Int, toNullablePage(filter.pageSize))
+      .input("LINK_ID", sql.Int, filter.linkId ?? null)
       .execute("VMASTER.GET_SHIPMENT_MODE_MASTER");
 
     const recordsets = (result.recordsets || []) as any[][];
@@ -156,7 +163,7 @@ export const getShipmentModeMasterListService = async (
   }
 };
 
-export const getShipmentModeMasterByIdService = async (id: number) => {
+export const getShipmentModeMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -164,6 +171,7 @@ export const getShipmentModeMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("SHIPMENT_MODE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMASTER.GET_SHIPMENT_MODE_MASTER");
 
     return mapSingleRowToFrontend(result.recordset?.[0] || null);

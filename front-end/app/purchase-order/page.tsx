@@ -983,10 +983,10 @@ export default function PurchaseOrderPage() {
       };
 
       if (editing) {
-        const res = await dispatch(updatePurchaseOrder(payload as PurchaseOrderGridData)).unwrap();
+        const res = await dispatch(updatePurchaseOrder({ ...(payload as any), LINK_ID: linkPagesId ?? 268 } as PurchaseOrderGridData)).unwrap();
         toast({ title: res?.message ?? "Purchase Order updated successfully", duration: DEFAULT_TOAST_DURATION });
       } else {
-        const res = await dispatch(addPurchaseOrder(payload as PurchaseOrderGridData)).unwrap();
+        const res = await dispatch(addPurchaseOrder({ ...(payload as any), LINK_ID: linkPagesId ?? 268 } as PurchaseOrderGridData)).unwrap();
         toast({ title: res?.message ?? "Purchase Order created successfully", duration: DEFAULT_TOAST_DURATION });
         /* Charges staged in Add mode have no ref no, so they are written now the
            header exists. Failures warn but never roll back the order. */

@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 interface DropdownItem {
   value: string;
@@ -98,6 +99,8 @@ export default function StoreProductMinimumStockPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.storeProductMinimumStock);
   const { toast } = useToast();
+
+  const linkPagesId = useLinkPagesId(81);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -281,7 +284,7 @@ export default function StoreProductMinimumStockPage() {
     setEditing(item);
     setForm(emptyForm());
     try {
-      const res = await fetch(`${API_URL}/store-product-minimum-stock/${item.id}`);
+      const res = await fetch(`${API_URL}/store-product-minimum-stock/${item.id}?link_id=${linkPagesId}`);
       const json = await res.json();
       const d = json.data || {};
       setForm({
@@ -346,6 +349,7 @@ export default function StoreProductMinimumStockPage() {
       STATUS_MASTER: editing ? form.STATUS_MASTER : "AC",
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: linkPagesId,
     };
 
     try {

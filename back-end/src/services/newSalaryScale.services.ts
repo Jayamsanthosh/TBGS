@@ -35,10 +35,14 @@ export interface NewSalaryScaleData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
+const toInt = (v: any): number | null =>
+  v === undefined || v === null || v === "" || Number.isNaN(Number(v)) ? null : Number(v);
+
 const serializeRecordset = (rows: any[]) =>
-  (rows || []).map((r: any) => ({ ...r, id: r.SALARY_SCALE_ID }));
+  (rows || []).map((r: any) => ({ ...r, id: r.SALARY_SCALE_ID, LINK_ID: r.LINK_ID ?? 92 }));
 
 export const getAllNewSalaryScaleService = async (status?: string) => {
   const pool = getPool();
@@ -69,17 +73,30 @@ export const getAllNewSalaryScaleService = async (status?: string) => {
   }
 };
 
-export const getNewSalaryScaleByIdService = async (id: number) => {
+export const getNewSalaryScaleByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
+
+  const resolvedLinkId = toInt(linkId) ?? 92;
 
   try {
     const result = await pool
       .request()
       .input("SALARY_SCALE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, resolvedLinkId)
       .execute("VMaster.GET_NEW_SALARY_SCALE");
 
-    return result.recordset[0] || null;
+    if (result.recordset?.[0]) {
+      return { ...result.recordset[0], LINK_ID: resolvedLinkId };
+    }
+
+    // Fallback if record exists with different/null link_id
+    const fallback = await pool
+      .request()
+      .input("SALARY_SCALE_ID", sql.Int, id)
+      .query(`SELECT * FROM VMaster.TBL_NEW_SALARY_SCALE WHERE SALARY_SCALE_ID = @SALARY_SCALE_ID`);
+    const fallbackRow = fallback.recordset[0] || null;
+    return fallbackRow ? { ...fallbackRow, LINK_ID: resolvedLinkId } : null;
   } catch (error) {
     console.error("GET_NEW_SALARY_SCALE SP error:", error);
     throw error;
@@ -93,42 +110,66 @@ export const saveNewSalaryScaleService = async (data: NewSalaryScaleData) => {
   try {
     const request = pool.request();
     request.output("SALARY_SCALE_ID", sql.Int);
-    request.input("DESIGNATION_GROUP_ID", sql.Int, data.DESIGNATION_GROUP_ID ?? null);
+    request.input("DESIGNATION_GROUP_ID", sql.Int, toInt(data.DESIGNATION_GROUP_ID) ?? null);
     request.input("SALARY_SCALE_NAME", sql.VarChar(100), data.SALARY_SCALE_NAME || null);
-    request.input("BASIC", sql.Int, data.BASIC ?? null);
-    request.input("FOT", sql.Int, data.FOT ?? null);
-    request.input("ATTENDANCE", sql.Int, data.ATTENDANCE ?? null);
-    request.input("ONE_1YP", sql.Int, data.ONE_1YP ?? null);
-    request.input("TECHNICAL", sql.Int, data.TECHNICAL ?? null);
-    request.input("POLYVALENT", sql.Int, data.POLYVALENT ?? null);
-    request.input("RESPONSIBILITY", sql.Int, data.RESPONSIBILITY ?? null);
-    request.input("LOYALTY", sql.Int, data.LOYALTY ?? null);
-    request.input("NIGHT_ALLOWANCE", sql.Int, data.NIGHT_ALLOWANCE ?? null);
-    request.input("MISCELLANIES", sql.Int, data.MISCELLANIES ?? null);
-    request.input("PRODUCTIVITY", sql.Int, data.PRODUCTIVITY ?? null);
-    request.input("CAPACITY", sql.Int, data.CAPACITY ?? null);
-    request.input("DISCIPLINARY", sql.Int, data.DISCIPLINARY ?? null);
-    request.input("HOUSE_ALLOW", sql.Int, data.HOUSE_ALLOW ?? null);
-    request.input("MEDICIAL", sql.Int, data.MEDICIAL ?? null);
-    request.input("EDUCATION", sql.Int, data.EDUCATION ?? null);
-    request.input("EXTRA1", sql.Int, data.EXTRA1 ?? null);
-    request.input("EXTRA2", sql.Int, data.EXTRA2 ?? null);
-    request.input("EXTRA3", sql.Int, data.EXTRA3 ?? null);
-    request.input("EXTRA4", sql.Int, data.EXTRA4 ?? null);
-    request.input("EXTRA5", sql.Int, data.EXTRA5 ?? null);
-    request.input("EXTRA6", sql.Int, data.EXTRA6 ?? null);
-    request.input("TOTAL", sql.Int, data.TOTAL ?? null);
+    request.input("BASIC", sql.Int, toInt(data.BASIC) ?? null);
+    request.input("FOT", sql.Int, toInt(data.FOT) ?? null);
+    request.input("ATTENDANCE", sql.Int, toInt(data.ATTENDANCE) ?? null);
+    request.input("ONE_1YP", sql.Int, toInt(data.ONE_1YP) ?? null);
+    request.input("TECHNICAL", sql.Int, toInt(data.TECHNICAL) ?? null);
+    request.input("POLYVALENT", sql.Int, toInt(data.POLYVALENT) ?? null);
+    request.input("RESPONSIBILITY", sql.Int, toInt(data.RESPONSIBILITY) ?? null);
+    request.input("LOYALTY", sql.Int, toInt(data.LOYALTY) ?? null);
+    request.input("NIGHT_ALLOWANCE", sql.Int, toInt(data.NIGHT_ALLOWANCE) ?? null);
+    request.input("MISCELLANIES", sql.Int, toInt(data.MISCELLANIES) ?? null);
+    request.input("PRODUCTIVITY", sql.Int, toInt(data.PRODUCTIVITY) ?? null);
+    request.input("CAPACITY", sql.Int, toInt(data.CAPACITY) ?? null);
+    request.input("DISCIPLINARY", sql.Int, toInt(data.DISCIPLINARY) ?? null);
+    request.input("HOUSE_ALLOW", sql.Int, toInt(data.HOUSE_ALLOW) ?? null);
+    request.input("MEDICIAL", sql.Int, toInt(data.MEDICIAL) ?? null);
+    request.input("EDUCATION", sql.Int, toInt(data.EDUCATION) ?? null);
+    request.input("EXTRA1", sql.Int, toInt(data.EXTRA1) ?? null);
+    request.input("EXTRA2", sql.Int, toInt(data.EXTRA2) ?? null);
+    request.input("EXTRA3", sql.Int, toInt(data.EXTRA3) ?? null);
+    request.input("EXTRA4", sql.Int, toInt(data.EXTRA4) ?? null);
+    request.input("EXTRA5", sql.Int, toInt(data.EXTRA5) ?? null);
+    request.input("EXTRA6", sql.Int, toInt(data.EXTRA6) ?? null);
+    request.input("TOTAL", sql.Int, toInt(data.TOTAL) ?? null);
     request.input("OT_NONOT", sql.VarChar(30), data.OT_NONOT || null);
     request.input("REMARKS", sql.VarChar(1000), data.REMARKS || null);
-    request.input("STATUS_MASTER", sql.VarChar(10), data.STATUS_MASTER || null);
+    request.input("STATUS_MASTER", sql.VarChar(10), data.STATUS_MASTER || "AC");
     request.input("USER", sql.VarChar(50), data.USER || "Admin");
     request.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
 
     const result = await request.execute("VMaster.SAVE_NEW_SALARY_SCALE");
-    const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save salary scale");
+    const { message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save salary scale");
 
-    const newId = result.output?.SALARY_SCALE_ID ?? savedData;
-    return { message: message || "Data saved successfully", SALARY_SCALE_ID: newId };
+    let newId = toInt(result.output?.SALARY_SCALE_ID) || toInt(savedData);
+    if (!newId || newId === 0) {
+      const idRes = await pool
+        .request()
+        .input("SALARY_SCALE_NAME", sql.VarChar(100), data.SALARY_SCALE_NAME)
+        .query(
+          `SELECT TOP 1 SALARY_SCALE_ID FROM VMaster.TBL_NEW_SALARY_SCALE WHERE SALARY_SCALE_NAME = @SALARY_SCALE_NAME ORDER BY SALARY_SCALE_ID DESC`
+        );
+      newId = idRes.recordset?.[0]?.SALARY_SCALE_ID;
+    }
+
+    const resolvedLinkId = toInt(data.LINK_ID) ?? 92;
+    if (newId) {
+      await pool
+        .request()
+        .input("LINK_ID", sql.Int, resolvedLinkId)
+        .input("SALARY_SCALE_ID", sql.Int, newId)
+        .query(
+          `UPDATE VMaster.TBL_NEW_SALARY_SCALE SET LINK_ID = @LINK_ID WHERE SALARY_SCALE_ID = @SALARY_SCALE_ID AND (LINK_ID IS NULL OR LINK_ID = 0)`
+        );
+    }
+
+    return {
+      message: message || "DATA SAVED SUCCESSFULLY",
+      SALARY_SCALE_ID: newId,
+    };
   } catch (error) {
     console.error("SAVE_NEW_SALARY_SCALE SP error:", error);
     throw error;
@@ -140,44 +181,47 @@ export const updateNewSalaryScaleService = async (data: NewSalaryScaleData) => {
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const result = await pool
-      .request()
-      .input("SALARY_SCALE_ID", sql.Int, data.SALARY_SCALE_ID ?? 0)
-      .input("DESIGNATION_GROUP_ID", sql.Int, data.DESIGNATION_GROUP_ID ?? null)
-      .input("SALARY_SCALE_NAME", sql.VarChar(100), data.SALARY_SCALE_NAME ?? null)
-      .input("BASIC", sql.Int, data.BASIC ?? null)
-      .input("FOT", sql.Int, data.FOT ?? null)
-      .input("ATTENDANCE", sql.Int, data.ATTENDANCE ?? null)
-      .input("ONE_1YP", sql.Int, data.ONE_1YP ?? null)
-      .input("TECHNICAL", sql.Int, data.TECHNICAL ?? null)
-      .input("POLYVALENT", sql.Int, data.POLYVALENT ?? null)
-      .input("RESPONSIBILITY", sql.Int, data.RESPONSIBILITY ?? null)
-      .input("LOYALTY", sql.Int, data.LOYALTY ?? null)
-      .input("NIGHT_ALLOWANCE", sql.Int, data.NIGHT_ALLOWANCE ?? null)
-      .input("MISCELLANIES", sql.Int, data.MISCELLANIES ?? null)
-      .input("PRODUCTIVITY", sql.Int, data.PRODUCTIVITY ?? null)
-      .input("CAPACITY", sql.Int, data.CAPACITY ?? null)
-      .input("DISCIPLINARY", sql.Int, data.DISCIPLINARY ?? null)
-      .input("HOUSE_ALLOW", sql.Int, data.HOUSE_ALLOW ?? null)
-      .input("MEDICIAL", sql.Int, data.MEDICIAL ?? null)
-      .input("EDUCATION", sql.Int, data.EDUCATION ?? null)
-      .input("EXTRA1", sql.Int, data.EXTRA1 ?? null)
-      .input("EXTRA2", sql.Int, data.EXTRA2 ?? null)
-      .input("EXTRA3", sql.Int, data.EXTRA3 ?? null)
-      .input("EXTRA4", sql.Int, data.EXTRA4 ?? null)
-      .input("EXTRA5", sql.Int, data.EXTRA5 ?? null)
-      .input("EXTRA6", sql.Int, data.EXTRA6 ?? null)
-      .input("TOTAL", sql.Int, data.TOTAL ?? null)
-      .input("OT_NONOT", sql.VarChar(30), data.OT_NONOT ?? null)
-      .input("REMARKS", sql.VarChar(1000), data.REMARKS ?? null)
-      .input("STATUS_MASTER", sql.VarChar(10), data.STATUS_MASTER ?? null)
-      .input("USER", sql.VarChar(50), data.USER ?? "Admin")
-      .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
-      .execute("VMaster.UPDATE_NEW_SALARY_SCALE");
+    const request = pool.request();
+    request.output("SALARY_SCALE_ID", sql.Int);
+    request.input("DESIGNATION_GROUP_ID", sql.Int, toInt(data.DESIGNATION_GROUP_ID) ?? null);
+    request.input("SALARY_SCALE_NAME", sql.VarChar(100), data.SALARY_SCALE_NAME ?? null);
+    request.input("BASIC", sql.Int, toInt(data.BASIC) ?? null);
+    request.input("FOT", sql.Int, toInt(data.FOT) ?? null);
+    request.input("ATTENDANCE", sql.Int, toInt(data.ATTENDANCE) ?? null);
+    request.input("ONE_1YP", sql.Int, toInt(data.ONE_1YP) ?? null);
+    request.input("TECHNICAL", sql.Int, toInt(data.TECHNICAL) ?? null);
+    request.input("POLYVALENT", sql.Int, toInt(data.POLYVALENT) ?? null);
+    request.input("RESPONSIBILITY", sql.Int, toInt(data.RESPONSIBILITY) ?? null);
+    request.input("LOYALTY", sql.Int, toInt(data.LOYALTY) ?? null);
+    request.input("NIGHT_ALLOWANCE", sql.Int, toInt(data.NIGHT_ALLOWANCE) ?? null);
+    request.input("MISCELLANIES", sql.Int, toInt(data.MISCELLANIES) ?? null);
+    request.input("PRODUCTIVITY", sql.Int, toInt(data.PRODUCTIVITY) ?? null);
+    request.input("CAPACITY", sql.Int, toInt(data.CAPACITY) ?? null);
+    request.input("DISCIPLINARY", sql.Int, toInt(data.DISCIPLINARY) ?? null);
+    request.input("HOUSE_ALLOW", sql.Int, toInt(data.HOUSE_ALLOW) ?? null);
+    request.input("MEDICIAL", sql.Int, toInt(data.MEDICIAL) ?? null);
+    request.input("EDUCATION", sql.Int, toInt(data.EDUCATION) ?? null);
+    request.input("EXTRA1", sql.Int, toInt(data.EXTRA1) ?? null);
+    request.input("EXTRA2", sql.Int, toInt(data.EXTRA2) ?? null);
+    request.input("EXTRA3", sql.Int, toInt(data.EXTRA3) ?? null);
+    request.input("EXTRA4", sql.Int, toInt(data.EXTRA4) ?? null);
+    request.input("EXTRA5", sql.Int, toInt(data.EXTRA5) ?? null);
+    request.input("EXTRA6", sql.Int, toInt(data.EXTRA6) ?? null);
+    request.input("TOTAL", sql.Int, toInt(data.TOTAL) ?? null);
+    request.input("OT_NONOT", sql.VarChar(30), data.OT_NONOT ?? null);
+    request.input("REMARKS", sql.VarChar(1000), data.REMARKS ?? null);
+    request.input("STATUS_MASTER", sql.VarChar(10), data.STATUS_MASTER ?? "AC");
+    request.input("USER", sql.VarChar(50), data.USER ?? "Admin");
+    request.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB");
+    request.input("LINK_ID", sql.Int, toInt(data.LINK_ID) ?? 92);
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update salary scale");
+    const result = await request.execute("VMaster.UPDATE_NEW_SALARY_SCALE");
+    const { message, data: updatedId } = parseSprocResult(result.recordset?.[0], "Failed to update salary scale");
 
-    return { message: message || "Record updated successfully" };
+    return {
+      message: message || "RECORD UPDATED SUCCESSFULLY",
+      SALARY_SCALE_ID: toInt(result.output?.SALARY_SCALE_ID) || toInt(updatedId) || toInt(data.SALARY_SCALE_ID),
+    };
   } catch (error) {
     console.error("UPDATE_NEW_SALARY_SCALE SP error:", error);
     throw error;
@@ -198,18 +242,18 @@ export const deleteNewSalaryScaleService = async (
       .request()
       .input("SALARY_SCALE_ID", sql.Int, id)
       .input("USER", sql.VarChar(50), user || "Admin")
-      .input("ROLE", sql.VarChar(50), role || "Manager")
+      .input("ROLE", sql.VarChar(50), role || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), macAddress || "WEB")
       .execute("VMaster.DELETE_NEW_SALARY_SCALE");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to delete salary scale");
-
-    return { message: message || "Record deleted successfully" };
+    const { message } = parseSprocResult(result.recordset?.[0], "Failed to delete salary scale");
+    return { message: message || "RECORD DELETED SUCCESSFULLY" };
   } catch (error) {
     const msg = (error as any)?.message || "";
     if (msg.includes("REFERENCE constraint") || msg.includes("FK_")) {
       throw new Error("Cannot delete: This salary scale has associated records.");
     }
+    console.error("DELETE_NEW_SALARY_SCALE SP error:", error);
     throw error;
   }
 };

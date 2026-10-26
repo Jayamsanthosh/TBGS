@@ -3,8 +3,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { fetchPriorities, addPriority, updatePriority, deletePriority, clearPriorityError, type PriorityGridData } from "@/lib/priorityMasterSlice";
+import { fetchPriorities, fetchPriorityById, addPriority, updatePriority, deletePriority, clearPriorityError, type PriorityGridData } from "@/lib/priorityMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ export default function PriorityMasterPage() {
   const dispatch = useAppDispatch();
   const { priorities, loading, error } = useAppSelector((s) => s.priority);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(241);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -37,6 +39,7 @@ export default function PriorityMasterPage() {
   const [pageSize, setPageSize] = useState<number | "ALL">(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState(false);
 
   const role = useMemo(() => {
     if (typeof window !== 'undefined') {
@@ -89,6 +92,7 @@ export default function PriorityMasterPage() {
     STATUS_MASTER: "ACTIVE",
     USER: "Admin",
     MAC_ADDRESS: "WEB",
+    LINK_ID: linkPagesId,
   });
 
   const openAdd = () => {
@@ -97,18 +101,35 @@ export default function PriorityMasterPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (item: any) => {
+  const openEdit = async (item: PriorityGridData) => {
+    const id = Number(item.PRIORITY_ID ?? item.id);
+    if (!id) {
+      toast({ title: "Priority ID is missing", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
     setEditing(item);
-    setForm({
-      PRIORITY_ID: item.PRIORITY_ID || 0,
-      PRIORITY_NAME: item.PRIORITY_NAME || "",
-      PRIORITY_DESCRIPTION: item.PRIORITY_DESCRIPTION || "",
-      REMARKS: item.REMARKS || "",
-      STATUS_MASTER: normalizeStatus(item.STATUS_MASTER) === "ACTIVE" ? "ACTIVE" : "INACTIVE",
-      USER: "Admin",
-      MAC_ADDRESS: "WEB",
-    });
     setDialogOpen(true);
+    setLoadingEdit(true);
+    try {
+      const detail = await dispatch(fetchPriorityById({ id, linkId: linkPagesId })).unwrap();
+      if (!detail) throw new Error("Priority not found");
+      setForm({
+        PRIORITY_ID: detail.PRIORITY_ID || 0,
+        PRIORITY_NAME: detail.PRIORITY_NAME || "",
+        PRIORITY_DESCRIPTION: detail.PRIORITY_DESCRIPTION || "",
+        REMARKS: detail.REMARKS || "",
+        STATUS_MASTER: normalizeStatus(detail.STATUS_MASTER) === "ACTIVE" ? "ACTIVE" : "INACTIVE",
+        USER: "Admin",
+        MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
+      });
+    } catch (e: unknown) {
+      setDialogOpen(false);
+      const message = typeof e === "string" ? e : e instanceof Error ? e.message : "Error loading priority";
+      toast({ title: message, variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+    } finally {
+      setLoadingEdit(false);
+    }
   };
 
   const handleSave = async () => {
@@ -137,6 +158,7 @@ export default function PriorityMasterPage() {
         STATUS_MASTER: editing ? (form.STATUS_MASTER === "ACTIVE" ? "AC" : "IA") : "AC",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
@@ -311,18 +333,24 @@ export default function PriorityMasterPage() {
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Priority" : "Add Priority"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              {renderField("PRIORITY_NAME", "Priority Name", "text", undefined, true, "e.g., High", 50)}
-              {renderField("PRIORITY_DESCRIPTION", "Description", "text", undefined, false, "e.g., Handle with high priority", 50)}
-              {renderField("STATUS_MASTER", "Status", "select", [{ value: "ACTIVE", label: "Active" }, { value: "INACTIVE", label: "Inactive" }], false)}
+          {loadingEdit ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
             </div>
-            {renderField("REMARKS", "Remarks", "textarea", undefined, false, "Additional notes...")}
-            <div className="flex justify-end gap-3 pt-2 border-t">
-              <Button variant="outline" onClick={() => setDialogOpen(false)} className="text-xs">Cancel</Button>
-              <Button onClick={handleSave} className={editing ? "bg-info text-info-foreground hover:bg-info/90 text-xs" : "bg-primary text-primary-foreground hover:bg-primary/90 text-xs"}>{editing ? "Update" : "Create"}</Button>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                {renderField("PRIORITY_NAME", "Priority Name", "text", undefined, true, "e.g., High", 50)}
+                {renderField("PRIORITY_DESCRIPTION", "Description", "text", undefined, false, "e.g., Handle with high priority", 50)}
+                {renderField("STATUS_MASTER", "Status", "select", [{ value: "ACTIVE", label: "Active" }, { value: "INACTIVE", label: "Inactive" }], false)}
+              </div>
+              {renderField("REMARKS", "Remarks", "textarea", undefined, false, "Additional notes...")}
+              <div className="flex justify-end gap-3 pt-2 border-t">
+                <Button variant="outline" onClick={() => setDialogOpen(false)} className="text-xs">Cancel</Button>
+                <Button onClick={handleSave} className={editing ? "bg-info text-info-foreground hover:bg-info/90 text-xs" : "bg-primary text-primary-foreground hover:bg-primary/90 text-xs"}>{editing ? "Update" : "Create"}</Button>
+              </div>
             </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
 

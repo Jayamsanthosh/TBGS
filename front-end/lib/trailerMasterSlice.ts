@@ -29,6 +29,7 @@ export interface TrailerGridData {
   GOODS_CAPACITY?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface TrailerState {

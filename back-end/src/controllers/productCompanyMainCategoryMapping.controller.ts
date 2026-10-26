@@ -30,7 +30,12 @@ export const getProductCompanyMainCategoryMappingById = async (req: Request, res
   }
 
   try {
-    const record = await getProductCompanyMainCategoryMappingByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const record = await getProductCompanyMainCategoryMappingByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!record) {
       res.status(404).json({ success: false, message: "Mapping not found" });
@@ -40,7 +45,7 @@ export const getProductCompanyMainCategoryMappingById = async (req: Request, res
     res.json({ success: true, data: record });
   } catch (error: any) {
     console.error("GetProductCompanyMainCategoryMappingById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -56,12 +61,20 @@ export const saveProductCompanyMainCategoryMapping = async (req: Request, res: R
     return;
   }
 
+  const rawLinkId = data.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  data.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveProductCompanyMainCategoryMappingService(data);
     res.json({ success: true, message: result.message || "Data saved successfully", SNO: result.SNO });
   } catch (error: any) {
     console.error("SaveProductCompanyMainCategoryMapping error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -74,11 +87,19 @@ export const updateProductCompanyMainCategoryMapping = async (req: Request, res:
       data.SNO = parseInt(id as string, 10);
     }
 
+    const rawLinkId = data.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    data.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
     const result = await updateProductCompanyMainCategoryMappingService(data);
     res.json({ success: true, message: result.message || "Record updated successfully", SNO: result.SNO });
   } catch (error: any) {
     console.error("UpdateProductCompanyMainCategoryMapping error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -96,6 +117,6 @@ export const deleteProductCompanyMainCategoryMapping = async (req: Request, res:
     res.json({ success: true, message: result.message || "Record deleted successfully" });
   } catch (error: any) {
     console.error("DeleteProductCompanyMainCategoryMapping error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

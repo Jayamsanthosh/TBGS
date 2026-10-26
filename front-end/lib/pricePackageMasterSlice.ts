@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { API_URL } from "./config";
 
+export const PRICE_PACKAGE_LINK_ID = 104;
+
 export interface PricePackageGridData {
   id?: string | number;
   PRICE_PACKAGE_ID?: number;
@@ -9,6 +11,7 @@ export interface PricePackageGridData {
   PRICE_PACKAGE_DAYS?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface PricePackageState {
@@ -43,12 +46,22 @@ export const fetchPricePackages = createAsyncThunk(
 
 export const addPricePackage = createAsyncThunk(
   "pricePackage/addPricePackage",
-  async (item: PricePackageGridData, { rejectWithValue }) => {
+  async (item: PricePackageGridData, { rejectWithValue, getState }) => {
     try {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+
+      const payload = {
+        ...item,
+        USER,
+        LINK_ID: item.LINK_ID ?? PRICE_PACKAGE_LINK_ID,
+      };
+
       const response = await fetch(`${API_URL}/price-package-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -64,9 +77,19 @@ export const addPricePackage = createAsyncThunk(
 
 export const updatePricePackage = createAsyncThunk(
   "pricePackage/updatePricePackage",
-  async (item: PricePackageGridData, { rejectWithValue }) => {
+  async (item: PricePackageGridData, { rejectWithValue, getState }) => {
     try {
-      const payload = { ...item, PRICE_PACKAGE_ID: Number(item.id) || item.PRICE_PACKAGE_ID };
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+
+      const payload = {
+        ...item,
+        PRICE_PACKAGE_ID: Number(item.id) || item.PRICE_PACKAGE_ID,
+        USER,
+        LINK_ID: item.LINK_ID ?? PRICE_PACKAGE_LINK_ID,
+      };
+
       const response = await fetch(`${API_URL}/price-package-master/${payload.PRICE_PACKAGE_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -101,7 +124,8 @@ export const deletePricePackage = createAsyncThunk(
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || "Failed to delete price package");
       }
-      return await response.json(); } catch (error: any) {
+      return await response.json();
+    } catch (error: any) {
       if (error?.name === "AbortError") throw error;
       return rejectWithValue(error?.message || "Failed to delete price package");
     }

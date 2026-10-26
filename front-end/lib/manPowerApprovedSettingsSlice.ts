@@ -17,6 +17,7 @@ export interface ManPowerApprovedSettingsGridData {
   APPROVED_BY?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface ManPowerApprovedSettingsState {
@@ -55,17 +56,18 @@ export const fetchManPowerApprovedSettings = createAsyncThunk(
 
 export const getManPowerApprovedSettingsById = createAsyncThunk(
   "manPowerApprovedSettings/getManPowerApprovedSettingsById",
-  async (id: string | number, { rejectWithValue }) => {
+  async (params: { id: string | number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/man-power-approved-settings/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/man-power-approved-settings/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch man power approved settings");
       }
       const json = await response.json();
       return json.data || null;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Failed to fetch man power approved settings");
+    } catch (error: unknown) {
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to fetch man power approved settings");
     }
   }
 );

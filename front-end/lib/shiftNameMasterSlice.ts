@@ -13,6 +13,7 @@ export interface ShiftNameMasterGridData {
   ACTUAL_WORKING_HOURS?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface ShiftNameMasterState {
@@ -49,9 +50,10 @@ export const fetchShiftNames = createAsyncThunk(
 
 export const getShiftNameById = createAsyncThunk(
   "shiftNames/getShiftNameById",
-  async (id: string | number, { rejectWithValue }) => {
+  async (params: { id: string | number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/shift-name-master/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/shift-name-master/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch shift name");

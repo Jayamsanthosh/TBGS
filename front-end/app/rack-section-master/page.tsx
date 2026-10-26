@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchRackSectionMasters, addRackSectionMaster, updateRackSectionMaster, deleteRackSectionMaster, fetchRackSectionMasterById, clearRackSectionMasterError } from "@/lib/rackSectionMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,8 @@ export default function RackSectionMasterPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.rackSectionMaster);
   const { toast } = useToast();
+
+  const linkPagesId = useLinkPagesId(113);
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -69,8 +72,8 @@ export default function RackSectionMasterPage() {
   }, [filtered, currentPage, effectivePageSize]);
 
   useEffect(() => {
-    dispatch(fetchRackSectionMasters());
-  }, [dispatch]);
+    dispatch(fetchRackSectionMasters({ linkId: linkPagesId }));
+  }, [dispatch, linkPagesId]);
 
   useEffect(() => {
     if (error) {
@@ -97,7 +100,7 @@ export default function RackSectionMasterPage() {
     setLoadingEdit(true);
     setEditing(item);
     try {
-      const response = await dispatch(fetchRackSectionMasterById(Number(item.RACK_SECTION_ID))).unwrap();
+      const response = await dispatch(fetchRackSectionMasterById({ id: Number(item.RACK_SECTION_ID), linkId: linkPagesId })).unwrap();
       if (response) {
         setForm({
           RACK_SECTION_NAME: response.RACK_SECTION_NAME || "",
@@ -137,6 +140,7 @@ export default function RackSectionMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
@@ -149,7 +153,7 @@ export default function RackSectionMasterPage() {
         toast({ title: res?.message ?? "Rack section created successfully", duration: DEFAULT_TOAST_DURATION });
       }
       setDialogOpen(false);
-      dispatch(fetchRackSectionMasters());
+      dispatch(fetchRackSectionMasters({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error saving rack section"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }
@@ -161,7 +165,7 @@ export default function RackSectionMasterPage() {
       const res = await dispatch(deleteRackSectionMaster(deleteId)).unwrap();
       setDeleteId(null);
       toast({ title: res?.message ?? "Rack section deleted successfully", duration: DEFAULT_TOAST_DURATION });
-      dispatch(fetchRackSectionMasters());
+      dispatch(fetchRackSectionMasters({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error deleting rack section"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }

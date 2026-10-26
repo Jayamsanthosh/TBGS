@@ -7,6 +7,7 @@ export interface RackSectionMasterGridData {
   RACK_SECTION_NAME?: string;
   RACK_SECTION_DESCRIPTION?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface RackSectionMasterState {
@@ -23,9 +24,10 @@ const initialState: RackSectionMasterState = {
 
 export const fetchRackSectionMasters = createAsyncThunk(
   "rackSectionMaster/fetchAll",
-  async (_, { rejectWithValue }) => {
+  async (params: { linkId?: number } = {}, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/rack-section-master`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/rack-section-master${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch rack sections");
@@ -40,9 +42,10 @@ export const fetchRackSectionMasters = createAsyncThunk(
 
 export const fetchRackSectionMasterById = createAsyncThunk(
   "rackSectionMaster/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/rack-section-master/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/rack-section-master/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch rack section");

@@ -30,6 +30,7 @@ import {
   submitPurchaseRequest,
   PurchaseRequestGridData,
 } from "@/lib/purchaseRequestMasterSlice";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { formatDate, clampNonNegative } from "@/lib/validation";
@@ -92,6 +93,7 @@ export default function PurchaseRequestPage() {
   const { items, loading, error } = useAppSelector((s) => s.purchaseRequestMaster);
   const { user } = useAppSelector((state) => state.auth);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(262);
 
   const [search, setSearch] = useState("");
   const [finalStatusFilter, setFinalStatusFilter] = useState<string>("ALL");
@@ -744,10 +746,10 @@ export default function PurchaseRequestPage() {
       };
 
       if (editing) {
-        const res = await dispatch(updatePurchaseRequest(payload as PurchaseRequestGridData)).unwrap();
+        const res = await dispatch(updatePurchaseRequest({ ...(payload as any), LINK_ID: linkPagesId ?? 262 } as PurchaseRequestGridData)).unwrap();
         toast({ title: res?.message ?? "Purchase Request updated successfully", duration: DEFAULT_TOAST_DURATION });
       } else {
-        const res = await dispatch(addPurchaseRequest(payload as PurchaseRequestGridData)).unwrap();
+        const res = await dispatch(addPurchaseRequest({ ...(payload as any), LINK_ID: linkPagesId ?? 262 } as PurchaseRequestGridData)).unwrap();
         toast({ title: res?.message ?? "Purchase Request created successfully", duration: DEFAULT_TOAST_DURATION });
       }
       setDialogOpen(false);

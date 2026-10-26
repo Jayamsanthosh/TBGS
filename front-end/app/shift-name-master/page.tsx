@@ -3,8 +3,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { fetchShiftNames, addShiftName, updateShiftName, deleteShiftName, clearShiftNameError, type ShiftNameMasterGridData } from "@/lib/shiftNameMasterSlice";
+import { fetchShiftNames, getShiftNameById, addShiftName, updateShiftName, deleteShiftName, clearShiftNameError, type ShiftNameMasterGridData } from "@/lib/shiftNameMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,6 +52,8 @@ export default function ShiftNameMasterPage() {
   const dispatch = useAppDispatch();
   const { shiftNames, loading, error } = useAppSelector((s) => s.shiftNameMaster);
   const { toast } = useToast();
+
+  const linkPagesId = useLinkPagesId(229);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -122,16 +125,20 @@ export default function ShiftNameMasterPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (item: any) => {
+  const openEdit = async (item: any) => {
     setEditing(item);
+    const detail = item?.SHIFT_NAME_ID != null
+      ? await dispatch(getShiftNameById({ id: item.SHIFT_NAME_ID, linkId: linkPagesId })).unwrap().catch(() => null)
+      : null;
+    const src = detail || item;
     const next: Record<string, any> = {
-      SHIFT_NAME: item.SHIFT_NAME || "",
-      SHIFT_DESCRIPTION: item.SHIFT_DESCRIPTION || "",
-      IN_TIME: item.IN_TIME || "",
-      OUT_TIME: item.OUT_TIME || "",
-      BREAK_HOURS: item.BREAK_HOURS ?? "",
-      REMARKS: item.REMARKS || "",
-      STATUS_MASTER: item.STATUS_MASTER || "AC",
+      SHIFT_NAME: src.SHIFT_NAME || "",
+      SHIFT_DESCRIPTION: src.SHIFT_DESCRIPTION || "",
+      IN_TIME: src.IN_TIME || "",
+      OUT_TIME: src.OUT_TIME || "",
+      BREAK_HOURS: src.BREAK_HOURS ?? "",
+      REMARKS: src.REMARKS || "",
+      STATUS_MASTER: src.STATUS_MASTER || "AC",
       USER: "Admin",
       MAC_ADDRESS: "WEB",
     };
@@ -175,6 +182,7 @@ export default function ShiftNameMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

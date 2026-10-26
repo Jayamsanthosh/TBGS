@@ -17,6 +17,7 @@ export interface StoreProductMinimumStockGridData {
   EFFECTIVE_TO?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface StoreProductMinimumStockState {

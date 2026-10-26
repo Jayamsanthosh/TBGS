@@ -9,13 +9,15 @@ import {
   PriceTypeData
 } from "../services/priceType.services";
 
+const DEFAULT_PRICE_TYPE_LINK_ID = 103;
+
 export const getAllPriceType = async (_req: Request, res: Response): Promise<void> => {
   try {
     const items = await getAllPriceTypeService();
     res.json({ success: true, count: items.length, data: items });
   } catch (error: any) {
     console.error("GetAllPriceType error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -26,7 +28,10 @@ export const getPriceTypeById = async (req: Request, res: Response): Promise<voi
     return;
   }
   try {
-    const item = await getPriceTypeByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const parsedLinkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const linkId = parsedLinkId != null && Number.isFinite(parsedLinkId) ? parsedLinkId : DEFAULT_PRICE_TYPE_LINK_ID;
+    const item = await getPriceTypeByIdService(parseInt(id as string, 10), linkId);
     if (!item) {
       res.status(404).json({ success: false, message: "Price type not found" });
       return;
@@ -34,7 +39,7 @@ export const getPriceTypeById = async (req: Request, res: Response): Promise<voi
     res.json({ success: true, data: item });
   } catch (error: any) {
     console.error("GetPriceTypeById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -44,12 +49,25 @@ export const savePriceType = async (req: Request, res: Response): Promise<void> 
     res.status(400).json({ success: false, message: "Price Type Name is required" });
     return;
   }
+
+  const rawLinkId = data.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const parsedLinkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  data.LINK_ID = parsedLinkId != null && Number.isFinite(parsedLinkId) ? parsedLinkId : DEFAULT_PRICE_TYPE_LINK_ID;
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await savePriceTypeService(data);
-    res.json({ success: true, message: result.message || "Price type saved successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Price type saved successfully",
+      PRICE_TYPE_ID: result.PRICE_TYPE_ID,
+    });
   } catch (error: any) {
     console.error("SavePriceType error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -60,11 +78,24 @@ export const updatePriceType = async (req: Request, res: Response): Promise<void
     if (!data.PRICE_TYPE_ID && id) {
       data.PRICE_TYPE_ID = parseInt(id as string, 10);
     }
+
+    const rawLinkId = data.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const parsedLinkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    data.LINK_ID = parsedLinkId != null && Number.isFinite(parsedLinkId) ? parsedLinkId : DEFAULT_PRICE_TYPE_LINK_ID;
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
     const result = await updatePriceTypeService(data);
-    res.json({ success: true, message: result.message || "Price type updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Price type updated successfully",
+      PRICE_TYPE_ID: result.PRICE_TYPE_ID,
+    });
   } catch (error: any) {
     console.error("UpdatePriceType error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -85,6 +116,6 @@ export const deletePriceType = async (req: Request, res: Response): Promise<void
     res.json({ success: true, message: result.message || "Price type deleted successfully" });
   } catch (error: any) {
     console.error("DeletePriceType error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

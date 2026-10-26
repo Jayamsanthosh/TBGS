@@ -28,7 +28,12 @@ export const getRegionMasterById = async (req: Request, res: Response): Promise<
   }
 
   try {
-    const region = await getRegionMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const region = await getRegionMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!region) {
       res.status(404).json({ success: false, message: "Region not found" });
@@ -50,6 +55,10 @@ export const saveRegionMaster = async (req: Request, res: Response): Promise<voi
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  regionData.USER = USER || regionData.USER || "Admin";
+  regionData.MAC_ADDRESS = MAC_ADDRESS || regionData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveRegionMasterService(regionData);
     res.json({ success: true, message: result.message || "Region saved successfully" });
@@ -63,13 +72,21 @@ export const updateRegionMaster = async (req: Request, res: Response): Promise<v
   const regionData: RegionMasterData = req.body;
   const { id } = req.params;
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  regionData.USER = USER || regionData.USER || "Admin";
+  regionData.MAC_ADDRESS = MAC_ADDRESS || regionData.MAC_ADDRESS || "WEB";
+
   try {
     if (!regionData.REGION_ID && id) {
       regionData.REGION_ID = parseInt(id as string, 10);
     }
 
     const result = await updateRegionMasterService(regionData);
-    res.json({ success: true, message: result.message || "Region updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Region updated successfully",
+      REGION_ID: result.REGION_ID,
+    });
   } catch (error: any) {
     console.error("UpdateRegionMaster error:", error);
     res.status(500).json({ success: false, message: error?.message || "Internal server error" });

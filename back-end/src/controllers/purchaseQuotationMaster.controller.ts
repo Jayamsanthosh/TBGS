@@ -112,6 +112,9 @@ export const getPurchaseQuotationLoad = async (req: Request, res: Response): Pro
 
 export const savePurchaseQuotation = async (req: Request, res: Response): Promise<void> => {
   const data: PurchaseQuotationData = req.body;
+  const rawLinkId = (data as any).LINK_ID ?? (data as any).LINK_PAGES_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 266;
+  (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 266;
 
   if (!data.PURCHASE_QUOTATION_DATE) {
     res.status(400).json({ success: false, message: "Purchase Quotation Date is required" });
@@ -159,6 +162,9 @@ export const savePurchaseQuotation = async (req: Request, res: Response): Promis
 export const updatePurchaseQuotation = async (req: Request, res: Response): Promise<void> => {
   const data: PurchaseQuotationData = req.body;
   const { refNo } = req.params;
+  const rawLinkId = (data as any).LINK_ID ?? (data as any).LINK_PAGES_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 266;
+  (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 266;
 
   if (!data.PURCHASE_QUOTATION_DATE) {
     res.status(400).json({ success: false, message: "Purchase Quotation Date is required" });

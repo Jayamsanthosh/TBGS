@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { API_URL } from "./config";
 
+export const PAYROLL_DEDUCTION_TYPE_LINK_ID = 221;
+
 export interface PayrollDeductionTypeGridData {
   id?: string | number;
   DEDUCTION_TYPE_ID?: number;
@@ -9,6 +11,7 @@ export interface PayrollDeductionTypeGridData {
   DEDUCTION_TYPE_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface PayrollDeductionTypeState {
@@ -27,9 +30,8 @@ export const fetchPayrollDeductionTypes = createAsyncThunk(
   "payrollDeductionTypes/fetchPayrollDeductionTypes",
   async (status: string | undefined, { rejectWithValue }) => {
     try {
-      const url = status && status !== "ALL"
-        ? `${API_URL}/payroll-deduction-type-master?status=${encodeURIComponent(status)}`
-        : `${API_URL}/payroll-deduction-type-master`;
+      const statusParam = status && status !== "ALL" ? status : "ALL";
+      const url = `${API_URL}/payroll-deduction-type-master?status=${encodeURIComponent(statusParam)}&LINK_ID=${PAYROLL_DEDUCTION_TYPE_LINK_ID}`;
       const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -45,12 +47,23 @@ export const fetchPayrollDeductionTypes = createAsyncThunk(
 
 export const addPayrollDeductionType = createAsyncThunk(
   "payrollDeductionTypes/addPayrollDeductionType",
-  async (item: PayrollDeductionTypeGridData, { rejectWithValue }) => {
+  async (item: PayrollDeductionTypeGridData, { rejectWithValue, getState }) => {
     try {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+
+      const payload = {
+        ...item,
+        LINK_ID: item.LINK_ID ?? PAYROLL_DEDUCTION_TYPE_LINK_ID,
+        USER: (item as any).USER || USER,
+        MAC_ADDRESS: (item as any).MAC_ADDRESS || "WEB",
+      };
+
       const response = await fetch(`${API_URL}/payroll-deduction-type-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -65,10 +78,22 @@ export const addPayrollDeductionType = createAsyncThunk(
 
 export const updatePayrollDeductionType = createAsyncThunk(
   "payrollDeductionTypes/updatePayrollDeductionType",
-  async (item: PayrollDeductionTypeGridData, { rejectWithValue }) => {
+  async (item: PayrollDeductionTypeGridData, { rejectWithValue, getState }) => {
     try {
-      const payload = { ...item, DEDUCTION_TYPE_ID: Number(item.id) || item.DEDUCTION_TYPE_ID };
-      const response = await fetch(`${API_URL}/payroll-deduction-type-master/${payload.DEDUCTION_TYPE_ID}`, {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+      const id = Number(item.id) || item.DEDUCTION_TYPE_ID;
+
+      const payload = {
+        ...item,
+        DEDUCTION_TYPE_ID: id,
+        LINK_ID: item.LINK_ID ?? PAYROLL_DEDUCTION_TYPE_LINK_ID,
+        USER: (item as any).USER || USER,
+        MAC_ADDRESS: (item as any).MAC_ADDRESS || "WEB",
+      };
+
+      const response = await fetch(`${API_URL}/payroll-deduction-type-master/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -101,7 +126,8 @@ export const deletePayrollDeductionType = createAsyncThunk(
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to delete deduction type");
       }
-      return await response.json(); } catch (error: any) {
+      return await response.json();
+    } catch (error: any) {
       return rejectWithValue(error.message || "Failed to delete deduction type");
     }
   }
@@ -113,7 +139,7 @@ const payrollDeductionTypesSlice = createSlice({
   reducers: {
     clearPayrollDeductionTypeError(state) {
       state.error = null;
-    }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -129,15 +155,21 @@ const payrollDeductionTypesSlice = createSlice({
         state.loading = false;
         state.error = (action.payload as string) || action.error.message || "Failed to fetch deduction types";
       })
-      .addCase(addPayrollDeductionType.pending, (state) => { state.error = null; })
+      .addCase(addPayrollDeductionType.pending, (state) => {
+        state.error = null;
+      })
       .addCase(addPayrollDeductionType.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to add deduction type";
       })
-      .addCase(updatePayrollDeductionType.pending, (state) => { state.error = null; })
+      .addCase(updatePayrollDeductionType.pending, (state) => {
+        state.error = null;
+      })
       .addCase(updatePayrollDeductionType.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to update deduction type";
       })
-      .addCase(deletePayrollDeductionType.pending, (state) => { state.error = null; })
+      .addCase(deletePayrollDeductionType.pending, (state) => {
+        state.error = null;
+      })
       .addCase(deletePayrollDeductionType.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to delete deduction type";
       });

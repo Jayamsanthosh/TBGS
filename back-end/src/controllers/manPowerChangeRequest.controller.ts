@@ -19,7 +19,7 @@ export const getAllManPowerChangeRequest = async (req: Request, res: Response): 
     res.json({ success: true, count: items.length, data: items });
   } catch (error: any) {
     console.error("GetAllManPowerChangeRequest error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -32,7 +32,12 @@ export const getManPowerChangeRequestById = async (req: Request, res: Response):
   }
 
   try {
-    const item = await getManPowerChangeRequestByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const item = await getManPowerChangeRequestByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!item) {
       res.status(404).json({ success: false, message: "Man power change request not found" });
@@ -42,7 +47,7 @@ export const getManPowerChangeRequestById = async (req: Request, res: Response):
     res.json({ success: true, data: item });
   } catch (error: any) {
     console.error("GetManPowerChangeRequestById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -70,12 +75,20 @@ export const saveManPowerChangeRequest = async (req: Request, res: Response): Pr
     return;
   }
 
+  const rawLinkId = data.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  data.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveManPowerChangeRequestService(data);
     res.json({ success: true, message: result.message || "Data saved successfully", MAN_POWER_REQUEST_ID: result.MAN_POWER_REQUEST_ID });
   } catch (error: any) {
     console.error("SaveManPowerChangeRequest error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -93,11 +106,19 @@ export const updateManPowerChangeRequest = async (req: Request, res: Response): 
       data.MAN_POWER_REQUEST_ID = parseInt(id as string, 10);
     }
 
+    const rawLinkId = data.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    data.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
     const result = await updateManPowerChangeRequestService(data);
-    res.json({ success: true, message: result.message || "Record updated successfully" });
+    res.json({ success: true, message: result.message || "Record updated successfully", MAN_POWER_REQUEST_ID: result.MAN_POWER_REQUEST_ID });
   } catch (error: any) {
     console.error("UpdateManPowerChangeRequest error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -120,6 +141,6 @@ export const deleteManPowerChangeRequest = async (req: Request, res: Response): 
     res.json({ success: true, message: result.message || "Record deleted successfully" });
   } catch (error: any) {
     console.error("DeleteManPowerChangeRequest error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

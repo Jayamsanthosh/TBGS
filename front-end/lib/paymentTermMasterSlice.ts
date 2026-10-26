@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { API_URL } from "./config";
 
+export const PAYMENT_TERM_LINK_ID = 101;
+
 export interface PaymentTermGridData {
   id?: string | number;
   PAYMENT_TERM_ID?: number;
@@ -18,6 +20,7 @@ export interface PaymentTermGridData {
   DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface PaymentTermState {
@@ -36,7 +39,9 @@ export const fetchPaymentTerms = createAsyncThunk(
   "paymentTerm/fetchPaymentTerms",
   async (status: string = "ALL", { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/payment-term-master?status=${encodeURIComponent(status)}`);
+      const response = await fetch(
+        `${API_URL}/payment-term-master?status=${encodeURIComponent(status)}&LINK_ID=${PAYMENT_TERM_LINK_ID}`
+      );
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch payment terms");
@@ -51,12 +56,23 @@ export const fetchPaymentTerms = createAsyncThunk(
 
 export const addPaymentTerm = createAsyncThunk(
   "paymentTerm/addPaymentTerm",
-  async (item: PaymentTermGridData, { rejectWithValue }) => {
+  async (item: PaymentTermGridData, { rejectWithValue, getState }) => {
     try {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+
+      const payload = {
+        ...item,
+        LINK_ID: item.LINK_ID ?? PAYMENT_TERM_LINK_ID,
+        USER: (item as any).USER || USER,
+        MAC_ADDRESS: (item as any).MAC_ADDRESS || "WEB",
+      };
+
       const response = await fetch(`${API_URL}/payment-term-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -71,10 +87,22 @@ export const addPaymentTerm = createAsyncThunk(
 
 export const updatePaymentTerm = createAsyncThunk(
   "paymentTerm/updatePaymentTerm",
-  async (item: PaymentTermGridData, { rejectWithValue }) => {
+  async (item: PaymentTermGridData, { rejectWithValue, getState }) => {
     try {
-      const payload = { ...item, PAYMENT_TERM_ID: Number(item.id) || item.PAYMENT_TERM_ID };
-      const response = await fetch(`${API_URL}/payment-term-master/${payload.PAYMENT_TERM_ID}`, {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+      const id = Number(item.id) || item.PAYMENT_TERM_ID;
+
+      const payload = {
+        ...item,
+        PAYMENT_TERM_ID: id,
+        LINK_ID: item.LINK_ID ?? PAYMENT_TERM_LINK_ID,
+        USER: (item as any).USER || USER,
+        MAC_ADDRESS: (item as any).MAC_ADDRESS || "WEB",
+      };
+
+      const response = await fetch(`${API_URL}/payment-term-master/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -107,7 +135,8 @@ export const deletePaymentTerm = createAsyncThunk(
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to delete payment term");
       }
-      return await response.json(); } catch (error: any) {
+      return await response.json();
+    } catch (error: any) {
       return rejectWithValue(error.message || "Failed to delete payment term");
     }
   }
@@ -119,7 +148,7 @@ const paymentTermSlice = createSlice({
   reducers: {
     clearPaymentTermError(state) {
       state.error = null;
-    }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -135,15 +164,21 @@ const paymentTermSlice = createSlice({
         state.loading = false;
         state.error = (action.payload as string) || action.error.message || "Failed to fetch payment terms";
       })
-      .addCase(addPaymentTerm.pending, (state) => { state.error = null; })
+      .addCase(addPaymentTerm.pending, (state) => {
+        state.error = null;
+      })
       .addCase(addPaymentTerm.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to add payment term";
       })
-      .addCase(updatePaymentTerm.pending, (state) => { state.error = null; })
+      .addCase(updatePaymentTerm.pending, (state) => {
+        state.error = null;
+      })
       .addCase(updatePaymentTerm.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to update payment term";
       })
-      .addCase(deletePaymentTerm.pending, (state) => { state.error = null; })
+      .addCase(deletePaymentTerm.pending, (state) => {
+        state.error = null;
+      })
       .addCase(deletePaymentTerm.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to delete payment term";
       });

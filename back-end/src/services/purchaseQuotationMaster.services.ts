@@ -575,7 +575,8 @@ const hdrRequest = (
        chained on after @MAC_ADDRESS by each caller, which put it in slot 57. */
     .input("STATUS_ENTRY", sql.VarChar(20), statusEntry)
     .input("USER", sql.VarChar(50), data.USER || "Admin")
-    .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+    .input("link_id", sql.Int, numOrNull((data as any).LINK_ID ?? (data as any).LINK_PAGES_ID) ?? 266);
 
 /* ---------------------------------------------------------------- create */
 export const savePurchaseQuotationCombinedService = async (raw: PurchaseQuotationData) => {

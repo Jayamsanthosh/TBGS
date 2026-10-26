@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { fetchParticipantTypes, addParticipantType, updateParticipantType, deleteParticipantType, clearParticipantTypeError, type ParticipantTypeGridData } from "@/lib/participantTypeMasterSlice";
+import { fetchParticipantTypes, addParticipantType, updateParticipantType, deleteParticipantType, clearParticipantTypeError, PARTICIPANT_TYPE_LINK_ID, type ParticipantTypeGridData } from "@/lib/participantTypeMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +87,7 @@ export default function ParticipantTypeMasterPage() {
     PARTICIPANT_TYPE_DESCRIPTION: "",
     REMARKS: "",
     STATUS_MASTER: "ACTIVE",
+    LINK_ID: PARTICIPANT_TYPE_LINK_ID,
     USER: "Admin",
     MAC_ADDRESS: "WEB",
   });
@@ -105,6 +106,7 @@ export default function ParticipantTypeMasterPage() {
       PARTICIPANT_TYPE_DESCRIPTION: item.PARTICIPANT_TYPE_DESCRIPTION || "",
       REMARKS: item.REMARKS || "",
       STATUS_MASTER: normalizeStatus(item.STATUS_MASTER) === "ACTIVE" ? "ACTIVE" : "INACTIVE",
+      LINK_ID: item.LINK_ID ?? PARTICIPANT_TYPE_LINK_ID,
       USER: "Admin",
       MAC_ADDRESS: "WEB",
     });
@@ -135,6 +137,7 @@ export default function ParticipantTypeMasterPage() {
         PARTICIPANT_TYPE_DESCRIPTION: form.PARTICIPANT_TYPE_DESCRIPTION?.trim() || null,
         REMARKS: form.REMARKS?.trim() || null,
         STATUS_MASTER: editing ? (form.STATUS_MASTER === "ACTIVE" ? "AC" : "IA") : "AC",
+        LINK_ID: form.LINK_ID ?? PARTICIPANT_TYPE_LINK_ID,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
       };

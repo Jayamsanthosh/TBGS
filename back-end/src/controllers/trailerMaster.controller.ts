@@ -34,7 +34,12 @@ export const getTrailerMasterById = async (req: Request, res: Response): Promise
     return;
   }
   try {
-    const trailer = await getTrailerMasterByIdService(id);
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const trailer = await getTrailerMasterByIdService(
+      id,
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
     if (!trailer) {
       res.status(404).json({ success: false, message: "Trailer not found" });
       return;
@@ -52,6 +57,9 @@ export const saveTrailerMaster = async (req: Request, res: Response): Promise<vo
     res.status(400).json({ success: false, message: "Trailer No is required" });
     return;
   }
+  const { USER, MAC_ADDRESS } = authFrom(req);
+  trailerData.USER = USER || trailerData.USER || "Admin";
+  trailerData.MAC_ADDRESS = MAC_ADDRESS || trailerData.MAC_ADDRESS || "WEB";
   try {
     const result = await saveTrailerMasterService(trailerData);
     res.json({ success: true, message: result.message || "Trailer saved successfully", TRAILER_ID: result.TRAILER_ID });
@@ -70,8 +78,11 @@ export const updateTrailerMaster = async (req: Request, res: Response): Promise<
   }
   try {
     trailerData.TRAILER_ID = id;
+    const { USER, MAC_ADDRESS } = authFrom(req);
+    trailerData.USER = USER || trailerData.USER || "Admin";
+    trailerData.MAC_ADDRESS = MAC_ADDRESS || trailerData.MAC_ADDRESS || "WEB";
     const result = await updateTrailerMasterService(trailerData);
-    res.json({ success: true, message: result.message || "Trailer updated successfully" });
+    res.json({ success: true, message: result.message || "Trailer updated successfully", TRAILER_ID: result.TRAILER_ID });
   } catch (error: any) {
     console.error("UpdateTrailerMaster error:", error);
     res.status(500).json({ success: false, message: error?.message || "Internal server error" });

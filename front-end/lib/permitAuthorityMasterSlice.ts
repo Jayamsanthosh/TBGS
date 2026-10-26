@@ -1,11 +1,13 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { API_URL } from "./config";
 
+export const PERMIT_AUTHORITY_LINK_ID = 252;
+
 export interface PermitAuthorityGridData {
   id?: string | number;
   PERMIT_AUTHORITY_ID?: number;
   PERMIT_AUTHORITY_NAME: string;
-  COUNTRY_ID?: number;
+  COUNTRY_ID?: number | string;
   COUNTRY_NAME?: string;
   CONTACT_PERSON?: string;
   CONTACT_NUMBER?: string;
@@ -14,6 +16,7 @@ export interface PermitAuthorityGridData {
   ADDRESS?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface PermitAuthoritiesState {
@@ -32,7 +35,7 @@ export const fetchPermitAuthorities = createAsyncThunk(
   "permitAuthorities/fetchPermitAuthorities",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/permit-authority-master?status=ALL`);
+      const response = await fetch(`${API_URL}/permit-authority-master?status=ALL&LINK_ID=${PERMIT_AUTHORITY_LINK_ID}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch permit authorities");
@@ -47,12 +50,26 @@ export const fetchPermitAuthorities = createAsyncThunk(
 
 export const addPermitAuthority = createAsyncThunk(
   "permitAuthorities/addPermitAuthority",
-  async (item: PermitAuthorityGridData, { rejectWithValue }) => {
+  async (item: PermitAuthorityGridData, { rejectWithValue, getState }) => {
     try {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+
+      const payload = {
+        ...item,
+        COUNTRY_ID:
+          item.COUNTRY_ID !== undefined && item.COUNTRY_ID !== "" && item.COUNTRY_ID !== null
+            ? Number(item.COUNTRY_ID)
+            : null,
+        LINK_ID: item.LINK_ID ?? PERMIT_AUTHORITY_LINK_ID,
+        USER: (item as any).USER || USER,
+      };
+
       const response = await fetch(`${API_URL}/permit-authority-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -67,10 +84,25 @@ export const addPermitAuthority = createAsyncThunk(
 
 export const updatePermitAuthority = createAsyncThunk(
   "permitAuthorities/updatePermitAuthority",
-  async (item: PermitAuthorityGridData, { rejectWithValue }) => {
+  async (item: PermitAuthorityGridData, { rejectWithValue, getState }) => {
     try {
-      const payload = { ...item, PERMIT_AUTHORITY_ID: Number(item.id) || item.PERMIT_AUTHORITY_ID };
-      const response = await fetch(`${API_URL}/permit-authority-master/${payload.PERMIT_AUTHORITY_ID}`, {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+      const id = Number(item.id) || item.PERMIT_AUTHORITY_ID;
+
+      const payload = {
+        ...item,
+        PERMIT_AUTHORITY_ID: id,
+        COUNTRY_ID:
+          item.COUNTRY_ID !== undefined && item.COUNTRY_ID !== "" && item.COUNTRY_ID !== null
+            ? Number(item.COUNTRY_ID)
+            : null,
+        LINK_ID: item.LINK_ID ?? PERMIT_AUTHORITY_LINK_ID,
+        USER: (item as any).USER || USER,
+      };
+
+      const response = await fetch(`${API_URL}/permit-authority-master/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -116,7 +148,7 @@ const permitAuthoritiesSlice = createSlice({
   reducers: {
     clearPermitAuthoritiesError(state) {
       state.error = null;
-    }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -132,15 +164,21 @@ const permitAuthoritiesSlice = createSlice({
         state.loading = false;
         state.error = (action.payload as string) || action.error.message || "Failed to fetch permit authorities";
       })
-      .addCase(addPermitAuthority.pending, (state) => { state.error = null; })
+      .addCase(addPermitAuthority.pending, (state) => {
+        state.error = null;
+      })
       .addCase(addPermitAuthority.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to add permit authority";
       })
-      .addCase(updatePermitAuthority.pending, (state) => { state.error = null; })
+      .addCase(updatePermitAuthority.pending, (state) => {
+        state.error = null;
+      })
       .addCase(updatePermitAuthority.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to update permit authority";
       })
-      .addCase(deletePermitAuthority.pending, (state) => { state.error = null; })
+      .addCase(deletePermitAuthority.pending, (state) => {
+        state.error = null;
+      })
       .addCase(deletePermitAuthority.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to delete permit authority";
       });

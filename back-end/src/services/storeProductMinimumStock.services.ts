@@ -19,7 +19,7 @@ export interface StoreProductMinimumStockData {
   STATUS_MASTER?: string;
   USER?: string;
   MAC_ADDRESS?: string;
-  ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const serializeRecordset = (rows: any[]) =>
@@ -54,7 +54,7 @@ export const getAllStoreProductMinimumStockService = async (status?: string) => 
   }
 };
 
-export const getStoreProductMinimumStockByIdService = async (id: number) => {
+export const getStoreProductMinimumStockByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -62,6 +62,7 @@ export const getStoreProductMinimumStockByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("SNO", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_STORE_PRODUCT_MINIMUM_STOCK");
 
     return result.recordset[0] || null;
@@ -94,6 +95,7 @@ export const saveStoreProductMinimumStockService = async (data: StoreProductMini
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_STORE_PRODUCT_MINIMUM_STOCK");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save minimum stock");
@@ -128,11 +130,15 @@ export const updateStoreProductMinimumStockService = async (data: StoreProductMi
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_STORE_PRODUCT_MINIMUM_STOCK");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update minimum stock");
+    const { message, data: updatedId } = parseSprocResult(result.recordset?.[0], "Failed to update minimum stock");
 
-    return { message: message || "Record updated successfully" };
+    return {
+      message: message || "Record updated successfully",
+      SNO: updatedId || Number(data.SNO ?? 0),
+    };
   } catch (error) {
     console.error("UPDATE_STORE_PRODUCT_MINIMUM_STOCK SP error:", error);
     throw error;

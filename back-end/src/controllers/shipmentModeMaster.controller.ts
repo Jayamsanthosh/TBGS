@@ -17,9 +17,17 @@ export const getAllShipmentModeMaster = async (req: Request, res: Response): Pro
   const page = req.query.page != null && req.query.page !== "" ? Number(req.query.page) : null;
   const pageSize =
     req.query.pageSize != null && req.query.pageSize !== "" ? Number(req.query.pageSize) : null;
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
 
   try {
-    const result = await getShipmentModeMasterListService({ status, search, page, pageSize });
+    const result = await getShipmentModeMasterListService({
+      status,
+      search,
+      page,
+      pageSize,
+      linkId: linkId != null && Number.isFinite(linkId) ? linkId : null,
+    });
     res.json({ success: true, total: result.total, count: result.rows.length, data: result.rows });
   } catch (error: any) {
     console.error("GetAllShipmentModeMaster error:", error);
@@ -37,7 +45,12 @@ export const getShipmentModeMasterById = async (req: Request, res: Response): Pr
   }
 
   try {
-    const shipmentModeRow = await getShipmentModeMasterByIdService(idNumber);
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const shipmentModeRow = await getShipmentModeMasterByIdService(
+      idNumber,
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!shipmentModeRow) {
       res.status(404).json({ success: false, message: "Shipment Mode not found" });
@@ -71,6 +84,10 @@ export const saveShipmentModeMaster = async (req: Request, res: Response): Promi
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  shipmentModeData.USER = USER || shipmentModeData.USER || "Admin";
+  shipmentModeData.MAC_ADDRESS = MAC_ADDRESS || shipmentModeData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveShipmentModeMasterService(shipmentModeData);
     res.json({
@@ -103,9 +120,17 @@ export const updateShipmentModeMaster = async (req: Request, res: Response): Pro
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  shipmentModeData.USER = USER || shipmentModeData.USER || "Admin";
+  shipmentModeData.MAC_ADDRESS = MAC_ADDRESS || shipmentModeData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await updateShipmentModeMasterService(shipmentModeData);
-    res.json({ success: true, message: result.message || "Shipment Mode updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Shipment Mode updated successfully",
+      SHIPMENT_MODE_ID: result.id,
+    });
   } catch (error: any) {
     console.error("UpdateShipmentModeMaster error:", error);
     res.status((error as any)?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });

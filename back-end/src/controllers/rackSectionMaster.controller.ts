@@ -9,9 +9,13 @@ import {
   RackSectionMasterData
 } from "../services/rackSectionMaster.services";
 
-export const getAllRackSectionMaster = async (_req: Request, res: Response): Promise<void> => {
+export const getAllRackSectionMaster = async (req: Request, res: Response): Promise<void> => {
   try {
-    const records = await getAllRackSectionMasterService();
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const records = await getAllRackSectionMasterService(
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
     res.json({ success: true, count: records.length, data: records });
   } catch (error: any) {
     console.error("GetAllRackSectionMaster error:", error);
@@ -28,7 +32,12 @@ export const getRackSectionMasterById = async (req: Request, res: Response): Pro
   }
 
   try {
-    const record = await getRackSectionMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const record = await getRackSectionMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
     if (!record) {
       res.status(404).json({ success: false, message: "Rack section not found" });
       return;
@@ -53,6 +62,10 @@ export const saveRackSectionMaster = async (req: Request, res: Response): Promis
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveRackSectionMasterService(data);
     res.json({ success: true, message: result.message || "Data saved successfully", RACK_SECTION_ID: result.RACK_SECTION_ID });
@@ -70,6 +83,11 @@ export const updateRackSectionMaster = async (req: Request, res: Response): Prom
     if (!data.RACK_SECTION_ID && id) {
       data.RACK_SECTION_ID = parseInt(id as string, 10);
     }
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
     const result = await updateRackSectionMasterService(data);
     res.json({ success: true, message: result.message || "Record updated successfully", RACK_SECTION_ID: result.RACK_SECTION_ID });
   } catch (error: any) {

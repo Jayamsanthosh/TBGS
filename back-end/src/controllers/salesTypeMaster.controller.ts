@@ -28,7 +28,12 @@ export const getSalesTypeMasterById = async (req: Request, res: Response): Promi
   }
 
   try {
-    const record = await getSalesTypeMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const record = await getSalesTypeMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!record) {
       res.status(404).json({ success: false, message: "Sales type not found" });
@@ -50,6 +55,10 @@ export const saveSalesTypeMaster = async (req: Request, res: Response): Promise<
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveSalesTypeMasterService(data);
     res.json({ success: true, message: result.message || "Data saved successfully", SALES_TYPE_ID: result.SALES_TYPE_ID });
@@ -62,6 +71,10 @@ export const saveSalesTypeMaster = async (req: Request, res: Response): Promise<
 export const updateSalesTypeMaster = async (req: Request, res: Response): Promise<void> => {
   const data: SalesTypeMasterData = req.body;
   const { id } = req.params;
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
 
   try {
     if (!data.SALES_TYPE_ID && id) {

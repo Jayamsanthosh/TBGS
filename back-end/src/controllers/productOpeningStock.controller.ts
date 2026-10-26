@@ -28,7 +28,12 @@ export const getProductOpeningStockById = async (req: Request, res: Response): P
   }
 
   try {
-    const record = await getProductOpeningStockByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const record = await getProductOpeningStockByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!record) {
       res.status(404).json({ success: false, message: "Product opening stock not found" });
@@ -38,7 +43,7 @@ export const getProductOpeningStockById = async (req: Request, res: Response): P
     res.json({ success: true, data: record });
   } catch (error: any) {
     console.error("GetProductOpeningStockById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -50,12 +55,20 @@ export const saveProductOpeningStock = async (req: Request, res: Response): Prom
     return;
   }
 
+  const rawLinkId = data.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  data.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveProductOpeningStockService(data);
     res.json({ success: true, message: result.message || "Data saved successfully", SNO: result.SNO });
   } catch (error: any) {
     console.error("SaveProductOpeningStock error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -68,11 +81,19 @@ export const updateProductOpeningStock = async (req: Request, res: Response): Pr
       data.SNO = parseInt(id as string, 10);
     }
 
+    const rawLinkId = data.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    data.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
     const result = await updateProductOpeningStockService(data);
     res.json({ success: true, message: result.message || "Record updated successfully", SNO: result.SNO });
   } catch (error: any) {
     console.error("UpdateProductOpeningStock error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -90,6 +111,6 @@ export const deleteProductOpeningStock = async (req: Request, res: Response): Pr
     res.json({ success: true, message: result.message || "Record deleted successfully" });
   } catch (error: any) {
     console.error("DeleteProductOpeningStock error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

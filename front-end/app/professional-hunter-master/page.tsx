@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchProfessionalHunterMasters, addProfessionalHunterMaster, updateProfessionalHunterMaster, deleteProfessionalHunterMaster, fetchProfessionalHunterMasterById, clearProfessionalHunterMasterError } from "@/lib/professionalHunterMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,8 @@ export default function ProfessionalHunterMasterPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.professionalHunterMaster);
   const { toast } = useToast();
+
+  const linkPagesId = useLinkPagesId(117);
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -69,8 +72,8 @@ export default function ProfessionalHunterMasterPage() {
   }, [filtered, currentPage, effectivePageSize]);
 
   useEffect(() => {
-    dispatch(fetchProfessionalHunterMasters());
-  }, [dispatch]);
+    dispatch(fetchProfessionalHunterMasters({ linkId: linkPagesId }));
+  }, [dispatch, linkPagesId]);
 
   useEffect(() => {
     if (error) {
@@ -98,7 +101,7 @@ export default function ProfessionalHunterMasterPage() {
     setLoadingEdit(true);
     setEditing(item);
     try {
-      const response = await dispatch(fetchProfessionalHunterMasterById(Number(item.PH_ID))).unwrap();
+      const response = await dispatch(fetchProfessionalHunterMasterById({ id: Number(item.PH_ID), linkId: linkPagesId })).unwrap();
       if (response) {
         setForm({
           PH_NAME: response.PH_NAME || "",
@@ -136,6 +139,7 @@ export default function ProfessionalHunterMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
@@ -148,7 +152,7 @@ export default function ProfessionalHunterMasterPage() {
         toast({ title: res?.message ?? "Hunter created successfully", duration: DEFAULT_TOAST_DURATION });
       }
       setDialogOpen(false);
-      dispatch(fetchProfessionalHunterMasters());
+      dispatch(fetchProfessionalHunterMasters({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error saving hunter"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }
@@ -160,7 +164,7 @@ export default function ProfessionalHunterMasterPage() {
       const res = await dispatch(deleteProfessionalHunterMaster(deleteId)).unwrap();
       setDeleteId(null);
       toast({ title: res?.message ?? "Hunter deleted successfully", duration: DEFAULT_TOAST_DURATION });
-      dispatch(fetchProfessionalHunterMasters());
+      dispatch(fetchProfessionalHunterMasters({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error deleting hunter"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }

@@ -32,6 +32,7 @@ export interface ManPowerChangeRequestData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const normalizeStatus = (status: string | undefined | null): string => {
@@ -110,7 +111,7 @@ export const getAllManPowerChangeRequestService = async (companyId = 0, status?:
   }
 };
 
-export const getManPowerChangeRequestByIdService = async (id: number) => {
+export const getManPowerChangeRequestByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -118,6 +119,7 @@ export const getManPowerChangeRequestByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("MAN_POWER_REQUEST_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_MAN_POWER_CHANGE_REQUEST");
 
     return result.recordset[0] || null;
@@ -137,10 +139,11 @@ export const saveManPowerChangeRequestService = async (data: ManPowerChangeReque
     applyInputs(request, getFieldInputs(data));
     request.input("USER", sql.VarChar(50), data.USER || "Admin");
     request.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    request.input("LINK_ID", sql.Int, data.LINK_ID ?? null);
 
     const result = await request.execute("VMaster.SAVE_MAN_POWER_CHANGE_REQUEST");
 
-    const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save man power change request");
+    const { message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save man power change request");
 
     const newId = savedData ?? result.output?.MAN_POWER_REQUEST_ID;
     return { message: message || "Data saved successfully", MAN_POWER_REQUEST_ID: newId };
@@ -160,12 +163,13 @@ export const updateManPowerChangeRequestService = async (data: ManPowerChangeReq
     applyInputs(request, getFieldInputs(data));
     request.input("USER", sql.VarChar(50), data.USER || "Admin");
     request.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    request.input("LINK_ID", sql.Int, data.LINK_ID ?? null);
 
     const result = await request.execute("VMaster.UPDATE_MAN_POWER_CHANGE_REQUEST");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update man power change request");
+    const { message, data: updatedId } = parseSprocResult(result.recordset?.[0], "Failed to update man power change request");
 
-    return { message: message || "Record updated successfully" };
+    return { message: message || "Record updated successfully", MAN_POWER_REQUEST_ID: updatedId ?? data.MAN_POWER_REQUEST_ID };
   } catch (error) {
     console.error("UPDATE_MAN_POWER_CHANGE_REQUEST SP error:", error);
     throw error;

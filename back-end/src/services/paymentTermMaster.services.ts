@@ -21,11 +21,19 @@ export interface PaymentTermMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
+
+const toInt = (v: any): number | null =>
+  v === undefined || v === null || v === "" || Number.isNaN(Number(v)) ? null : Number(v);
+
+const toDecimal = (v: any): number | null =>
+  v === undefined || v === null || v === "" || Number.isNaN(Number(v)) ? null : Number(v);
 
 const normalizeRow = (r: any) => ({
   ...r,
   STATUS_MASTER: r.STATUS_MASTER ?? r.STATUS ?? null,
+  LINK_ID: r.LINK_ID ?? 101,
 });
 
 export const getAllPaymentTermMasterService = async (status = "ALL") => {
@@ -57,18 +65,29 @@ export const getAllPaymentTermMasterService = async (status = "ALL") => {
   }
 };
 
-export const getPaymentTermMasterByIdService = async (id: number) => {
+export const getPaymentTermMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
+
+  const resolvedLinkId = toInt(linkId) ?? 101;
 
   try {
     const result = await pool
       .request()
       .input("PAYMENT_TERM_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, resolvedLinkId)
       .execute("VMaster.GET_PAYMENT_TERM_MASTER");
 
     const row = result.recordset[0] || null;
-    return row ? normalizeRow(row) : null;
+    if (row) return normalizeRow(row);
+
+    // Fallback if record exists with different/null link_id
+    const fallback = await pool
+      .request()
+      .input("PAYMENT_TERM_ID", sql.Int, id)
+      .query(`SELECT * FROM VMaster.TBL_PAYMENT_TERM_MASTER WHERE PAYMENT_TERM_ID = @PAYMENT_TERM_ID`);
+    const fallbackRow = fallback.recordset[0] || null;
+    return fallbackRow ? normalizeRow(fallbackRow) : null;
   } catch (error) {
     console.error("GET_PAYMENT_TERM_MASTER SP error:", error);
     throw error;
@@ -85,26 +104,40 @@ export const savePaymentTermMasterService = async (data: PaymentTermMasterData) 
       .output("PAYMENT_TERM_ID", sql.Int)
       .input("PAYMENT_TERM_CODE", sql.VarChar(20), data.PAYMENT_TERM_CODE || null)
       .input("PAYMENT_TERM_NAME", sql.VarChar(150), data.PAYMENT_TERM_NAME || null)
-      .input("TRIGGER_EVENT_ID", sql.Int, data.TRIGGER_EVENT_ID ?? null)
+      .input("TRIGGER_EVENT_ID", sql.Int, toInt(data.TRIGGER_EVENT_ID))
       .input("DUE_DATE_CALCULATION", sql.VarChar(20), data.DUE_DATE_CALCULATION || null)
-      .input("NO_OF_DAYS", sql.Int, data.NO_OF_DAYS ?? null)
-      .input("DOWN_PAYMENT_PERCENTAGE", sql.Decimal(18, 2), data.DOWN_PAYMENT_PERCENTAGE ?? null)
-      .input("BALANCE_PAYMENT_PERCENTAGE", sql.Decimal(18, 2), data.BALANCE_PAYMENT_PERCENTAGE ?? null)
-      .input("INSTALLMENT_ALLOWED", sql.VarChar(10), data.INSTALLMENT_ALLOWED || null)
-      .input("NO_OF_INSTALLMENTS", sql.Int, data.NO_OF_INSTALLMENTS ?? null)
-      .input("INTEREST_RATE", sql.Decimal(18, 2), data.INTEREST_RATE ?? null)
-      .input("GRACE_PERIOD_DAYS", sql.Int, data.GRACE_PERIOD_DAYS ?? null)
+      .input("NO_OF_DAYS", sql.Int, toInt(data.NO_OF_DAYS))
+      .input("DOWN_PAYMENT_PERCENTAGE", sql.Decimal(18, 2), toDecimal(data.DOWN_PAYMENT_PERCENTAGE))
+      .input("BALANCE_PAYMENT_PERCENTAGE", sql.Decimal(18, 2), toDecimal(data.BALANCE_PAYMENT_PERCENTAGE))
+      .input("INSTALLMENT_ALLOWED", sql.VarChar(10), data.INSTALLMENT_ALLOWED || "NO")
+      .input("NO_OF_INSTALLMENTS", sql.Int, toInt(data.NO_OF_INSTALLMENTS))
+      .input("INTEREST_RATE", sql.Decimal(18, 2), toDecimal(data.INTEREST_RATE))
+      .input("GRACE_PERIOD_DAYS", sql.Int, toInt(data.GRACE_PERIOD_DAYS))
       .input("DESCRIPTION", sql.VarChar(500), data.DESCRIPTION || null)
       .input("REMARKS", sql.VarChar(100), data.REMARKS || null)
-      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
+      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || "AC")
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, toInt(data.LINK_ID) ?? 101)
       .execute("VMaster.SAVE_PAYMENT_TERM_MASTER");
 
-    const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save payment term");
+    const { message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save payment term");
 
-    const newId = result.output?.PAYMENT_TERM_ID ?? savedData;
-    return { message: message || "Data saved successfully", PAYMENT_TERM_ID: newId };
+    let newId = toInt(result.output?.PAYMENT_TERM_ID) || toInt(savedData) || toInt(data.PAYMENT_TERM_ID);
+    if (!newId || newId === 0) {
+      const idRes = await pool
+        .request()
+        .input("PAYMENT_TERM_CODE", sql.VarChar(20), data.PAYMENT_TERM_CODE)
+        .query(
+          `SELECT TOP 1 PAYMENT_TERM_ID FROM VMaster.TBL_PAYMENT_TERM_MASTER WHERE PAYMENT_TERM_CODE = @PAYMENT_TERM_CODE ORDER BY PAYMENT_TERM_ID DESC`
+        );
+      newId = idRes.recordset?.[0]?.PAYMENT_TERM_ID;
+    }
+
+    return {
+      message: message || "DATA SAVED SUCCESSFULLY",
+      PAYMENT_TERM_ID: newId,
+    };
   } catch (error) {
     console.error("SAVE_PAYMENT_TERM_MASTER SP error:", error);
     throw error;
@@ -116,35 +149,34 @@ export const updatePaymentTermMasterService = async (data: PaymentTermMasterData
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const existing = await getPaymentTermMasterByIdService(data.PAYMENT_TERM_ID ?? 0);
-    if (!existing) {
-      throw new Error("RECORD DOES NOT EXIST");
-    }
-
     const result = await pool
       .request()
-      .input("PAYMENT_TERM_ID", sql.Int, data.PAYMENT_TERM_ID ?? 0)
+      .input("PAYMENT_TERM_ID", sql.Int, toInt(data.PAYMENT_TERM_ID) ?? 0)
       .input("PAYMENT_TERM_CODE", sql.VarChar(20), data.PAYMENT_TERM_CODE ?? null)
       .input("PAYMENT_TERM_NAME", sql.VarChar(150), data.PAYMENT_TERM_NAME ?? null)
-      .input("TRIGGER_EVENT_ID", sql.Int, data.TRIGGER_EVENT_ID ?? null)
+      .input("TRIGGER_EVENT_ID", sql.Int, toInt(data.TRIGGER_EVENT_ID))
       .input("DUE_DATE_CALCULATION", sql.VarChar(20), data.DUE_DATE_CALCULATION ?? null)
-      .input("NO_OF_DAYS", sql.Int, data.NO_OF_DAYS ?? null)
-      .input("DOWN_PAYMENT_PERCENTAGE", sql.Decimal(18, 2), data.DOWN_PAYMENT_PERCENTAGE ?? null)
-      .input("BALANCE_PAYMENT_PERCENTAGE", sql.Decimal(18, 2), data.BALANCE_PAYMENT_PERCENTAGE ?? null)
-      .input("INSTALLMENT_ALLOWED", sql.VarChar(10), data.INSTALLMENT_ALLOWED ?? null)
-      .input("NO_OF_INSTALLMENTS", sql.Int, data.NO_OF_INSTALLMENTS ?? null)
-      .input("INTEREST_RATE", sql.Decimal(18, 2), data.INTEREST_RATE ?? null)
-      .input("GRACE_PERIOD_DAYS", sql.Int, data.GRACE_PERIOD_DAYS ?? null)
+      .input("NO_OF_DAYS", sql.Int, toInt(data.NO_OF_DAYS))
+      .input("DOWN_PAYMENT_PERCENTAGE", sql.Decimal(18, 2), toDecimal(data.DOWN_PAYMENT_PERCENTAGE))
+      .input("BALANCE_PAYMENT_PERCENTAGE", sql.Decimal(18, 2), toDecimal(data.BALANCE_PAYMENT_PERCENTAGE))
+      .input("INSTALLMENT_ALLOWED", sql.VarChar(10), data.INSTALLMENT_ALLOWED ?? "NO")
+      .input("NO_OF_INSTALLMENTS", sql.Int, toInt(data.NO_OF_INSTALLMENTS))
+      .input("INTEREST_RATE", sql.Decimal(18, 2), toDecimal(data.INTEREST_RATE))
+      .input("GRACE_PERIOD_DAYS", sql.Int, toInt(data.GRACE_PERIOD_DAYS))
       .input("DESCRIPTION", sql.VarChar(500), data.DESCRIPTION ?? null)
       .input("REMARKS", sql.VarChar(100), data.REMARKS ?? null)
-      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
+      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? "AC")
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, toInt(data.LINK_ID) ?? 101)
       .execute("VMaster.UPDATE_PAYMENT_TERM_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update payment term");
+    const { message, data: updatedId } = parseSprocResult(result.recordset?.[0], "Failed to update payment term");
 
-    return { message: message || "Record updated successfully" };
+    return {
+      message: message || "RECORD UPDATED SUCCESSFULLY",
+      PAYMENT_TERM_ID: toInt(updatedId) || toInt(data.PAYMENT_TERM_ID),
+    };
   } catch (error) {
     console.error("UPDATE_PAYMENT_TERM_MASTER SP error:", error);
     throw error;
@@ -169,10 +201,14 @@ export const deletePaymentTermMasterService = async (
       .input("MAC_ADDRESS", sql.VarChar(50), macAddress || "WEB")
       .execute("VMaster.DELETE_PAYMENT_TERM_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to delete payment term");
+    const { message } = parseSprocResult(result.recordset?.[0], "Failed to delete payment term");
 
     return { message: message || "Record deleted successfully" };
   } catch (error) {
+    const msg = (error as any)?.message || "";
+    if (msg.includes("REFERENCE constraint") || msg.includes("FK_")) {
+      throw new Error("Cannot delete: This payment term has associated records.");
+    }
     console.error("DELETE_PAYMENT_TERM_MASTER SP error:", error);
     throw error;
   }

@@ -16,6 +16,7 @@ export interface ManPowerApprovedSettingsData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const normalizeStatus = (status: string | undefined | null): string => {
@@ -58,7 +59,7 @@ export const getAllManPowerApprovedSettingsService = async (status?: string) => 
   }
 };
 
-export const getManPowerApprovedSettingsByIdService = async (id: number) => {
+export const getManPowerApprovedSettingsByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -66,6 +67,7 @@ export const getManPowerApprovedSettingsByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("MAN_POWER_APPROVED_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_MAN_POWER_APPROVED_SETTINGS");
 
     return result.recordset[0] || null;
@@ -93,10 +95,11 @@ export const saveManPowerApprovedSettingsService = async (data: ManPowerApproved
     request.input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER));
     request.input("USER", sql.VarChar(50), data.USER || "Admin");
     request.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    request.input("LINK_ID", sql.Int, data.LINK_ID ?? null);
 
     const result = await request.execute("VMaster.SAVE_MAN_POWER_APPROVED_SETTINGS");
 
-    const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save man power approved settings");
+    const { message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save man power approved settings");
 
     const newId = savedData ?? result.output?.MAN_POWER_APPROVED_ID;
     return { message: message || "Data saved successfully", MAN_POWER_APPROVED_ID: newId };
@@ -124,12 +127,13 @@ export const updateManPowerApprovedSettingsService = async (data: ManPowerApprov
     request.input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER));
     request.input("USER", sql.VarChar(50), data.USER || "Admin");
     request.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    request.input("LINK_ID", sql.Int, data.LINK_ID ?? null);
 
     const result = await request.execute("VMaster.UPDATE_MAN_POWER_APPROVED_SETTINGS");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update man power approved settings");
+    const { message, data: updatedId } = parseSprocResult(result.recordset?.[0], "Failed to update man power approved settings");
 
-    return { message: message || "Record updated successfully" };
+    return { message: message || "Record updated successfully", MAN_POWER_APPROVED_ID: updatedId ?? data.MAN_POWER_APPROVED_ID };
   } catch (error) {
     console.error("UPDATE_MAN_POWER_APPROVED_SETTINGS SP error:", error);
     throw error;

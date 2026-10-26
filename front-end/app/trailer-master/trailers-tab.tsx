@@ -71,7 +71,13 @@ const emptyForm = (): Record<string, any> => ({
   STATUS_MASTER: "AC",
 });
 
-export default function TrailersTab({ onViewFiles }: { onViewFiles?: (trailerNo: string) => void }) {
+export default function TrailersTab({
+  onViewFiles,
+  linkPagesId = 94,
+}: {
+  onViewFiles?: (trailerNo: string) => void;
+  linkPagesId?: number;
+}) {
   const dispatch = useAppDispatch();
   const { trailers, loading, error } = useAppSelector((s) => s.trailer);
   const { toast } = useToast();
@@ -249,11 +255,15 @@ export default function TrailersTab({ onViewFiles }: { onViewFiles?: (trailerNo:
       };
       if (editing) {
         const res: any = await dispatch(
-          updateTrailer({ ...cleanForm, TRAILER_ID: Number(editing.TRAILER_ID) || Number(editing.id) })
+          updateTrailer({
+            ...cleanForm,
+            TRAILER_ID: Number(editing.TRAILER_ID) || Number(editing.id),
+            LINK_ID: linkPagesId,
+          })
         ).unwrap();
         toast({ title: res?.message ?? "Trailer updated successfully!" });
       } else {
-        const res: any = await dispatch(addTrailer({ ...cleanForm })).unwrap();
+        const res: any = await dispatch(addTrailer({ ...cleanForm, LINK_ID: linkPagesId })).unwrap();
         if (!Number(res?.TRAILER_ID)) {
           throw new Error(res?.message || "Failed to retrieve new Trailer ID");
         }

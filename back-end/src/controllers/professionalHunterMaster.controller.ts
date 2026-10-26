@@ -9,9 +9,13 @@ import {
   ProfessionalHunterMasterData
 } from "../services/professionalHunterMaster.services";
 
-export const getAllProfessionalHunterMaster = async (_req: Request, res: Response): Promise<void> => {
+export const getAllProfessionalHunterMaster = async (req: Request, res: Response): Promise<void> => {
   try {
-    const records = await getAllProfessionalHunterMasterService();
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const records = await getAllProfessionalHunterMasterService(
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
     res.json({ success: true, count: records.length, data: records });
   } catch (error: any) {
     console.error("GetAllProfessionalHunterMaster error:", error);
@@ -28,7 +32,12 @@ export const getProfessionalHunterMasterById = async (req: Request, res: Respons
   }
 
   try {
-    const record = await getProfessionalHunterMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const record = await getProfessionalHunterMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
     if (!record) {
       res.status(404).json({ success: false, message: "Professional hunter not found" });
       return;
@@ -48,6 +57,10 @@ export const saveProfessionalHunterMaster = async (req: Request, res: Response):
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveProfessionalHunterMasterService(data);
     res.json({ success: true, message: result.message || "Data saved successfully", PH_ID: result.PH_ID });
@@ -65,6 +78,11 @@ export const updateProfessionalHunterMaster = async (req: Request, res: Response
     if (!data.PH_ID && id) {
       data.PH_ID = parseInt(id as string, 10);
     }
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
     const result = await updateProfessionalHunterMasterService(data);
     res.json({ success: true, message: result.message || "Record updated successfully", PH_ID: result.PH_ID });
   } catch (error: any) {

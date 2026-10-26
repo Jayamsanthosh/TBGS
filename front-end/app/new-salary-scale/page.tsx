@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { fetchItems, addItem, updateItem, deleteItem, clearError, type SalaryScaleGridData } from "@/lib/newSalaryScaleSlice";
+import { fetchItems, addItem, updateItem, deleteItem, clearError, NEW_SALARY_SCALE_LINK_ID, type SalaryScaleGridData } from "@/lib/newSalaryScaleSlice";
 import { API_URL } from "@/lib/config";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -166,6 +166,7 @@ export default function NewSalaryScalePage() {
     OT_NONOT: "",
     REMARKS: "",
     STATUS_MASTER: "AC",
+    LINK_ID: NEW_SALARY_SCALE_LINK_ID,
     USER: "Admin",
     MAC_ADDRESS: "WEB",
   });
@@ -185,6 +186,7 @@ export default function NewSalaryScalePage() {
       else if (k === "STATUS_MASTER") f[k] = val === "ACTIVE" ? "AC" : val === "INACTIVE" ? "IA" : (val || "AC");
       else if (k === "USER") f[k] = "Admin";
       else if (k === "MAC_ADDRESS") f[k] = "WEB";
+      else if (k === "LINK_ID") f[k] = val ?? NEW_SALARY_SCALE_LINK_ID;
       else if (k === "REMARKS" || k === "OT_NONOT" || k === "SALARY_SCALE_NAME") f[k] = val ?? "";
       else f[k] = val ?? "";
     }
@@ -275,6 +277,7 @@ export default function NewSalaryScalePage() {
         OT_NONOT: form.OT_NONOT?.trim() || null,
         REMARKS: form.REMARKS?.trim() || null,
         STATUS_MASTER: form.STATUS_MASTER,
+        LINK_ID: form.LINK_ID ?? NEW_SALARY_SCALE_LINK_ID,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
       };

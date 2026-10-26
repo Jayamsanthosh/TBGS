@@ -54,6 +54,7 @@ export interface OpeningStockData {
 
 export interface OpeningStockListFilter {
   companyId?: number | null;
+  linkId?: number | null;
 }
 
 const dateOrNull = (v: any): Date | null => (v ? new Date(v) : null);
@@ -120,6 +121,11 @@ export const getOpeningStockListService = async (filter: OpeningStockListFilter 
         sql.Int,
         filter.companyId == null || Number.isNaN(Number(filter.companyId)) ? null : Number(filter.companyId)
       )
+      .input(
+        "LINK_ID",
+        sql.Int,
+        filter.linkId == null || Number.isNaN(Number(filter.linkId)) ? null : Number(filter.linkId)
+      )
       .query(
         `SELECT
            H.SNO,
@@ -144,6 +150,7 @@ export const getOpeningStockListService = async (filter: OpeningStockListFilter 
            H.STATUS_ENTRY,
            H.REMARKS,
            H.LINK_PAGES_ID,
+           H.LINK_ID,
            H.RESPONSE_BY_EMP_ID,
            H.RESPONSE_DATE,
            H.RESPONSE_REMARKS,
@@ -156,6 +163,7 @@ export const getOpeningStockListService = async (filter: OpeningStockListFilter 
          LEFT JOIN [VMaster].[TBL_CURRENCY_MASTER] CU ON CU.CURRENCY_ID = H.CURRENCY_ID
          LEFT JOIN [VMaster].[TBL_STATUS_MASTER] S ON S.STATUS_ID = H.STATUS_ID
          WHERE (@COMPANY_ID IS NULL OR H.COMPANY_ID = @COMPANY_ID)
+           AND (@LINK_ID IS NULL OR H.LINK_ID = @LINK_ID)
          ORDER BY H.OPENING_STOCK_DATE DESC, H.OPENING_STOCK_REF_NO DESC`
       );
 
@@ -178,7 +186,7 @@ export const getOpeningStockListService = async (filter: OpeningStockListFilter 
 };
 
 /* --------------------------------------------------------- single header */
-export const getOpeningStockHdrService = async (refNo: string) => {
+export const getOpeningStockHdrService = async (refNo: string, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -186,6 +194,7 @@ export const getOpeningStockHdrService = async (refNo: string) => {
     const result = await pool
       .request()
       .input("OPENING_STOCK_REF_NO", sql.VarChar(50), refNo)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VInventory.GET_OPENING_STOCK_HDR");
 
     const row = result.recordset?.[0] || null;
@@ -355,20 +364,6 @@ export const deleteOpeningStockDtlService = async (
 };
 
 /* ----------------------------------------------------- combined save */
-/* The HDR procs take @LINK_PAGES_ID but not the dedicated LINK_ID column, so
-   mirror the page link id into LINK_ID after the write. */
-const syncOpeningStockHdrLinkId = async (pool: any, refNo: string, linkId: any) => {
-  const value = numOrNull(linkId);
-  if (!refNo || value === null) return;
-  await pool
-    .request()
-    .input("REF_NO", sql.VarChar(50), refNo)
-    .input("LINK_ID", sql.Int, value)
-    .query(
-      "UPDATE [VInventory].[TBL_OPENING_STOCK_HDR] SET LINK_ID = @LINK_ID WHERE OPENING_STOCK_REF_NO = @REF_NO"
-    );
-};
-
 export const saveOpeningStockCombinedService = async (data: OpeningStockData) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
@@ -395,6 +390,7 @@ export const saveOpeningStockCombinedService = async (data: OpeningStockData) =>
       .input("STATUS_ID", sql.Int, numOrNull(header.STATUS_ID))
       .input("REMARKS", sql.VarChar(500), header.REMARKS || null)
       .input("LINK_PAGES_ID", sql.Int, numOrNull(header.LINK_PAGES_ID))
+      .input("LINK_ID", sql.Int, numOrNull(header.LINK_ID ?? header.LINK_PAGES_ID))
       .input("STATUS_ENTRY", sql.VarChar(20), header.STATUS_ENTRY || "CF")
       .input("USER", sql.VarChar(50), header.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), header.MAC_ADDRESS || "WEB")
@@ -410,8 +406,6 @@ export const saveOpeningStockCombinedService = async (data: OpeningStockData) =>
     if (!refNo) {
       throw new Error("Can't Generate Open Stock Ref Number. Contact Admin");
     }
-
-    await syncOpeningStockHdrLinkId(pool, refNo, data.LINK_ID ?? data.LINK_PAGES_ID);
 
     for (const dtl of computedDtls) {
       await saveOpeningStockDtlService(refNo, dtl, data);
@@ -455,6 +449,7 @@ export const updateOpeningStockCombinedService = async (data: OpeningStockData) 
       .input("STATUS_ID", sql.Int, numOrNull(header.STATUS_ID))
       .input("REMARKS", sql.VarChar(500), header.REMARKS || null)
       .input("LINK_PAGES_ID", sql.Int, numOrNull(header.LINK_PAGES_ID))
+      .input("LINK_ID", sql.Int, numOrNull(header.LINK_ID ?? header.LINK_PAGES_ID))
       .input("STATUS_ENTRY", sql.VarChar(20), header.STATUS_ENTRY || null)
       .input("USER", sql.VarChar(50), header.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), header.MAC_ADDRESS || "WEB")
@@ -466,8 +461,6 @@ export const updateOpeningStockCombinedService = async (data: OpeningStockData) 
       "Failed to update opening stock header"
     );
     void parsedData;
-
-    await syncOpeningStockHdrLinkId(pool, refNo, data.LINK_ID ?? data.LINK_PAGES_ID);
 
     for (const dtl of computedDtls) {
       if (numOrNull(dtl.OPENING_STOCK_DTL_ID)) {

@@ -16,6 +16,7 @@ export interface ReferenceTypeMasterGridData {
   modifiedBy?: string;
   modifiedDate?: string;
   modifiedMacAddress?: string;
+  LINK_ID?: number | null;
 }
 
 export interface ReferenceTypeMasterOption {
@@ -31,6 +32,7 @@ export interface ReferenceTypeMasterListParams {
   search?: string;
   page?: number;
   pageSize?: number;
+  linkId?: number;
 }
 
 interface ReferenceTypeMasterState {
@@ -58,6 +60,7 @@ export const fetchReferenceTypes = createAsyncThunk(
       if (params.search) query.set("search", params.search);
       if (params.page) query.set("page", String(params.page));
       if (params.pageSize) query.set("pageSize", String(params.pageSize));
+      if (params.linkId) query.set("link_id", String(params.linkId));
       const qs = query.toString();
 
       const response = await fetch(`${API_URL}/reference-type-master${qs ? `?${qs}` : ""}`);
@@ -79,9 +82,10 @@ export const fetchReferenceTypes = createAsyncThunk(
 
 export const fetchReferenceTypeById = createAsyncThunk(
   "referenceTypeMaster/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/reference-type-master/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/reference-type-master/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch reference type");

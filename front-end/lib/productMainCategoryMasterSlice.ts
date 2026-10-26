@@ -7,6 +7,7 @@ export interface ProductMainCategoryGridData {
   MAIN_CATEGORY_NAME?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface ProductMainCategoryState {
@@ -34,6 +35,24 @@ export const fetchProductMainCategories = createAsyncThunk(
       return (json.data || []).map((u: any) => ({ ...u, id: u.MAIN_CATEGORY_ID }));
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to fetch main categories");
+    }
+  }
+);
+
+export const fetchProductMainCategoryById = createAsyncThunk(
+  "productMainCategory/fetchById",
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
+    try {
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/product-main-category/${params.id}${query}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return rejectWithValue(errorData.message || "Failed to fetch main category");
+      }
+      const json = await response.json();
+      return json.data || null;
+    } catch (error: unknown) {
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to fetch main category");
     }
   }
 );

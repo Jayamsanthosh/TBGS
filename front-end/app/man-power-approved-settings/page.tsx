@@ -5,12 +5,14 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import {
   fetchManPowerApprovedSettings,
+  getManPowerApprovedSettingsById,
   addManPowerApprovedSettings,
   updateManPowerApprovedSettings,
   deleteManPowerApprovedSettings,
   clearManPowerApprovedSettingsError,
   type ManPowerApprovedSettingsGridData,
 } from "@/lib/manPowerApprovedSettingsSlice";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { API_URL } from "@/lib/config";
 import { clampNonNegative } from "@/lib/validation";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
@@ -42,6 +44,7 @@ export default function ManPowerApprovedSettingsPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.manPowerApprovedSettings);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(130);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -51,6 +54,7 @@ export default function ManPowerApprovedSettingsPage() {
   const [pageSize, setPageSize] = useState<number | "ALL">(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState(false);
 
   const [companies, setCompanies] = useState<DropdownItem[]>([]);
   const [departments, setDepartments] = useState<DropdownItem[]>([]);
@@ -231,26 +235,49 @@ export default function ManPowerApprovedSettingsPage() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), LINK_ID: linkPagesId });
     setDialogOpen(true);
   };
 
-  const openEdit = (item: any) => {
+  const openEdit = async (item: any) => {
     setEditing(item);
-    setForm({
-      COMPANY_ID: String(item.COMPANY_ID || ""),
-      DEPARTMENT_ID: String(item.DEPARTMENT_ID || ""),
-      DESIGNATION_ID: String(item.DESIGNATION_ID || ""),
-      EMPLOYMENT_TYPE_ID: String(item.EMPLOYMENT_TYPE_ID || ""),
-      NEW_APPROVED_MAN_POWER: item.NEW_APPROVED_MAN_POWER != null ? String(item.NEW_APPROVED_MAN_POWER) : "",
-      MAN_POWER_REQUEST_ID: item.MAN_POWER_REQUEST_ID != null ? String(item.MAN_POWER_REQUEST_ID) : "",
-      APPROVED_BY: item.APPROVED_BY || "",
-      REMARKS: item.REMARKS || "",
-      STATUS_MASTER: item.STATUS_MASTER === "ACTIVE" ? "AC" : item.STATUS_MASTER === "INACTIVE" ? "IA" : (item.STATUS_MASTER || "AC"),
-      USER: "Admin",
-      MAC_ADDRESS: "WEB",
-    });
-    setDialogOpen(true);
+    setLoadingEdit(true);
+    try {
+      const res = await dispatch(getManPowerApprovedSettingsById({ id: item.id || item.MAN_POWER_APPROVED_ID, linkId: linkPagesId })).unwrap();
+      const data = res || item;
+      setForm({
+        COMPANY_ID: String(data.COMPANY_ID || ""),
+        DEPARTMENT_ID: String(data.DEPARTMENT_ID || ""),
+        DESIGNATION_ID: String(data.DESIGNATION_ID || ""),
+        EMPLOYMENT_TYPE_ID: String(data.EMPLOYMENT_TYPE_ID || ""),
+        NEW_APPROVED_MAN_POWER: data.NEW_APPROVED_MAN_POWER != null ? String(data.NEW_APPROVED_MAN_POWER) : "",
+        MAN_POWER_REQUEST_ID: data.MAN_POWER_REQUEST_ID != null ? String(data.MAN_POWER_REQUEST_ID) : "",
+        APPROVED_BY: data.APPROVED_BY || "",
+        REMARKS: data.REMARKS || "",
+        STATUS_MASTER: data.STATUS_MASTER === "ACTIVE" ? "AC" : data.STATUS_MASTER === "INACTIVE" ? "IA" : (data.STATUS_MASTER || "AC"),
+        USER: "Admin",
+        MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
+      });
+    } catch {
+      setForm({
+        COMPANY_ID: String(item.COMPANY_ID || ""),
+        DEPARTMENT_ID: String(item.DEPARTMENT_ID || ""),
+        DESIGNATION_ID: String(item.DESIGNATION_ID || ""),
+        EMPLOYMENT_TYPE_ID: String(item.EMPLOYMENT_TYPE_ID || ""),
+        NEW_APPROVED_MAN_POWER: item.NEW_APPROVED_MAN_POWER != null ? String(item.NEW_APPROVED_MAN_POWER) : "",
+        MAN_POWER_REQUEST_ID: item.MAN_POWER_REQUEST_ID != null ? String(item.MAN_POWER_REQUEST_ID) : "",
+        APPROVED_BY: item.APPROVED_BY || "",
+        REMARKS: item.REMARKS || "",
+        STATUS_MASTER: item.STATUS_MASTER === "ACTIVE" ? "AC" : item.STATUS_MASTER === "INACTIVE" ? "IA" : (item.STATUS_MASTER || "AC"),
+        USER: "Admin",
+        MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
+      });
+    } finally {
+      setLoadingEdit(false);
+      setDialogOpen(true);
+    }
   };
 
   const handleSave = async () => {
@@ -287,6 +314,7 @@ export default function ManPowerApprovedSettingsPage() {
       STATUS_MASTER: form.STATUS_MASTER,
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: linkPagesId,
     };
 
     try {

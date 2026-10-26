@@ -8,6 +8,7 @@ export interface PriorityGridData {
   PRIORITY_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface PriorityState {
@@ -35,6 +36,24 @@ export const fetchPriorities = createAsyncThunk(
       return (json.data || []).map((u: any) => ({ ...u, id: u.PRIORITY_ID }));
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to fetch priorities");
+    }
+  }
+);
+
+export const fetchPriorityById = createAsyncThunk(
+  "priorities/fetchPriorityById",
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
+    try {
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/priority-master/${params.id}${query}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return rejectWithValue(errorData.message || "Failed to fetch priority");
+      }
+      const json = await response.json();
+      return json.data || null;
+    } catch (error: unknown) {
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to fetch priority");
     }
   }
 );

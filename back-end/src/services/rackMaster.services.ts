@@ -23,15 +23,17 @@ export interface RackMasterData {
   REMARKS?: string;
   USER?: string;
   MAC_ADDRESS?: string;
+  LINK_ID?: number | null;
 }
 
-export const getAllRackMasterService = async () => {
+export const getAllRackMasterService = async (linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
   try {
     const result = await pool
       .request()
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .query(`
         SELECT r.[RACK_ID]
               ,r.[RACK_NAME]
@@ -52,6 +54,7 @@ export const getAllRackMasterService = async () => {
         LEFT JOIN [VMaster].[TBL_CAMP_MASTER] cm ON r.CAMP_ID = cm.CAMP_ID
         LEFT JOIN [VMaster].[tbl_Store_Master] s ON r.STORE_ID = s.Store_Id
         LEFT JOIN [VMaster].[TBL_RACK_SECTION_MASTER] rs ON r.RACK_SECTION_ID = rs.RACK_SECTION_ID
+        WHERE (@LINK_ID IS NULL OR r.LINK_ID = @LINK_ID)
         ORDER BY r.[RACK_ID] DESC
       `);
     return result.recordset || [];
@@ -61,7 +64,7 @@ export const getAllRackMasterService = async () => {
   }
 };
 
-export const getRackMasterByIdService = async (id: number) => {
+export const getRackMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -69,6 +72,7 @@ export const getRackMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("RACK_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_RACK_MASTER");
     return result.recordset[0] || null;
   } catch (error) {
@@ -96,6 +100,7 @@ export const saveRackMasterService = async (data: RackMasterData) => {
       .input("REMARKS", sql.VarChar(100), data.REMARKS || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_RACK_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save rack");
@@ -126,6 +131,7 @@ export const updateRackMasterService = async (data: RackMasterData) => {
       .input("REMARKS", sql.VarChar(100), data.REMARKS || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_RACK_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to update rack");

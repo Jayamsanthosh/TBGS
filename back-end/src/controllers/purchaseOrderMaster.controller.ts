@@ -146,6 +146,9 @@ export const getPurchaseOrderDtl = async (req: Request, res: Response): Promise<
 
 export const savePurchaseOrder = async (req: Request, res: Response): Promise<void> => {
   const data: PurchaseOrderData = req.body;
+  const rawLinkId = (data as any).LINK_ID ?? (data as any).LINK_PAGES_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 268;
+  (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 268;
 
   if (!validateOrder(data, res, false)) return;
 
@@ -165,6 +168,9 @@ export const savePurchaseOrder = async (req: Request, res: Response): Promise<vo
 export const updatePurchaseOrder = async (req: Request, res: Response): Promise<void> => {
   const data: PurchaseOrderData = req.body;
   const { refNo } = req.params;
+  const rawLinkIdUpd = (data as any).LINK_ID ?? (data as any).LINK_PAGES_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkIdUpd = rawLinkIdUpd != null && rawLinkIdUpd !== "" ? Number(rawLinkIdUpd) : 268;
+  (data as any).LINK_ID = linkIdUpd != null && Number.isFinite(linkIdUpd) ? linkIdUpd : 268;
 
   if (!data.PURCHASE_ORDER_NO && refNo) {
     data.PURCHASE_ORDER_NO = refNo as string;

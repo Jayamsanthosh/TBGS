@@ -205,6 +205,7 @@ export default function PermitAuthorityMasterPage() {
         ADDRESS: u.ADDRESS,
         REMARKS: u.REMARKS,
         STATUS_MASTER: u.STATUS_MASTER,
+        LINK_ID: u.LINK_ID ?? 252,
         COUNTRY_NAME: country?.Country_Name || u.COUNTRY_NAME || `ID: ${u.COUNTRY_ID}`,
       };
     });

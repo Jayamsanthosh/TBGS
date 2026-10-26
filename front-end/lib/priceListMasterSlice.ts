@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { API_URL } from "./config";
 
+export const PRICE_LIST_LINK_ID = 105;
+
 export interface PriceListGridData {
   id?: string | number;
   PRICE_LIST_ID?: number;
@@ -18,8 +20,11 @@ export interface PriceListGridData {
   ACCOMDATION_LIMIT_AMOUNT?: number;
   EFFECTIVE_FROM?: string;
   EFFECTIVE_TO?: string;
+  REQUESTED_BY?: string;
+  REQUESTED_DATE?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface PriceListState {
@@ -54,12 +59,23 @@ export const fetchPriceLists = createAsyncThunk(
 
 export const addPriceList = createAsyncThunk(
   "priceList/addPriceList",
-  async (item: PriceListGridData, { rejectWithValue }) => {
+  async (item: PriceListGridData, { rejectWithValue, getState }) => {
     try {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+
+      const payload = {
+        ...item,
+        USER,
+        REQUESTED_BY: item.REQUESTED_BY || USER,
+        LINK_ID: item.LINK_ID ?? PRICE_LIST_LINK_ID,
+      };
+
       const response = await fetch(`${API_URL}/price-list-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -75,9 +91,19 @@ export const addPriceList = createAsyncThunk(
 
 export const updatePriceList = createAsyncThunk(
   "priceList/updatePriceList",
-  async (item: PriceListGridData, { rejectWithValue }) => {
+  async (item: PriceListGridData, { rejectWithValue, getState }) => {
     try {
-      const payload = { ...item, PRICE_LIST_ID: Number(item.id) || item.PRICE_LIST_ID };
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+
+      const payload = {
+        ...item,
+        PRICE_LIST_ID: Number(item.id) || item.PRICE_LIST_ID,
+        USER,
+        LINK_ID: item.LINK_ID ?? PRICE_LIST_LINK_ID,
+      };
+
       const response = await fetch(`${API_URL}/price-list-master/${payload.PRICE_LIST_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -112,7 +138,8 @@ export const deletePriceList = createAsyncThunk(
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || "Failed to delete price list");
       }
-      return await response.json(); } catch (error: any) {
+      return await response.json();
+    } catch (error: any) {
       if (error?.name === "AbortError") throw error;
       return rejectWithValue(error?.message || "Failed to delete price list");
     }

@@ -716,7 +716,7 @@ const orderHdrRequest = (
     .input("STATUS_ENTRY", sql.VarChar(20), statusEntry)
     .input("USER", sql.VarChar(50), data.USER || "Admin")
     .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
-    .input("LINK_ID", sql.Int, numOrNull((data as any).LINK_ID ?? (data as any).LINK_PAGES_ID));
+    .input("LINK_ID", sql.Int, numOrNull((data as any).LINK_ID ?? (data as any).LINK_PAGES_ID) ?? 268);
 
 /* ---------------------------------------------------------------- create */
 export const savePurchaseOrderCombinedService = async (raw: PurchaseOrderData) => {

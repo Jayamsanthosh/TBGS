@@ -15,7 +15,7 @@ export const getAllPriceTypeMaster = async (_req: Request, res: Response): Promi
     res.json({ success: true, count: priceTypes.length, data: priceTypes });
   } catch (error: any) {
     console.error("GetAllPriceTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -28,7 +28,12 @@ export const getPriceTypeMasterById = async (req: Request, res: Response): Promi
   }
 
   try {
-    const priceType = await getPriceTypeMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const priceType = await getPriceTypeMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!priceType) {
       res.status(404).json({ success: false, message: "Price type not found" });
@@ -38,7 +43,7 @@ export const getPriceTypeMasterById = async (req: Request, res: Response): Promi
     res.json({ success: true, data: priceType });
   } catch (error: any) {
     console.error("GetPriceTypeMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -50,12 +55,24 @@ export const savePriceTypeMaster = async (req: Request, res: Response): Promise<
     return;
   }
 
+  const rawLinkId = priceTypeData.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  priceTypeData.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  priceTypeData.USER = USER || priceTypeData.USER || "Admin";
+  priceTypeData.MAC_ADDRESS = MAC_ADDRESS || priceTypeData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await savePriceTypeMasterService(priceTypeData);
-    res.json({ success: true, message: result.message || "Price type saved successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Price type saved successfully",
+      PRICE_TYPE_ID: result.PRICE_TYPE_ID,
+    });
   } catch (error: any) {
     console.error("SavePriceTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -68,11 +85,23 @@ export const updatePriceTypeMaster = async (req: Request, res: Response): Promis
       priceTypeData.PRICE_TYPE_ID = parseInt(id as string, 10);
     }
 
+    const rawLinkId = priceTypeData.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    priceTypeData.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    priceTypeData.USER = USER || priceTypeData.USER || "Admin";
+    priceTypeData.MAC_ADDRESS = MAC_ADDRESS || priceTypeData.MAC_ADDRESS || "WEB";
+
     const result = await updatePriceTypeMasterService(priceTypeData);
-    res.json({ success: true, message: result.message || "Price type updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Price type updated successfully",
+      PRICE_TYPE_ID: result.PRICE_TYPE_ID,
+    });
   } catch (error: any) {
     console.error("UpdatePriceTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -95,6 +124,6 @@ export const deletePriceTypeMaster = async (req: Request, res: Response): Promis
     res.json({ success: true, message: result.message || "Price type deleted successfully" });
   } catch (error: any) {
     console.error("DeletePriceTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

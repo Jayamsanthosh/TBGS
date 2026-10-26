@@ -7,6 +7,7 @@ import { fetchRegions, addRegion, updateRegion, deleteRegion, clearRegionsError,
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 import { TANZANIA_ZONES } from "@/lib/validation";
 
@@ -87,6 +88,8 @@ export default function RegionMasterPage() {
   const { regions, loading, error } = useAppSelector((s) => s.regions);
   const { toast } = useToast();
 
+  const linkPagesId = useLinkPagesId(17);
+
   const { data: countries } = useApiQuery("region-country-list", async () => {
     const res = await fetch(`${API_URL}/country-master`);
     if (!res.ok) throw new Error("Failed to fetch countries");
@@ -137,12 +140,12 @@ export default function RegionMasterPage() {
     data: enrichedData,
     isLoading: loading,
     add: async (item: RegionGridData) => {
-      const res = await dispatch(addRegion(item)).unwrap();
+      const res = await dispatch(addRegion({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchRegions());
       return res;
     },
     update: async (item: RegionGridData) => {
-      const res = await dispatch(updateRegion(item)).unwrap();
+      const res = await dispatch(updateRegion({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchRegions());
       return res;
     },
@@ -159,7 +162,7 @@ export default function RegionMasterPage() {
       dispatch(fetchRegions());
       return res;
     },
-  }), [enrichedData, loading, dispatch]);
+  }), [enrichedData, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

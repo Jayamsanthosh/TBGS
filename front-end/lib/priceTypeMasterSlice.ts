@@ -8,6 +8,7 @@ export interface PriceTypeGridData {
   PRICE_TYPE_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface PriceTypeState {
@@ -36,6 +37,25 @@ export const fetchPriceTypes = createAsyncThunk(
     } catch (error: any) {
       if (error?.name === "AbortError") throw error;
       return rejectWithValue(error?.message || "Failed to fetch price types");
+    }
+  }
+);
+
+export const fetchPriceTypeById = createAsyncThunk(
+  "priceType/fetchPriceTypeById",
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
+    try {
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/price-type-master/${params.id}${query}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to fetch price type");
+      }
+      const json = await response.json();
+      return json.data || null;
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === "AbortError") throw error;
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to fetch price type");
     }
   }
 );

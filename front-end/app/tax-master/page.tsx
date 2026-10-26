@@ -13,6 +13,7 @@ import {
 } from "@/lib/taxMasterSlice";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const normalizeStatus = (val: unknown): string => {
   const u = String(val || "").trim().toUpperCase();
@@ -100,12 +101,6 @@ const fields: MasterField[] = [
     type: "select",
     options: [{ label: "Active", value: "AC" }, { label: "Inactive", value: "IN" }],
     defaultValue: "AC",
-    formatter: (val: unknown) => {
-      const s = String(val || "").toUpperCase();
-      if (s === "AC") return "ACTIVE";
-      if (s === "IN" || s === "IA") return "INACTIVE";
-      return val;
-    },
   },
 ];
 
@@ -144,6 +139,8 @@ export default function TaxMasterPage() {
   const { taxes, loading, error } = useAppSelector((s) => s.taxMaster);
   const { toast } = useToast();
 
+  const linkPagesId = useLinkPagesId(254);
+
   useEffect(() => {
     dispatch(fetchTaxes());
   }, [dispatch]);
@@ -159,12 +156,12 @@ export default function TaxMasterPage() {
     data: taxes,
     isLoading: loading,
     add: async (item: TaxMasterGridData) => {
-      const res = await dispatch(addTax(item)).unwrap();
+      const res = await dispatch(addTax({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchTaxes());
       return res;
     },
     update: async (item: TaxMasterGridData) => {
-      const res = await dispatch(updateTax(item)).unwrap();
+      const res = await dispatch(updateTax({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchTaxes());
       return res;
     },
@@ -181,7 +178,7 @@ export default function TaxMasterPage() {
       dispatch(fetchTaxes());
       return res;
     },
-  }), [taxes, loading, dispatch]);
+  }), [taxes, loading, dispatch, linkPagesId]);
 
   return (
     <MasterCrudPage

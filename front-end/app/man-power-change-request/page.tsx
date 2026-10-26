@@ -12,6 +12,7 @@ import {
   clearManPowerChangeRequestError,
   type ManPowerChangeRequestGridData,
 } from "@/lib/manPowerChangeRequestSlice";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { API_URL } from "@/lib/config";
 import { clampNonNegative } from "@/lib/validation";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
@@ -53,6 +54,7 @@ export default function ManPowerChangeRequestPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.manPowerChangeRequest);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(79);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -272,7 +274,7 @@ export default function ManPowerChangeRequestPage() {
     setDialogOpen(true);
     setForm(emptyForm());
     try {
-      const detail = await dispatch(getManPowerChangeRequestById(item.id)).unwrap();
+      const detail = await dispatch(getManPowerChangeRequestById({ id: item.id, linkId: linkPagesId })).unwrap();
       if (detail) {
         setForm({
           COMPANY_ID: String(detail.COMPANY_ID || ""),
@@ -332,35 +334,36 @@ export default function ManPowerChangeRequestPage() {
       return;
     }
 
-    const payload: Record<string, any> = {
-      COMPANY_ID: Number(form.COMPANY_ID),
-      DEPARTMENT_ID: Number(form.DEPARTMENT_ID),
-      DESIGNATION_ID: Number(form.DESIGNATION_ID),
-      EMPLOYMENT_TYPE_ID: Number(form.EMPLOYMENT_TYPE_ID),
-      OLD_APPROVED_MAN_POWER: form.OLD_APPROVED_MAN_POWER ? Math.max(0, Number(form.OLD_APPROVED_MAN_POWER) || 0) : null,
-      ADD_REMOVE_MAN_POWER: form.ADD_REMOVE_MAN_POWER ? Math.max(0, Number(form.ADD_REMOVE_MAN_POWER) || 0) : null,
-      NEW_APPROVED_MAN_POWER: form.NEW_APPROVED_MAN_POWER ? Math.max(0, Number(form.NEW_APPROVED_MAN_POWER) || 0) : null,
-      SECTION_HEAD_RESPONSE_PERSON_EMP_ID: form.SECTION_HEAD_RESPONSE_PERSON_EMP_ID ? Number(form.SECTION_HEAD_RESPONSE_PERSON_EMP_ID) : null,
-      SECTION_HEAD_RESPONSE_DATE: form.SECTION_HEAD_RESPONSE_DATE || null,
-      SECTION_HEAD_RESPONSE_STATUS: form.SECTION_HEAD_RESPONSE_STATUS?.trim() || null,
-      SECTION_HEAD_RESPONSE_REMARKS: form.SECTION_HEAD_RESPONSE_REMARKS?.trim() || null,
-      RESPONSE_1_EMP_ID: form.RESPONSE_1_EMP_ID ? Number(form.RESPONSE_1_EMP_ID) : null,
-      RESPONSE_1_DATE: form.RESPONSE_1_DATE || null,
-      RESPONSE_1_STATUS: form.RESPONSE_1_STATUS?.trim() || null,
-      RESPONSE_1_REMARKS: form.RESPONSE_1_REMARKS?.trim() || null,
-      RESPONSE_2_EMP_ID: form.RESPONSE_2_EMP_ID ? Number(form.RESPONSE_2_EMP_ID) : null,
-      RESPONSE_2_DATE: form.RESPONSE_2_DATE || null,
-      RESPONSE_2_STATUS: form.RESPONSE_2_STATUS?.trim() || null,
-      RESPONSE_2_REMARKS: form.RESPONSE_2_REMARKS?.trim() || null,
-      FINAL_RESPONSE_PERSON: form.FINAL_RESPONSE_PERSON?.trim() || null,
-      FINAL_RESPONSE_DATE: form.FINAL_RESPONSE_DATE || null,
-      FINAL_RESPONSE_STATUS: form.FINAL_RESPONSE_STATUS?.trim() || null,
-      FINAL_RESPONSE_REMARKS: form.FINAL_RESPONSE_REMARKS?.trim() || null,
-      REMARKS: form.REMARKS?.trim() || null,
-      STATUS_MASTER: form.STATUS_MASTER,
-      USER: "Admin",
-      MAC_ADDRESS: "WEB",
-    };
+      const payload: Record<string, any> = {
+        COMPANY_ID: form.COMPANY_ID ? Number(form.COMPANY_ID) : null,
+        DEPARTMENT_ID: form.DEPARTMENT_ID ? Number(form.DEPARTMENT_ID) : null,
+        DESIGNATION_ID: form.DESIGNATION_ID ? Number(form.DESIGNATION_ID) : null,
+        EMPLOYMENT_TYPE_ID: form.EMPLOYMENT_TYPE_ID ? Number(form.EMPLOYMENT_TYPE_ID) : null,
+        OLD_APPROVED_MAN_POWER: form.OLD_APPROVED_MAN_POWER === "" ? null : Number(form.OLD_APPROVED_MAN_POWER),
+        ADD_REMOVE_MAN_POWER: form.ADD_REMOVE_MAN_POWER === "" ? null : Number(form.ADD_REMOVE_MAN_POWER),
+        NEW_APPROVED_MAN_POWER: form.NEW_APPROVED_MAN_POWER === "" ? null : Number(form.NEW_APPROVED_MAN_POWER),
+        SECTION_HEAD_RESPONSE_PERSON_EMP_ID: form.SECTION_HEAD_RESPONSE_PERSON_EMP_ID === "" ? null : Number(form.SECTION_HEAD_RESPONSE_PERSON_EMP_ID),
+        SECTION_HEAD_RESPONSE_DATE: form.SECTION_HEAD_RESPONSE_DATE || null,
+        SECTION_HEAD_RESPONSE_STATUS: form.SECTION_HEAD_RESPONSE_STATUS || null,
+        SECTION_HEAD_RESPONSE_REMARKS: form.SECTION_HEAD_RESPONSE_REMARKS?.trim() || null,
+        RESPONSE_1_EMP_ID: form.RESPONSE_1_EMP_ID === "" ? null : Number(form.RESPONSE_1_EMP_ID),
+        RESPONSE_1_DATE: form.RESPONSE_1_DATE || null,
+        RESPONSE_1_STATUS: form.RESPONSE_1_STATUS || null,
+        RESPONSE_1_REMARKS: form.RESPONSE_1_REMARKS?.trim() || null,
+        RESPONSE_2_EMP_ID: form.RESPONSE_2_EMP_ID === "" ? null : Number(form.RESPONSE_2_EMP_ID),
+        RESPONSE_2_DATE: form.RESPONSE_2_DATE || null,
+        RESPONSE_2_STATUS: form.RESPONSE_2_STATUS || null,
+        RESPONSE_2_REMARKS: form.RESPONSE_2_REMARKS?.trim() || null,
+        FINAL_RESPONSE_PERSON: form.FINAL_RESPONSE_PERSON?.trim() || null,
+        FINAL_RESPONSE_DATE: form.FINAL_RESPONSE_DATE || null,
+        FINAL_RESPONSE_STATUS: form.FINAL_RESPONSE_STATUS || null,
+        FINAL_RESPONSE_REMARKS: form.FINAL_RESPONSE_REMARKS?.trim() || null,
+        REMARKS: form.REMARKS?.trim() || null,
+        STATUS_MASTER: form.STATUS_MASTER,
+        USER: "Admin",
+        MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
+      };
 
     try {
       if (editing) {

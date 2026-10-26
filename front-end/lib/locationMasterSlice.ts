@@ -12,6 +12,7 @@ export interface LocationGridData {
   STORE_ID?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface LocationState {

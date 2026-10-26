@@ -11,6 +11,7 @@ export interface ProductSubCategoryData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllProductSubCategoryService = async () => {
@@ -28,7 +29,7 @@ export const getAllProductSubCategoryService = async () => {
   }
 };
 
-export const getProductSubCategoryByIdService = async (id: number) => {
+export const getProductSubCategoryByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -36,6 +37,7 @@ export const getProductSubCategoryByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("SUB_CATEGORY_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_PRODUCT_SUB_CATEGORY_MASTER");
 
     return result.recordset[0] || null;
@@ -59,11 +61,15 @@ export const saveProductSubCategoryService = async (data: ProductSubCategoryData
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_PRODUCT_SUB_CATEGORY_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save sub category");
+    const { message, data: savedId } = parseSprocResult(result.recordset?.[0], "Failed to save sub category");
 
-    return { message: message || "Sub category saved successfully" };
+    return {
+      message: message || "Sub category saved successfully",
+      SUB_CATEGORY_ID: Number(savedId) || Number(data.SUB_CATEGORY_ID ?? 0),
+    };
   } catch (error) {
     console.error("SAVE_PRODUCT_SUB_CATEGORY_MASTER SP error:", error);
     throw error;
@@ -84,11 +90,15 @@ export const updateProductSubCategoryService = async (data: ProductSubCategoryDa
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_PRODUCT_SUB_CATEGORY_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update sub category");
+    const { message, data: updatedId } = parseSprocResult(result.recordset?.[0], "Failed to update sub category");
 
-    return { message: message || "Sub category updated successfully" };
+    return {
+      message: message || "Sub category updated successfully",
+      SUB_CATEGORY_ID: Number(updatedId) || Number(data.SUB_CATEGORY_ID ?? 0),
+    };
   } catch (error) {
     console.error("UPDATE_PRODUCT_SUB_CATEGORY_MASTER SP error:", error);
     throw error;

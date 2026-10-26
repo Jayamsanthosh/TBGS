@@ -87,6 +87,7 @@ export default function PaymentTriggerEventMasterPage() {
     STATUS_MASTER: "AC",
     USER: "Admin",
     MAC_ADDRESS: "WEB",
+    LINK_ID: 45,
   });
 
   const openAdd = () => {
@@ -105,6 +106,7 @@ export default function PaymentTriggerEventMasterPage() {
       STATUS_MASTER: item.STATUS_MASTER || "AC",
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: item.LINK_ID ?? 45,
     });
     setDialogOpen(true);
   };
@@ -130,6 +132,7 @@ export default function PaymentTriggerEventMasterPage() {
         DESCRIPTION: form.DESCRIPTION?.trim() || null,
         REMARKS: form.REMARKS?.trim() || null,
         STATUS_MASTER: form.STATUS_MASTER,
+        LINK_ID: form.LINK_ID ?? 45,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
       };

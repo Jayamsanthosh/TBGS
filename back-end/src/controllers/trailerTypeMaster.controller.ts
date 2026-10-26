@@ -21,12 +21,18 @@ export const getAllTrailerTypeMaster = async (req: Request, res: Response): Prom
 
 export const getTrailerTypeMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const linkIdParam = req.query.link_id;
+  const linkId = linkIdParam !== undefined && linkIdParam !== null ? parseInt(String(linkIdParam), 10) : 0;
+
   if (!id) {
     res.status(400).json({ success: false, message: "Trailer Type ID is required" });
     return;
   }
   try {
-    const trailerType = await getTrailerTypeMasterByIdService(parseInt(id as string, 10));
+    const trailerType = await getTrailerTypeMasterByIdService(
+      parseInt(id as string, 10),
+      isNaN(linkId) ? 0 : linkId
+    );
     if (!trailerType) {
       res.status(404).json({ success: false, message: "Trailer type not found" });
       return;
@@ -44,9 +50,16 @@ export const saveTrailerTypeMaster = async (req: Request, res: Response): Promis
     res.status(400).json({ success: false, message: "Trailer Type Name is required" });
     return;
   }
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  trailerTypeData.USER = USER || trailerTypeData.USER || "Admin";
+  trailerTypeData.MAC_ADDRESS = MAC_ADDRESS || trailerTypeData.MAC_ADDRESS || "WEB";
   try {
     const result = await saveTrailerTypeMasterService(trailerTypeData);
-    res.json({ success: true, message: result.message || "Trailer type saved successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Trailer type saved successfully",
+      data: { TRAILER_TYPE_ID: result.id },
+    });
   } catch (error: any) {
     console.error("SaveTrailerTypeMaster error:", error);
     res.status(500).json({ success: false, message: error?.message || "Internal server error" });
@@ -56,12 +69,19 @@ export const saveTrailerTypeMaster = async (req: Request, res: Response): Promis
 export const updateTrailerTypeMaster = async (req: Request, res: Response): Promise<void> => {
   const trailerTypeData: TrailerTypeMasterData = req.body;
   const { id } = req.params;
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  trailerTypeData.USER = USER || trailerTypeData.USER || "Admin";
+  trailerTypeData.MAC_ADDRESS = MAC_ADDRESS || trailerTypeData.MAC_ADDRESS || "WEB";
   try {
     if (!trailerTypeData.TRAILER_TYPE_ID && id) {
       trailerTypeData.TRAILER_TYPE_ID = parseInt(id as string, 10);
     }
     const result = await updateTrailerTypeMasterService(trailerTypeData);
-    res.json({ success: true, message: result.message || "Trailer type updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Trailer type updated successfully",
+      data: { TRAILER_TYPE_ID: result.id },
+    });
   } catch (error: any) {
     console.error("UpdateTrailerTypeMaster error:", error);
     res.status(500).json({ success: false, message: error?.message || "Internal server error" });

@@ -29,7 +29,12 @@ export const getStoreProductMinimumStockById = async (req: Request, res: Respons
   }
 
   try {
-    const item = await getStoreProductMinimumStockByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const item = await getStoreProductMinimumStockByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!item) {
       res.status(404).json({ success: false, message: "Store product minimum stock not found" });
@@ -66,6 +71,10 @@ export const saveStoreProductMinimumStock = async (req: Request, res: Response):
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveStoreProductMinimumStockService(data);
     res.json({ success: true, message: result.message || "Data saved successfully", SNO: result.SNO });
@@ -84,13 +93,17 @@ export const updateStoreProductMinimumStock = async (req: Request, res: Response
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     if (!data.SNO && id) {
       data.SNO = parseInt(id as string, 10);
     }
 
     const result = await updateStoreProductMinimumStockService(data);
-    res.json({ success: true, message: result.message || "Record updated successfully" });
+    res.json({ success: true, message: result.message || "Record updated successfully", SNO: result.SNO });
   } catch (error: any) {
     console.error("UpdateStoreProductMinimumStock error:", error);
     res.status(500).json({ success: false, message: error?.message || "Internal server error" });

@@ -14,7 +14,7 @@ export interface RegionMasterData {
   STATUS_MASTER: string;
   USER?: string;
   MAC_ADDRESS?: string;
-  ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllRegionMasterService = async () => {
@@ -32,7 +32,7 @@ export const getAllRegionMasterService = async () => {
   }
 };
 
-export const getRegionMasterByIdService = async (id: number) => {
+export const getRegionMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -40,6 +40,7 @@ export const getRegionMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("REGION_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_REGION_MASTER");
 
     return result.recordset[0] || null;
@@ -67,6 +68,7 @@ export const saveRegionMasterService = async (data: RegionMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_REGION_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save region");
@@ -96,11 +98,15 @@ export const updateRegionMasterService = async (data: RegionMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_REGION_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update region");
+    const { message, data: updatedId } = parseSprocResult(result.recordset?.[0], "Failed to update region");
 
-    return { message: message || "Region updated successfully" };
+    return {
+      message: message || "Region updated successfully",
+      REGION_ID: updatedId || Number(data.REGION_ID ?? 0),
+    };
   } catch (error) {
     console.error("UPDATE_REGION_MASTER SP error:", error);
     throw error;

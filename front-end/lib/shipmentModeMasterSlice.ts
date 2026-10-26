@@ -13,6 +13,7 @@ export interface ShipmentModeMasterGridData {
   modifiedBy?: string;
   modifiedDate?: string;
   modifiedMacAddress?: string;
+  LINK_ID?: number | null;
 }
 
 export interface ShipmentModeMasterOption {
@@ -27,6 +28,7 @@ export interface ShipmentModeMasterListParams {
   search?: string;
   page?: number;
   pageSize?: number;
+  linkId?: number;
 }
 
 interface ShipmentModeMasterState {
@@ -54,6 +56,7 @@ export const fetchShipmentModes = createAsyncThunk(
       if (params.search) query.set("search", params.search);
       if (params.page) query.set("page", String(params.page));
       if (params.pageSize) query.set("pageSize", String(params.pageSize));
+      if (params.linkId) query.set("link_id", String(params.linkId));
       const qs = query.toString();
 
       const response = await fetch(`${API_URL}/shipment-mode-master${qs ? `?${qs}` : ""}`);
@@ -75,9 +78,10 @@ export const fetchShipmentModes = createAsyncThunk(
 
 export const fetchShipmentModeById = createAsyncThunk(
   "shipmentModeMaster/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/shipment-mode-master/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/shipment-mode-master/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch shipment mode");

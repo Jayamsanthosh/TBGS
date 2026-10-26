@@ -12,6 +12,7 @@ export interface MassagerMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const serializeRecordset = (rows: any[]) =>
@@ -46,7 +47,7 @@ export const getAllMassagerMasterService = async (status?: string) => {
   }
 };
 
-export const getMassagerMasterByIdService = async (id: number) => {
+export const getMassagerMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -54,6 +55,7 @@ export const getMassagerMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("MASSAGER_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_MASSAGER_MASTER");
 
     return result.recordset[0] || null;
@@ -77,10 +79,11 @@ export const saveMassagerMasterService = async (data: MassagerMasterData) => {
     request.input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null);
     request.input("USER", sql.VarChar(50), data.USER || "Admin");
     request.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+    request.input("LINK_ID", sql.Int, data.LINK_ID ?? null);
 
     const result = await request.execute("VMaster.SAVE_MASSAGER_MASTER");
 
-    const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save massager");
+    const { message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save massager");
 
     const newId = savedData ?? result.output?.MASSAGER_ID;
     return { message: message || "Data saved successfully", MASSAGER_ID: newId };
@@ -105,11 +108,12 @@ export const updateMassagerMasterService = async (data: MassagerMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_MASSAGER_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update massager");
+    const parsed = parseSprocResult(result.recordset?.[0], "Failed to update massager");
 
-    return { message: message || "Record updated successfully" };
+    return { message: parsed.message || "Record updated successfully", MASSAGER_ID: parsed.data };
   } catch (error) {
     console.error("UPDATE_MASSAGER_MASTER SP error:", error);
     throw error;

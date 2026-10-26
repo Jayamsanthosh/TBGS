@@ -3,8 +3,9 @@
 import { useMemo, useEffect } from "react";
 import MasterCrudPage, { type MasterField } from "@/components/MasterCrudPage";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { fetchProductMainCategories, addProductMainCategory, updateProductMainCategory, deleteProductMainCategory, clearProductMainCategoryError, ProductMainCategoryGridData } from "@/lib/productMainCategoryMasterSlice";
+import { fetchProductMainCategories, fetchProductMainCategoryById, addProductMainCategory, updateProductMainCategory, deleteProductMainCategory, clearProductMainCategoryError, ProductMainCategoryGridData } from "@/lib/productMainCategoryMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
@@ -67,6 +68,7 @@ export default function ProductMainCategoryPage() {
   const dispatch = useAppDispatch();
   const { categories, loading, error } = useAppSelector((s) => s.productMainCategory);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(108);
 
   useEffect(() => {
     dispatch(fetchProductMainCategories());
@@ -83,12 +85,12 @@ export default function ProductMainCategoryPage() {
     data: categories,
     isLoading: loading,
     add: async (item: ProductMainCategoryGridData) => {
-      const res = await dispatch(addProductMainCategory(item)).unwrap();
+      const res = await dispatch(addProductMainCategory({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchProductMainCategories());
       return res;
     },
     update: async (item: ProductMainCategoryGridData) => {
-      const res = await dispatch(updateProductMainCategory(item)).unwrap();
+      const res = await dispatch(updateProductMainCategory({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchProductMainCategories());
       return res;
     },
@@ -105,7 +107,23 @@ export default function ProductMainCategoryPage() {
       dispatch(fetchProductMainCategories());
       return res;
     },
-  }), [categories, loading, dispatch]);
+  }), [categories, loading, dispatch, linkPagesId]);
+
+  const handleBeforeEdit = async (item: Record<string, unknown>) => {
+    const id = Number(item.MAIN_CATEGORY_ID ?? item.id);
+    if (!id) return undefined;
+    try {
+      const detail = await dispatch(fetchProductMainCategoryById({ id, linkId: linkPagesId })).unwrap();
+      if (!detail) return undefined;
+      return {
+        ...detail,
+        id: detail.MAIN_CATEGORY_ID,
+        MAIN_CATEGORY_ID: detail.MAIN_CATEGORY_ID,
+      };
+    } catch {
+      return undefined;
+    }
+  };
 
   return (
     <MasterCrudPage
@@ -117,6 +135,7 @@ export default function ProductMainCategoryPage() {
       columns={columns}
       initialData={[]}
       customStoreOverrides={storeOverrides}
+      onBeforeEdit={handleBeforeEdit}
     />
   );
 }

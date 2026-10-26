@@ -31,7 +31,7 @@ export interface TrailerMasterData {
   STATUS_MASTER?: string;
   USER?: string;
   MAC_ADDRESS?: string;
-  ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const toInt = (v: any): number | null =>
@@ -46,9 +46,11 @@ const toDate = (v: any): Date | null => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
-const trailerRequest = (pool: any, data: TrailerMasterData) => {
+const trailerRequest = (pool: any, data: TrailerMasterData, includeId = true) => {
   const req = pool.request();
-  req.input("TRAILER_ID", sql.Int, toInt(data.TRAILER_ID));
+  if (includeId) {
+    req.input("TRAILER_ID", sql.Int, toInt(data.TRAILER_ID));
+  }
   req.input("TRAILER_NO", sql.VarChar(50), data.TRAILER_NO || null);
   req.input("TRAILER_TYPE_ID", sql.Int, toInt(data.TRAILER_TYPE_ID));
   req.input("TRAILER_CHASSIS_NO", sql.VarChar(100), data.TRAILER_CHASSIS_NO || null);
@@ -76,6 +78,7 @@ const trailerRequest = (pool: any, data: TrailerMasterData) => {
   req.input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null);
   req.input("USER", sql.VarChar(50), data.USER || "Admin");
   req.input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB");
+  req.input("LINK_ID", sql.Int, toInt(data.LINK_ID));
   return req;
 };
 
@@ -93,13 +96,14 @@ export const getAllTrailerMasterService = async () => {
   }
 };
 
-export const getTrailerMasterByIdService = async (id: number) => {
+export const getTrailerMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
   try {
     const result = await pool
       .request()
       .input("TRAILER_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, toInt(linkId))
       .execute("VMaster.GET_TRAILER_MASTER");
     return result.recordset[0] || null;
   } catch (error) {
@@ -112,9 +116,12 @@ export const saveTrailerMasterService = async (data: TrailerMasterData) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
   try {
-    const result = await trailerRequest(pool, data).execute("VMaster.SAVE_TRAILER_MASTER");
-    const { status, message, data: id } = parseSprocResult(result.recordset?.[0], "Failed to save trailer");
-    return { message: message || "Trailer saved successfully", TRAILER_ID: id || Number(data.TRAILER_ID ?? 0) };
+    const request = trailerRequest(pool, data, false);
+    request.output("TRAILER_ID", sql.Int);
+    const result = await request.execute("VMaster.SAVE_TRAILER_MASTER");
+    const { message, data: id } = parseSprocResult(result.recordset?.[0], "Failed to save trailer");
+    const newId = id || result.output?.TRAILER_ID || Number(data.TRAILER_ID ?? 0);
+    return { message: message || "Trailer saved successfully", TRAILER_ID: newId };
   } catch (error) {
     console.error("SAVE_TRAILER_MASTER SP error:", error);
     throw error;
@@ -126,8 +133,11 @@ export const updateTrailerMasterService = async (data: TrailerMasterData) => {
   if (!pool) throw new Error("Database not connected");
   try {
     const result = await trailerRequest(pool, data).execute("VMaster.UPDATE_TRAILER_MASTER");
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update trailer");
-    return { message: message || "Trailer updated successfully" };
+    const { message, data: updatedId } = parseSprocResult(result.recordset?.[0], "Failed to update trailer");
+    return {
+      message: message || "Trailer updated successfully",
+      TRAILER_ID: updatedId || Number(data.TRAILER_ID ?? 0),
+    };
   } catch (error) {
     console.error("UPDATE_TRAILER_MASTER SP error:", error);
     throw error;

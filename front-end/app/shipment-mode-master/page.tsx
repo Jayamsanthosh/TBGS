@@ -13,6 +13,7 @@ import {
   ShipmentModeMasterGridData,
 } from "@/lib/shipmentModeMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,8 +42,10 @@ const pickVal = (src: any, keys: string[]) => {
 
 export default function ShipmentModeMasterPage() {
   const dispatch = useAppDispatch();
-  const { items, total, loading, error } = useAppSelector((s) => s.shipmentModeMaster);
+  const { items, loading, error } = useAppSelector((s) => s.shipmentModeMaster);
   const { toast } = useToast();
+
+  const linkPagesId = useLinkPagesId(261);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -99,8 +102,8 @@ export default function ShipmentModeMasterPage() {
   }, [filtered, currentPage, effectivePageSize]);
 
   useEffect(() => {
-    dispatch(fetchShipmentModes({}));
-  }, [dispatch]);
+    dispatch(fetchShipmentModes({ linkId: linkPagesId }));
+  }, [dispatch, linkPagesId]);
 
   useEffect(() => {
     if (error) {
@@ -126,7 +129,7 @@ export default function ShipmentModeMasterPage() {
   const openEdit = async (item: any) => {
     setEditing(item);
     const detail = item && item.id != null
-      ? await dispatch(fetchShipmentModeById(Number(item.id))).unwrap().catch(() => null)
+      ? await dispatch(fetchShipmentModeById({ id: Number(item.id), linkId: linkPagesId })).unwrap().catch(() => null)
       : null;
     const src: any = detail ? detail : item;
     setForm({
@@ -157,6 +160,7 @@ export default function ShipmentModeMasterPage() {
         STATUS_ENTRY: form.STATUS_ENTRY || "AC",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
@@ -169,7 +173,7 @@ export default function ShipmentModeMasterPage() {
         toast({ title: res?.message ?? "Shipment Mode created successfully", duration: DEFAULT_TOAST_DURATION });
       }
       setDialogOpen(false);
-      dispatch(fetchShipmentModes({}));
+      dispatch(fetchShipmentModes({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error saving shipment mode"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }
@@ -181,7 +185,7 @@ export default function ShipmentModeMasterPage() {
       const res = await dispatch(deleteShipmentMode(deleteId)).unwrap();
       setDeleteId(null);
       toast({ title: res?.message ?? "Shipment Mode deleted successfully", duration: DEFAULT_TOAST_DURATION });
-      dispatch(fetchShipmentModes({}));
+      dispatch(fetchShipmentModes({ linkId: linkPagesId }));
     } catch (e: any) {
       toast({ title: typeof e === "string" ? e : (e?.message || "Error deleting shipment mode"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     }

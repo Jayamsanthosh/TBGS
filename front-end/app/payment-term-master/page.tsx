@@ -77,6 +77,7 @@ export default function PaymentTermMasterPage() {
     (["NO_OF_DAYS", "DOWN_PAYMENT_PERCENTAGE", "BALANCE_PAYMENT_PERCENTAGE", "NO_OF_INSTALLMENTS", "INTEREST_RATE", "GRACE_PERIOD_DAYS"] as const).forEach((k) => {
       if (!copy[k]) copy[k] = undefined;
     });
+    copy.LINK_ID = copy.LINK_ID ?? 101;
     return copy;
   };
 

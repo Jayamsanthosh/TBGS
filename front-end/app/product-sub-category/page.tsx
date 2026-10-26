@@ -3,9 +3,10 @@
 import { useMemo, useEffect } from "react";
 import MasterCrudPage, { type MasterField } from "@/components/MasterCrudPage";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
-import { fetchProductSubCategories, addProductSubCategory, updateProductSubCategory, deleteProductSubCategory, clearProductSubCategoryError, ProductSubCategoryGridData } from "@/lib/productSubCategoryMasterSlice";
+import { fetchProductSubCategories, fetchProductSubCategoryById, addProductSubCategory, updateProductSubCategory, deleteProductSubCategory, clearProductSubCategoryError, ProductSubCategoryGridData } from "@/lib/productSubCategoryMasterSlice";
 import { fetchProductMainCategories } from "@/lib/productMainCategoryMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
@@ -77,6 +78,7 @@ export default function ProductSubCategoryPage() {
   const { subCategories, loading, error } = useAppSelector((s) => s.productSubCategory);
   const { categories: mainCategories } = useAppSelector((s) => s.productMainCategory);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(109);
 
   useEffect(() => {
     dispatch(fetchProductSubCategories());
@@ -129,12 +131,12 @@ export default function ProductSubCategoryPage() {
     data: enrichedData,
     isLoading: loading,
     add: async (item: ProductSubCategoryGridData) => {
-      const res = await dispatch(addProductSubCategory(item)).unwrap();
+      const res = await dispatch(addProductSubCategory({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchProductSubCategories());
       return res;
     },
     update: async (item: ProductSubCategoryGridData) => {
-      const res = await dispatch(updateProductSubCategory(item)).unwrap();
+      const res = await dispatch(updateProductSubCategory({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchProductSubCategories());
       return res;
     },
@@ -151,7 +153,24 @@ export default function ProductSubCategoryPage() {
       dispatch(fetchProductSubCategories());
       return res;
     },
-  }), [enrichedData, loading, dispatch]);
+  }), [enrichedData, loading, dispatch, linkPagesId]);
+
+  const handleBeforeEdit = async (item: Record<string, unknown>) => {
+    const id = Number(item.SUB_CATEGORY_ID ?? item.id);
+    if (!id) return undefined;
+    try {
+      const detail = await dispatch(fetchProductSubCategoryById({ id, linkId: linkPagesId })).unwrap();
+      if (!detail) return undefined;
+      return {
+        ...detail,
+        id: detail.SUB_CATEGORY_ID,
+        SUB_CATEGORY_ID: detail.SUB_CATEGORY_ID,
+        MAIN_CATEGORY_ID: String(detail.MAIN_CATEGORY_ID ?? ""),
+      };
+    } catch {
+      return undefined;
+    }
+  };
 
   return (
     <MasterCrudPage
@@ -163,6 +182,7 @@ export default function ProductSubCategoryPage() {
       columns={columns}
       initialData={[]}
       customStoreOverrides={storeOverrides}
+      onBeforeEdit={handleBeforeEdit}
     />
   );
 }

@@ -16,7 +16,7 @@ export const getAllMassagerMaster = async (req: Request, res: Response): Promise
     res.json({ success: true, count: massagers.length, data: massagers });
   } catch (error: any) {
     console.error("GetAllMassagerMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -29,7 +29,12 @@ export const getMassagerMasterById = async (req: Request, res: Response): Promis
   }
 
   try {
-    const massager = await getMassagerMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const massager = await getMassagerMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!massager) {
       res.status(404).json({ success: false, message: "Massager not found" });
@@ -39,7 +44,7 @@ export const getMassagerMasterById = async (req: Request, res: Response): Promis
     res.json({ success: true, data: massager });
   } catch (error: any) {
     console.error("GetMassagerMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -58,12 +63,20 @@ export const saveMassagerMaster = async (req: Request, res: Response): Promise<v
     return;
   }
 
+  const rawLinkId = massagerData.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+  massagerData.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  massagerData.USER = USER || massagerData.USER || "Admin";
+  massagerData.MAC_ADDRESS = MAC_ADDRESS || massagerData.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveMassagerMasterService(massagerData);
     res.json({ success: true, message: result.message || "Data saved successfully", MASSAGER_ID: result.MASSAGER_ID });
   } catch (error: any) {
     console.error("SaveMassagerMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -81,11 +94,19 @@ export const updateMassagerMaster = async (req: Request, res: Response): Promise
       massagerData.MASSAGER_ID = parseInt(id as string, 10);
     }
 
+    const rawLinkId = massagerData.LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    massagerData.LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : null;
+
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    massagerData.USER = USER || massagerData.USER || "Admin";
+    massagerData.MAC_ADDRESS = MAC_ADDRESS || massagerData.MAC_ADDRESS || "WEB";
+
     const result = await updateMassagerMasterService(massagerData);
-    res.json({ success: true, message: result.message || "Record updated successfully" });
+    res.json({ success: true, message: result.message || "Record updated successfully", MASSAGER_ID: result.MASSAGER_ID });
   } catch (error: any) {
     console.error("UpdateMassagerMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -108,6 +129,6 @@ export const deleteMassagerMaster = async (req: Request, res: Response): Promise
     res.json({ success: true, message: result.message || "Record deleted successfully" });
   } catch (error: any) {
     console.error("DeleteMassagerMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

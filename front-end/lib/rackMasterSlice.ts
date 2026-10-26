@@ -17,6 +17,7 @@ export interface RackMasterGridData {
   MAX_CAPACITY?: number;
   STATUS_MASTER?: string;
   REMARKS?: string;
+  LINK_ID?: number | null;
 }
 
 interface RackMasterState {
@@ -33,9 +34,10 @@ const initialState: RackMasterState = {
 
 export const fetchRackMasters = createAsyncThunk(
   "rackMaster/fetchAll",
-  async (_, { rejectWithValue }) => {
+  async (params: { linkId?: number } = {}, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/rack-master`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/rack-master${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch racks");
@@ -50,9 +52,10 @@ export const fetchRackMasters = createAsyncThunk(
 
 export const fetchRackMasterById = createAsyncThunk(
   "rackMaster/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/rack-master/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/rack-master/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch rack");

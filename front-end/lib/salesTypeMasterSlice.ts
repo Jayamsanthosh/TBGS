@@ -8,6 +8,7 @@ export interface SalesTypeMasterGridData {
   SALES_TYPE_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface SalesTypeMasterState {
@@ -41,9 +42,10 @@ export const fetchSalesTypeMasters = createAsyncThunk(
 
 export const fetchSalesTypeMasterById = createAsyncThunk(
   "salesTypeMaster/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/sales-type-master/${id}`);
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/sales-type-master/${params.id}${query}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch sales type");

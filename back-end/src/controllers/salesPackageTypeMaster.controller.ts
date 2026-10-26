@@ -28,7 +28,12 @@ export const getSalesPackageTypeMasterById = async (req: Request, res: Response)
   }
 
   try {
-    const item = await getSalesPackageTypeMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const item = await getSalesPackageTypeMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!item) {
       res.status(404).json({ success: false, message: "Sales package type not found" });
@@ -50,6 +55,10 @@ export const saveSalesPackageTypeMaster = async (req: Request, res: Response): P
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveSalesPackageTypeMasterService(data);
     res.json({ success: true, message: result.message || "Sales package type saved successfully" });
@@ -63,13 +72,21 @@ export const updateSalesPackageTypeMaster = async (req: Request, res: Response):
   const data: SalesPackageTypeMasterData = req.body;
   const { id } = req.params;
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     if (!data.SALES_PACKAGE_TYPE_ID && id) {
       data.SALES_PACKAGE_TYPE_ID = parseInt(id as string, 10);
     }
 
     const result = await updateSalesPackageTypeMasterService(data);
-    res.json({ success: true, message: result.message || "Sales package type updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Sales package type updated successfully",
+      SALES_PACKAGE_TYPE_ID: result.SALES_PACKAGE_TYPE_ID,
+    });
   } catch (error: any) {
     console.error("UpdateSalesPackageTypeMaster error:", error);
     res.status(500).json({ success: false, message: error?.message || "Internal server error" });

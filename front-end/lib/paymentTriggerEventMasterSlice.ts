@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { API_URL } from "./config";
 
+export const PAYMENT_TRIGGER_EVENT_LINK_ID = 45;
+
 export interface PaymentTriggerEventGridData {
   id?: string | number;
   TRIGGER_EVENT_ID?: number;
@@ -9,6 +11,7 @@ export interface PaymentTriggerEventGridData {
   DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface PaymentTriggerEventsState {
@@ -27,9 +30,8 @@ export const fetchPaymentTriggerEvents = createAsyncThunk(
   "paymentTriggerEvents/fetchPaymentTriggerEvents",
   async (status: string | undefined, { rejectWithValue }) => {
     try {
-      const url = status
-        ? `${API_URL}/payment-trigger-event-master?status=${encodeURIComponent(status)}`
-        : `${API_URL}/payment-trigger-event-master`;
+      const statusParam = status && status !== "ALL" ? status : "ALL";
+      const url = `${API_URL}/payment-trigger-event-master?status=${encodeURIComponent(statusParam)}&LINK_ID=${PAYMENT_TRIGGER_EVENT_LINK_ID}`;
       const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -45,12 +47,23 @@ export const fetchPaymentTriggerEvents = createAsyncThunk(
 
 export const addPaymentTriggerEvent = createAsyncThunk(
   "paymentTriggerEvents/addPaymentTriggerEvent",
-  async (item: PaymentTriggerEventGridData, { rejectWithValue }) => {
+  async (item: PaymentTriggerEventGridData, { rejectWithValue, getState }) => {
     try {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+
+      const payload = {
+        ...item,
+        LINK_ID: item.LINK_ID ?? PAYMENT_TRIGGER_EVENT_LINK_ID,
+        USER: (item as any).USER || USER,
+        MAC_ADDRESS: (item as any).MAC_ADDRESS || "WEB",
+      };
+
       const response = await fetch(`${API_URL}/payment-trigger-event-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -65,10 +78,22 @@ export const addPaymentTriggerEvent = createAsyncThunk(
 
 export const updatePaymentTriggerEvent = createAsyncThunk(
   "paymentTriggerEvents/updatePaymentTriggerEvent",
-  async (item: PaymentTriggerEventGridData, { rejectWithValue }) => {
+  async (item: PaymentTriggerEventGridData, { rejectWithValue, getState }) => {
     try {
-      const payload = { ...item, TRIGGER_EVENT_ID: Number(item.id) || item.TRIGGER_EVENT_ID };
-      const response = await fetch(`${API_URL}/payment-trigger-event-master/${payload.TRIGGER_EVENT_ID}`, {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
+      const id = Number(item.id) || item.TRIGGER_EVENT_ID;
+
+      const payload = {
+        ...item,
+        TRIGGER_EVENT_ID: id,
+        LINK_ID: item.LINK_ID ?? PAYMENT_TRIGGER_EVENT_LINK_ID,
+        USER: (item as any).USER || USER,
+        MAC_ADDRESS: (item as any).MAC_ADDRESS || "WEB",
+      };
+
+      const response = await fetch(`${API_URL}/payment-trigger-event-master/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -101,7 +126,8 @@ export const deletePaymentTriggerEvent = createAsyncThunk(
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to delete trigger event");
       }
-      return await response.json(); } catch (error: any) {
+      return await response.json();
+    } catch (error: any) {
       return rejectWithValue(error.message || "Failed to delete trigger event");
     }
   }
@@ -113,7 +139,7 @@ const paymentTriggerEventsSlice = createSlice({
   reducers: {
     clearPaymentTriggerEventsError(state) {
       state.error = null;
-    }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -129,15 +155,21 @@ const paymentTriggerEventsSlice = createSlice({
         state.loading = false;
         state.error = (action.payload as string) || action.error.message || "Failed to fetch trigger events";
       })
-      .addCase(addPaymentTriggerEvent.pending, (state) => { state.error = null; })
+      .addCase(addPaymentTriggerEvent.pending, (state) => {
+        state.error = null;
+      })
       .addCase(addPaymentTriggerEvent.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to add trigger event";
       })
-      .addCase(updatePaymentTriggerEvent.pending, (state) => { state.error = null; })
+      .addCase(updatePaymentTriggerEvent.pending, (state) => {
+        state.error = null;
+      })
       .addCase(updatePaymentTriggerEvent.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to update trigger event";
       })
-      .addCase(deletePaymentTriggerEvent.pending, (state) => { state.error = null; })
+      .addCase(deletePaymentTriggerEvent.pending, (state) => {
+        state.error = null;
+      })
       .addCase(deletePaymentTriggerEvent.rejected, (state, action) => {
         state.error = (action.payload as string) || action.error.message || "Failed to delete trigger event";
       });

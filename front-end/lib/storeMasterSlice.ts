@@ -15,6 +15,7 @@ export interface StoreGridData {
   RESPONSE_DIRECTORS_NAME?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface StoreState {

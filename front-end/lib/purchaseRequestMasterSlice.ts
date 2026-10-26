@@ -65,6 +65,7 @@ export interface PurchaseRequestGridData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
   dtls?: PurchaseRequestDtl[];
   deletedIds?: number[];
 }

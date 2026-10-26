@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { API_URL } from "./config";
 
+export const PARTICIPANT_TYPE_LINK_ID = 243;
+
 export interface ParticipantTypeGridData {
   id?: string | number;
   PARTICIPANT_TYPE_ID?: number;
@@ -8,6 +10,9 @@ export interface ParticipantTypeGridData {
   PARTICIPANT_TYPE_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
+  USER?: string;
+  MAC_ADDRESS?: string;
 }
 
 interface ParticipantTypeState {
@@ -26,13 +31,13 @@ export const fetchParticipantTypes = createAsyncThunk(
   "participantTypes/fetchParticipantTypes",
   async (status: string = "ALL", { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/participant-type-master?status=${encodeURIComponent(status)}`);
+      const response = await fetch(`${API_URL}/participant-type-master?status=${encodeURIComponent(status)}&LINK_ID=${PARTICIPANT_TYPE_LINK_ID}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch participant types");
       }
       const json = await response.json();
-      return (json.data || []).map((u: any) => ({ ...u, id: u.PARTICIPANT_TYPE_ID }));
+      return (json.data || []).map((u: any) => ({ ...u, id: u.PARTICIPANT_TYPE_ID, LINK_ID: u.LINK_ID ?? PARTICIPANT_TYPE_LINK_ID }));
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to fetch participant types");
     }
@@ -41,12 +46,23 @@ export const fetchParticipantTypes = createAsyncThunk(
 
 export const addParticipantType = createAsyncThunk(
   "participantTypes/addParticipantType",
-  async (item: ParticipantTypeGridData, { rejectWithValue }) => {
+  async (item: ParticipantTypeGridData, { rejectWithValue, getState }) => {
     try {
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || item.USER || "Admin";
+
+      const payload = {
+        ...item,
+        USER,
+        MAC_ADDRESS: item.MAC_ADDRESS || "WEB",
+        LINK_ID: item.LINK_ID ?? PARTICIPANT_TYPE_LINK_ID,
+      };
+
       const response = await fetch(`${API_URL}/participant-type-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -61,9 +77,19 @@ export const addParticipantType = createAsyncThunk(
 
 export const updateParticipantType = createAsyncThunk(
   "participantTypes/updateParticipantType",
-  async (item: ParticipantTypeGridData, { rejectWithValue }) => {
+  async (item: ParticipantTypeGridData, { rejectWithValue, getState }) => {
     try {
-      const payload = { ...item, PARTICIPANT_TYPE_ID: Number(item.id) || item.PARTICIPANT_TYPE_ID };
+      const state: any = getState();
+      const authUser = state.auth?.user;
+      const USER = authUser?.loginName || authUser?.LOGIN_NAME || item.USER || "Admin";
+
+      const payload = {
+        ...item,
+        PARTICIPANT_TYPE_ID: Number(item.id) || item.PARTICIPANT_TYPE_ID,
+        USER,
+        MAC_ADDRESS: item.MAC_ADDRESS || "WEB",
+        LINK_ID: item.LINK_ID ?? PARTICIPANT_TYPE_LINK_ID,
+      };
       const response = await fetch(`${API_URL}/participant-type-master/${payload.PARTICIPANT_TYPE_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

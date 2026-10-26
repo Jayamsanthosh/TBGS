@@ -8,6 +8,7 @@ export interface ProductSubCategoryGridData {
   MAIN_CATEGORY_ID?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface ProductSubCategoryState {
@@ -35,6 +36,24 @@ export const fetchProductSubCategories = createAsyncThunk(
       return (json.data || []).map((u: any) => ({ ...u, id: u.SUB_CATEGORY_ID }));
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to fetch sub categories");
+    }
+  }
+);
+
+export const fetchProductSubCategoryById = createAsyncThunk(
+  "productSubCategory/fetchById",
+  async (params: { id: number; linkId?: number }, { rejectWithValue }) => {
+    try {
+      const query = params.linkId ? `?link_id=${params.linkId}` : "";
+      const response = await fetch(`${API_URL}/product-sub-category/${params.id}${query}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return rejectWithValue(errorData.message || "Failed to fetch sub category");
+      }
+      const json = await response.json();
+      return json.data || null;
+    } catch (error: unknown) {
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to fetch sub category");
     }
   }
 );

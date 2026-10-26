@@ -12,6 +12,7 @@ export interface TaxMasterGridData {
   EFFECTIVE_TO?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface TaxMasterState {

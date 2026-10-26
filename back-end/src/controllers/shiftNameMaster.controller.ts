@@ -29,7 +29,12 @@ export const getShiftNameMasterById = async (req: Request, res: Response): Promi
   }
 
   try {
-    const shift = await getShiftNameMasterByIdService(parseInt(id as string, 10));
+    const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+    const shift = await getShiftNameMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!shift) {
       res.status(404).json({ success: false, message: "Shift name not found" });
@@ -58,6 +63,10 @@ export const saveShiftNameMaster = async (req: Request, res: Response): Promise<
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     const result = await saveShiftNameMasterService(data);
     res.json({
@@ -80,13 +89,21 @@ export const updateShiftNameMaster = async (req: Request, res: Response): Promis
     return;
   }
 
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  data.USER = USER || data.USER || "Admin";
+  data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+
   try {
     if (!data.SHIFT_NAME_ID && id) {
       data.SHIFT_NAME_ID = parseInt(id as string, 10);
     }
 
     const result = await updateShiftNameMasterService(data);
-    res.json({ success: true, message: result.message || "Record updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Record updated successfully",
+      SHIFT_NAME_ID: result.SHIFT_NAME_ID,
+    });
   } catch (error: any) {
     console.error("UpdateShiftNameMaster error:", error);
     res.status(400).json({ success: false, message: error?.message || "Internal server error" });
