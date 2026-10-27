@@ -28,8 +28,14 @@ export const getEmployeeBenefitTypeMasterById = async (req: Request, res: Respon
     return;
   }
 
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+
   try {
-    const benefitType = await getEmployeeBenefitTypeMasterByIdService(parseInt(id as string, 10));
+    const benefitType = await getEmployeeBenefitTypeMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!benefitType) {
       res.status(404).json({ success: false, message: "Benefit type not found" });
@@ -39,7 +45,7 @@ export const getEmployeeBenefitTypeMasterById = async (req: Request, res: Respon
     res.json({ success: true, data: benefitType });
   } catch (error: any) {
     console.error("GetEmployeeBenefitTypeMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -59,6 +65,12 @@ export const saveEmployeeBenefitTypeMaster = async (req: Request, res: Response)
   }
 
   try {
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+    const rawLinkId = (data as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 224;
+    (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 224;
     const result = await saveEmployeeBenefitTypeMasterService(data);
     res.json({
       success: true,
@@ -67,7 +79,7 @@ export const saveEmployeeBenefitTypeMaster = async (req: Request, res: Response)
     });
   } catch (error: any) {
     console.error("SaveEmployeeBenefitTypeMaster error:", error);
-    res.status(400).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 400).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -84,12 +96,18 @@ export const updateEmployeeBenefitTypeMaster = async (req: Request, res: Respons
     if (!data.BENEFIT_TYPE_ID && id) {
       data.BENEFIT_TYPE_ID = parseInt(id as string, 10);
     }
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+    const rawLinkId = (data as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 224;
+    (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 224;
 
     const result = await updateEmployeeBenefitTypeMasterService(data);
     res.json({ success: true, message: result.message || "Record updated successfully" });
   } catch (error: any) {
     console.error("UpdateEmployeeBenefitTypeMaster error:", error);
-    res.status(400).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 400).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 

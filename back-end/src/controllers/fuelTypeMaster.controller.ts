@@ -48,8 +48,10 @@ export const getFuelTypeMasterById = async (req: Request, res: Response): Promis
     res.status(400).json({ success: false, message: "A valid Fuel Type ID is required" });
     return;
   }
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
   try {
-    const item = await getFuelTypeMasterByIdService(id);
+    const item = await getFuelTypeMasterByIdService(id, linkId != null && Number.isFinite(linkId) ? linkId : null);
     if (!item) {
       res.status(404).json({ success: false, message: "Fuel type not found" });
       return;
@@ -57,7 +59,7 @@ export const getFuelTypeMasterById = async (req: Request, res: Response): Promis
     res.json({ success: true, data: item });
   } catch (error: any) {
     console.error("GetFuelTypeMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -72,6 +74,12 @@ export const saveFuelTypeMaster = async (req: Request, res: Response): Promise<v
     return;
   }
   try {
+    const { USER, MAC_ADDRESS } = authFrom(req);
+    fuelTypeData.USER = USER || fuelTypeData.USER || "Admin";
+    fuelTypeData.MAC_ADDRESS = MAC_ADDRESS || fuelTypeData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (fuelTypeData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 183;
+    (fuelTypeData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 183;
     const result = await saveFuelTypeMasterService(fuelTypeData);
     res.json({
       success: true,
@@ -80,7 +88,7 @@ export const saveFuelTypeMaster = async (req: Request, res: Response): Promise<v
     });
   } catch (error: any) {
     console.error("SaveFuelTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -101,11 +109,17 @@ export const updateFuelTypeMaster = async (req: Request, res: Response): Promise
   }
   try {
     fuelTypeData.FUEL_TYPE_ID = id;
+    const { USER, MAC_ADDRESS } = authFrom(req);
+    fuelTypeData.USER = USER || fuelTypeData.USER || "Admin";
+    fuelTypeData.MAC_ADDRESS = MAC_ADDRESS || fuelTypeData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (fuelTypeData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 183;
+    (fuelTypeData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 183;
     const result = await updateFuelTypeMasterService(fuelTypeData);
     res.json({ success: true, message: result.message || "Fuel type updated successfully" });
   } catch (error: any) {
     console.error("UpdateFuelTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 

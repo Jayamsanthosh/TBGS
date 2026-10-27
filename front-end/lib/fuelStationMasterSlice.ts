@@ -49,10 +49,11 @@ export const addFuelStation = createAsyncThunk(
   "fuelStation/addFuelStation",
   async (item: FuelStationGridData, { rejectWithValue }) => {
     try {
+      const payload = { ...item, LINK_ID: (item as any).LINK_ID ?? 96 };
       const response = await fetch(`${API_URL}/fuel-station-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -69,7 +70,7 @@ export const updateFuelStation = createAsyncThunk(
   "fuelStation/updateFuelStation",
   async (item: FuelStationGridData, { rejectWithValue }) => {
     try {
-      const payload = { ...item, FUEL_STATIONE_ID: Number(item.id) || item.FUEL_STATIONE_ID };
+      const payload = { ...item, FUEL_STATIONE_ID: Number(item.id) || item.FUEL_STATIONE_ID, LINK_ID: (item as any).LINK_ID ?? 96 };
       const response = await fetch(`${API_URL}/fuel-station-master/${payload.FUEL_STATIONE_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

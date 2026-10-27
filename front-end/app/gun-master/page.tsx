@@ -163,7 +163,7 @@ export default function GunMasterPage() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), LINK_ID: 122 });
     setDialogOpen(true);
   };
 
@@ -196,6 +196,7 @@ export default function GunMasterPage() {
           STATUS_MASTER: raw.STATUS_MASTER || "AC",
           USER: "Admin",
           MAC_ADDRESS: "WEB",
+          LINK_ID: raw.LINK_ID ?? 122,
         });
       } else {
          toast({ title: "Failed to load gun details", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
@@ -240,6 +241,7 @@ export default function GunMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: form.LINK_ID ?? 122,
       };
 
       if (editing) {

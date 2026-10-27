@@ -79,12 +79,12 @@ export default function EmploymentTypeMasterPage() {
     data: employmentTypes,
     isLoading: loading,
     add: async (item: EmploymentTypeGridData) => {
-      const res = await dispatch(addEmploymentType(item)).unwrap();
+      const res = await dispatch(addEmploymentType({ ...item, LINK_ID: 87 } as any)).unwrap();
       dispatch(fetchEmploymentTypes("ALL"));
       return res;
     },
     update: async (item: EmploymentTypeGridData) => {
-      const res = await dispatch(updateEmploymentType(item)).unwrap();
+      const res = await dispatch(updateEmploymentType({ ...item, LINK_ID: 87 } as any)).unwrap();
       dispatch(fetchEmploymentTypes("ALL"));
       return res;
     },

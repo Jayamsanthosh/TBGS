@@ -33,7 +33,7 @@ import { fetchPurchaseInvoiceDtls } from "@/lib/purchaseInvoiceMasterSlice";
 import { fetchBatchesBySource, addBatch, type BatchMasterData } from "@/lib/batchMasterSlice";
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
-import { formatDate, clampNonNegative } from "@/lib/validation";
+import { formatDate, clampNonNegative, validatePositiveNumber, validateNonNegativeNumber, validateDateRange, validateTanzaniaPhone, formatTanzaniaPhone } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
 import { useLinkPagesId } from "@/hooks/useLinkPagesId";
@@ -803,7 +803,7 @@ export default function PurchaseGrnPage() {
     if (!form.LOCATION_ID) push(HDR_STEP, "Location is required");
     if (!form.SUPPLIER_BP_ID) push(HDR_STEP, "Supplier is required");
     if (!form.CURRENCY_ID) push(HDR_STEP, "Currency is required");
-    if (form.EXCHANGE_RATE === "" || form.EXCHANGE_RATE == null || Number(form.EXCHANGE_RATE) <= 0) {
+    if (form.EXCHANGE_RATE === "" || form.EXCHANGE_RATE == null || !validatePositiveNumber(form.EXCHANGE_RATE)) {
       push(HDR_STEP, "Exchange Rate is required and must be greater than 0");
     }
     if (!form.STATUS_ID) push(HDR_STEP, "Status is required");
@@ -824,14 +824,25 @@ export default function PurchaseGrnPage() {
       const label = `Line ${r.LINE_NO ?? "?"}`;
       if (!r.MAIN_CATEGORY_ID) pushLine(r.key, `${label}: Main Category is required`);
       if (!r.PRODUCT_ID) pushLine(r.key, `${label}: Product is required`);
-      if (r.RECEIVED_QUANTITY === "" || r.RECEIVED_QUANTITY == null || Number(r.RECEIVED_QUANTITY) <= 0) {
-        pushLine(r.key, `${label}: Received Quantity is required`);
+
+      if (r.RECEIVED_QUANTITY === "" || r.RECEIVED_QUANTITY == null || !validatePositiveNumber(r.RECEIVED_QUANTITY)) {
+        pushLine(r.key, `${label}: Received Quantity is required and must be greater than 0`);
       }
-      if (Number(r.REJECTED_QUANTITY || 0) > Number(r.RECEIVED_QUANTITY || 0)) {
+
+      if (r.REJECTED_QUANTITY !== "" && r.REJECTED_QUANTITY != null && !validateNonNegativeNumber(r.REJECTED_QUANTITY)) {
+        pushLine(r.key, `${label}: Rejected Quantity cannot be negative`);
+      }
+
+      const recQty = Number(r.RECEIVED_QUANTITY || 0);
+      const rejQty = Number(r.REJECTED_QUANTITY || 0);
+      if (validateNonNegativeNumber(r.REJECTED_QUANTITY) && rejQty > recQty) {
         pushLine(r.key, `${label}: Rejected Quantity cannot be greater than Received Quantity`);
       }
-      if (r.EXPIRY_DATE && r.MANUFACTURE_DATE && fmtDate(r.EXPIRY_DATE) < fmtDate(r.MANUFACTURE_DATE)) {
-        pushLine(r.key, `${label}: Expiry Date cannot be before Manufacture Date`);
+
+      if (r.MANUFACTURE_DATE && r.EXPIRY_DATE) {
+        if (!validateDateRange(r.MANUFACTURE_DATE, r.EXPIRY_DATE)) {
+          pushLine(r.key, `${label}: Expiry Date cannot be before Manufacture Date`);
+        }
       }
     });
 
@@ -1058,7 +1069,7 @@ export default function PurchaseGrnPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const renderField = (key: string, label: string, type: "text" | "number" | "date" | "select" | "textarea", options?: { value: string; label: string }[], required?: boolean, placeholder?: string, disabled?: boolean, helper?: string, onChange?: (value: string) => void, maxLength?: number) => {
+  const renderField = (key: string, label: string, type: "text" | "number" | "date" | "select" | "textarea", options?: { value: string; label: string }[], required?: boolean, placeholder?: string, disabled?: boolean, helper?: string, onChange?: (value: string) => void, maxLength?: number, formatter?: (v: any) => any) => {
     const baseClass = "flex flex-col gap-1.5";
     const isEmpty = required && !form[key];
     const fieldBorderClass = isEmpty ? "border-destructive ring-1 ring-destructive/30" : "";
@@ -1080,7 +1091,52 @@ export default function PurchaseGrnPage() {
         ) : type === "date" ? (
           <DatePicker value={form[key] || ""} onChange={(v) => set(v)} placeholder={placeholder} className={fieldBorderClass || undefined} />
         ) : (
-          <Input type={type === "number" ? "number" : "text"} min={type === "number" ? "0" : undefined} step={type === "number" ? "any" : undefined} maxLength={maxLength} value={form[key] ?? ""} onChange={(e) => set(e.target.value)} placeholder={placeholder} className={`h-9 text-xs ${fieldBorderClass}`} />
+          <Input
+            type="text"
+            inputMode={key === "DRIVER_PHONE_NUMBER" ? "numeric" : type === "number" ? "numeric" : "text"}
+            min={type === "number" ? "0" : undefined}
+            step={type === "number" ? "any" : undefined}
+            maxLength={key === "DRIVER_PHONE_NUMBER" ? 12 : maxLength}
+            value={form[key] ?? ""}
+            onChange={(e) => {
+              if (key === "DRIVER_PHONE_NUMBER") {
+                const raw = e.target.value.replace(/\D/g, "");
+                if (raw === "") {
+                  updateForm(key, "");
+                  return;
+                }
+                let num = raw;
+                if (num.startsWith("255")) {
+                  num = num.substring(3);
+                }
+                if (num.length > 9) num = num.substring(0, 9);
+                updateForm(key, "+255" + num);
+                return;
+              }
+              set(e.target.value);
+            }}
+            onBlur={() => {
+              if (formatter && key === "DRIVER_PHONE_NUMBER") {
+                const v = form[key] || "";
+                if (v && v !== "+255") {
+                  if (!validateTanzaniaPhone(v)) {
+                    toast({
+                      variant: "destructive",
+                      title: "Invalid Driver Phone Number",
+                      description: "Driver Phone Number must be in Tanzania format (e.g., +255XXXXXXXXX)",
+                      duration: DEFAULT_TOAST_DURATION,
+                    });
+                    return;
+                  }
+                  updateForm(key, formatter(v));
+                } else if (v === "+255") {
+                  updateForm(key, "");
+                }
+              }
+            }}
+            placeholder={placeholder}
+            className={`h-9 text-xs ${fieldBorderClass}`}
+          />
         )}
       </div>
     );
@@ -1559,7 +1615,7 @@ export default function PurchaseGrnPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             {renderField("DRIVER_NAME", "Driver Name", "text", undefined, false, "Driver name", false, undefined, undefined, 100)}
-            {renderField("DRIVER_PHONE_NUMBER", "Driver Phone", "text", undefined, false, "Driver phone number", false, undefined, undefined, 50)}
+            {renderField("DRIVER_PHONE_NUMBER", "Driver Phone", "text", undefined, false, "+255 7XX XXX XXX", false, undefined, undefined, 12, formatTanzaniaPhone)}
           </div>
           <div className="grid grid-cols-2 gap-4">
             {renderField("SEAL_NUMBER", "Seal Number", "text", undefined, false, "Container seal number", false, undefined, undefined, 50)}

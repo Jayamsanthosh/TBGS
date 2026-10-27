@@ -28,8 +28,14 @@ export const getEmploymentTypeMasterById = async (req: Request, res: Response): 
     return;
   }
 
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+
   try {
-    const employmentType = await getEmploymentTypeMasterByIdService(parseInt(id as string, 10));
+    const employmentType = await getEmploymentTypeMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!employmentType) {
       res.status(404).json({ success: false, message: "Employment type not found" });
@@ -39,7 +45,7 @@ export const getEmploymentTypeMasterById = async (req: Request, res: Response): 
     res.json({ success: true, data: employmentType });
   } catch (error: any) {
     console.error("GetEmploymentTypeMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -52,11 +58,17 @@ export const saveEmploymentTypeMaster = async (req: Request, res: Response): Pro
   }
 
   try {
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    employmentTypeData.USER = USER || employmentTypeData.USER || "Admin";
+    employmentTypeData.MAC_ADDRESS = MAC_ADDRESS || employmentTypeData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (employmentTypeData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 87;
+    (employmentTypeData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 87;
     const result = await saveEmploymentTypeMasterService(employmentTypeData);
     res.json({ success: true, message: result.message || "Data saved successfully", EMPLOYMENT_TYPE_ID: result.EMPLOYMENT_TYPE_ID });
   } catch (error: any) {
     console.error("SaveEmploymentTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -68,12 +80,18 @@ export const updateEmploymentTypeMaster = async (req: Request, res: Response): P
     if (!employmentTypeData.EMPLOYMENT_TYPE_ID && id) {
       employmentTypeData.EMPLOYMENT_TYPE_ID = parseInt(id as string, 10);
     }
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    employmentTypeData.USER = USER || employmentTypeData.USER || "Admin";
+    employmentTypeData.MAC_ADDRESS = MAC_ADDRESS || employmentTypeData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (employmentTypeData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 87;
+    (employmentTypeData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 87;
 
     const result = await updateEmploymentTypeMasterService(employmentTypeData);
     res.json({ success: true, message: result.message || "Record updated successfully" });
   } catch (error: any) {
     console.error("UpdateEmploymentTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 

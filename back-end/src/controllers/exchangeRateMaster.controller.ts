@@ -27,8 +27,14 @@ export const getExchangeRateMasterById = async (req: Request, res: Response): Pr
     return;
   }
 
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+
   try {
-    const record = await getExchangeRateMasterByIdService(parseInt(id as string, 10));
+    const record = await getExchangeRateMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!record) {
       res.status(404).json({ success: false, message: "Exchange rate not found" });
@@ -38,7 +44,7 @@ export const getExchangeRateMasterById = async (req: Request, res: Response): Pr
     res.json({ success: true, data: record });
   } catch (error: any) {
     console.error("GetExchangeRateMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -61,11 +67,17 @@ export const saveExchangeRateMaster = async (req: Request, res: Response): Promi
   }
 
   try {
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+    const rawLinkId = (data as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 26;
+    (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 26;
     const result = await saveExchangeRateMasterService(data);
     res.json({ success: true, message: result.message || "Exchange rate saved successfully" });
   } catch (error: any) {
     console.error("SaveExchangeRateMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -77,12 +89,18 @@ export const updateExchangeRateMaster = async (req: Request, res: Response): Pro
     if (!data.SNO && id) {
       data.SNO = parseInt(id as string, 10);
     }
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    data.USER = USER || data.USER || "Admin";
+    data.MAC_ADDRESS = MAC_ADDRESS || data.MAC_ADDRESS || "WEB";
+    const rawLinkId = (data as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 26;
+    (data as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 26;
 
     const result = await updateExchangeRateMasterService(data);
     res.json({ success: true, message: result.message || "Exchange rate updated successfully" });
   } catch (error: any) {
     console.error("UpdateExchangeRateMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 

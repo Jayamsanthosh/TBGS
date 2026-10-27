@@ -48,10 +48,11 @@ export const addExchangeRate = createAsyncThunk(
   "exchangeRates/addExchangeRate",
   async (item: ExchangeRateGridData, { rejectWithValue }) => {
     try {
+      const payload = { ...item, LINK_ID: (item as any).LINK_ID ?? 26 };
       const response = await fetch(`${API_URL}/exchange-rate-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -68,7 +69,7 @@ export const updateExchangeRate = createAsyncThunk(
   "exchangeRates/updateExchangeRate",
   async (item: ExchangeRateGridData, { rejectWithValue }) => {
     try {
-      const payload = { ...item, SNO: Number(item.id) || item.SNO };
+      const payload = { ...item, SNO: Number(item.id) || item.SNO, LINK_ID: (item as any).LINK_ID ?? 26 };
       const response = await fetch(`${API_URL}/exchange-rate-master/${payload.SNO}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

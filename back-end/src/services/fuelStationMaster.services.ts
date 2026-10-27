@@ -17,6 +17,7 @@ export interface FuelStationMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const normalizeRow = (r: any) => ({
@@ -79,7 +80,7 @@ export const getAllFuelStationMasterService = async (status = "ALL") => {
   }
 };
 
-export const getFuelStationMasterByIdService = async (id: number) => {
+export const getFuelStationMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -87,6 +88,7 @@ export const getFuelStationMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("FUEL_STATIONE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_FUEL_STATION_MASTER");
 
     const row = result.recordset[0] || null;
@@ -114,6 +116,7 @@ export const saveFuelStationMasterService = async (data: FuelStationMasterData) 
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 96)
       .execute("VMaster.SAVE_FUEL_STATION_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save fuel station");
@@ -148,6 +151,7 @@ export const updateFuelStationMasterService = async (data: FuelStationMasterData
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 96)
       .execute("VMaster.UPDATE_FUEL_STATION_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update fuel station");

@@ -22,6 +22,7 @@ export const getAllEducationQualificationMaster = async (req: Request, res: Resp
 
 export const getEducationQualificationMasterById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const linkId = req.query.LINK_ID ? parseInt(req.query.LINK_ID as string, 10) : (req.body?.LINK_ID ? parseInt(req.body.LINK_ID as string, 10) : null);
 
   if (!id) {
     res.status(400).json({ success: false, message: "Education Qualification ID is required" });
@@ -29,7 +30,7 @@ export const getEducationQualificationMasterById = async (req: Request, res: Res
   }
 
   try {
-    const educationQualification = await getEducationQualificationMasterByIdService(parseInt(id as string, 10));
+    const educationQualification = await getEducationQualificationMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!educationQualification) {
       res.status(404).json({ success: false, message: "Education qualification not found" });

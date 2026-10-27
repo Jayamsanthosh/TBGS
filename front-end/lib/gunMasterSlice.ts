@@ -76,7 +76,7 @@ export const fetchGunMasterById = createAsyncThunk(
   "gunMaster/fetchGunMasterById",
   async (id: number, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/gun-master/${id}`);
+      const response = await fetch(`${API_URL}/gun-master/${id}?LINK_ID=122`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch gun");
@@ -93,10 +93,11 @@ export const addGunMaster = createAsyncThunk(
   "gunMaster/addGunMaster",
   async (item: GunMasterGridData, { rejectWithValue }) => {
     try {
+      const payload = { ...item, LINK_ID: (item as any).LINK_ID ?? 122 };
       const response = await fetch(`${API_URL}/gun-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -113,7 +114,7 @@ export const updateGunMaster = createAsyncThunk(
   "gunMaster/updateGunMaster",
   async (item: GunMasterGridData, { rejectWithValue }) => {
     try {
-      const payload = { ...item, GUN_ID: Number(item.id) || item.GUN_ID };
+      const payload = { ...item, GUN_ID: Number(item.id) || item.GUN_ID, LINK_ID: (item as any).LINK_ID ?? 122 };
       const response = await fetch(`${API_URL}/gun-master/${payload.GUN_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

@@ -119,7 +119,6 @@ export interface PurchaseQuotationGridData {
   MAC_ADDRESS?: string;
   ROLE?: string;
   LINK_ID?: number | null;
-  LINK_ID?: number | null;
   dtls?: PurchaseQuotationDtl[];
   deletedIds?: number[];
 }

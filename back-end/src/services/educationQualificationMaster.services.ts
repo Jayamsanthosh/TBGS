@@ -11,6 +11,7 @@ export interface EducationQualificationMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const normalizeRow = (r: any) => ({
@@ -47,7 +48,7 @@ export const getAllEducationQualificationMasterService = async (status = "ALL") 
   }
 };
 
-export const getEducationQualificationMasterByIdService = async (id: number) => {
+export const getEducationQualificationMasterByIdService = async (id: number, linkId?: number | null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -55,6 +56,7 @@ export const getEducationQualificationMasterByIdService = async (id: number) => 
     const result = await pool
       .request()
       .input("EDUCATION_QUALIFICATION_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_EDUCATION_QUALIFICATION_MASTER");
 
     const row = result.recordset[0] || null;
@@ -79,6 +81,7 @@ export const saveEducationQualificationMasterService = async (data: EducationQua
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.SAVE_EDUCATION_QUALIFICATION_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save education qualification");
@@ -96,7 +99,7 @@ export const updateEducationQualificationMasterService = async (data: EducationQ
   if (!pool) throw new Error("Database not connected");
 
   try {
-    const existing = await getEducationQualificationMasterByIdService(data.EDUCATION_QUALIFICATION_ID ?? 0);
+    const existing = await getEducationQualificationMasterByIdService(data.EDUCATION_QUALIFICATION_ID ?? 0, data.LINK_ID ?? null);
     if (!existing) {
       throw new Error("RECORD DOES NOT EXIST");
     }
@@ -110,6 +113,7 @@ export const updateEducationQualificationMasterService = async (data: EducationQ
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? null)
       .execute("VMaster.UPDATE_EDUCATION_QUALIFICATION_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update education qualification");

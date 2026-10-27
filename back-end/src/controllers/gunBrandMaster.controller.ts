@@ -28,8 +28,14 @@ export const getGunBrandMasterById = async (req: Request, res: Response): Promis
     return;
   }
 
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+
   try {
-    const brand = await getGunBrandMasterByIdService(parseInt(id as string, 10));
+    const brand = await getGunBrandMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!brand) {
       res.status(404).json({ success: false, message: "Gun brand not found" });
@@ -39,7 +45,7 @@ export const getGunBrandMasterById = async (req: Request, res: Response): Promis
     res.json({ success: true, data: brand });
   } catch (error: any) {
     console.error("GetGunBrandMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -52,11 +58,17 @@ export const saveGunBrandMaster = async (req: Request, res: Response): Promise<v
   }
 
   try {
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    brandData.USER = USER || brandData.USER || "Admin";
+    brandData.MAC_ADDRESS = MAC_ADDRESS || brandData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (brandData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 121;
+    (brandData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 121;
     const result = await saveGunBrandMasterService(brandData);
     res.json({ success: true, message: result.message || "Data saved successfully", GUN_BRAND_ID: result.GUN_BRAND_ID });
   } catch (error: any) {
     console.error("SaveGunBrandMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -68,12 +80,18 @@ export const updateGunBrandMaster = async (req: Request, res: Response): Promise
     if (!brandData.GUN_BRAND_ID && id) {
       brandData.GUN_BRAND_ID = parseInt(id as string, 10);
     }
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    brandData.USER = USER || brandData.USER || "Admin";
+    brandData.MAC_ADDRESS = MAC_ADDRESS || brandData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (brandData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 121;
+    (brandData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 121;
 
     const result = await updateGunBrandMasterService(brandData);
     res.json({ success: true, message: result.message || "Record updated successfully" });
   } catch (error: any) {
     console.error("UpdateGunBrandMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 

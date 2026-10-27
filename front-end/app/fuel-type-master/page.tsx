@@ -145,17 +145,29 @@ export default function FuelTypeMasterPage() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), LINK_ID: 183 });
     setDialogOpen(true);
   };
 
-  const openEdit = (item: FuelTypeGridData) => {
+  const openEdit = async (item: FuelTypeGridData) => {
     setEditing(item);
+    const id = item.FUEL_TYPE_ID || item.id;
+    let full = item as any;
+    try {
+      if (id) {
+        const res = await fetch(`${API_URL}/fuel-type-master/${id}?LINK_ID=183`);
+        if (res.ok) {
+          const json = await res.json();
+          full = json.data || item;
+        }
+      }
+    } catch {}
     setForm({
       ...emptyForm(),
-      ...item,
-      ERP_PRODUCT_ID: item.ERP_PRODUCT_ID != null ? String(item.ERP_PRODUCT_ID) : "",
-      STATUS_MASTER: normalizeStatus(item.STATUS_MASTER) === "ACTIVE" ? "AC" : "IN",
+      ...full,
+      ERP_PRODUCT_ID: full.ERP_PRODUCT_ID != null && full.ERP_PRODUCT_ID !== "" ? String(full.ERP_PRODUCT_ID) : "",
+      STATUS_MASTER: normalizeStatus(full.STATUS_MASTER) === "ACTIVE" ? "AC" : "IN",
+      LINK_ID: full.LINK_ID ?? 183,
     });
     setDialogOpen(true);
   };
@@ -174,10 +186,10 @@ export default function FuelTypeMasterPage() {
       let res: any;
       if (editing) {
         res = await dispatch(
-          updateFuelType({ ...form, FUEL_TYPE_ID: Number(editing.FUEL_TYPE_ID) || Number(editing.id) })
+          updateFuelType({ ...form, FUEL_TYPE_ID: Number(editing.FUEL_TYPE_ID) || Number(editing.id), LINK_ID: form.LINK_ID ?? 183 })
         ).unwrap();
       } else {
-        res = await dispatch(addFuelType({ ...form })).unwrap();
+        res = await dispatch(addFuelType({ ...form, LINK_ID: form.LINK_ID ?? 183 })).unwrap();
         if (!res?.FUEL_TYPE_ID) {
           throw new Error(res?.message || "Failed to retrieve new Fuel Type ID");
         }

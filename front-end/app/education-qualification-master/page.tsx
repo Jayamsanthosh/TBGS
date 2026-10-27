@@ -13,6 +13,7 @@ import {
 } from "@/lib/educationQualificationMasterSlice";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 
 const statusFormatter = (val: any) => {
   const s = String(val || "").toUpperCase();
@@ -25,6 +26,7 @@ export default function EducationQualificationMasterPage() {
   const dispatch = useAppDispatch();
   const { educationQualifications, loading, error } = useAppSelector((s) => s.educationQualification);
   const { toast } = useToast();
+  const linkId = useLinkPagesId(0);
 
   useEffect(() => {
     dispatch(fetchEducationQualifications("ALL"));
@@ -81,12 +83,12 @@ export default function EducationQualificationMasterPage() {
     data: educationQualifications,
     isLoading: loading,
     add: async (item: EducationQualificationGridData) => {
-      const res = await dispatch(addEducationQualification(item)).unwrap();
+      const res = await dispatch(addEducationQualification({ ...item, LINK_ID: linkId } as any)).unwrap();
       dispatch(fetchEducationQualifications("ALL"));
       return res;
     },
     update: async (item: EducationQualificationGridData) => {
-      const res = await dispatch(updateEducationQualification(item)).unwrap();
+      const res = await dispatch(updateEducationQualification({ ...item, LINK_ID: linkId } as any)).unwrap();
       dispatch(fetchEducationQualifications("ALL"));
       return res;
     },
@@ -103,7 +105,7 @@ export default function EducationQualificationMasterPage() {
       dispatch(fetchEducationQualifications("ALL"));
       return res;
     },
-  }), [educationQualifications, loading, dispatch]);
+  }), [educationQualifications, loading, dispatch, linkId]);
 
   return (
     <MasterCrudPage

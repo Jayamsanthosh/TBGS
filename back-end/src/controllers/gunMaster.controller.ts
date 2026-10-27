@@ -46,8 +46,14 @@ export const getGunMasterById = async (req: Request, res: Response): Promise<voi
     return;
   }
 
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
+
   try {
-    const gun = await getGunMasterByIdService(parseInt(id as string, 10));
+    const gun = await getGunMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
 
     if (!gun) {
       res.status(404).json({ success: false, message: "Gun not found" });
@@ -57,7 +63,7 @@ export const getGunMasterById = async (req: Request, res: Response): Promise<voi
     res.json({ success: true, data: gun });
   } catch (error: any) {
     console.error("GetGunMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -77,11 +83,17 @@ export const saveGunMaster = async (req: Request, res: Response): Promise<void> 
   }
 
   try {
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    gunData.USER = USER || gunData.USER || "Admin";
+    gunData.MAC_ADDRESS = MAC_ADDRESS || gunData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (gunData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 122;
+    (gunData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 122;
     const result = await saveGunMasterService(gunData);
     res.json({ success: true, message: result.message || "Data saved successfully", GUN_ID: result.GUN_ID });
   } catch (error: any) {
     console.error("SaveGunMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -98,12 +110,18 @@ export const updateGunMaster = async (req: Request, res: Response): Promise<void
     if (!gunData.GUN_ID && id) {
       gunData.GUN_ID = parseInt(id as string, 10);
     }
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    gunData.USER = USER || gunData.USER || "Admin";
+    gunData.MAC_ADDRESS = MAC_ADDRESS || gunData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (gunData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 122;
+    (gunData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 122;
 
     const result = await updateGunMasterService(gunData);
     res.json({ success: true, message: result.message || "Record updated successfully" });
   } catch (error: any) {
     console.error("UpdateGunMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 

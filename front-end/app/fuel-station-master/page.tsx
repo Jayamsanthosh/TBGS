@@ -196,12 +196,12 @@ export default function FuelStationMasterPage() {
     data: fuelStations,
     isLoading: loading,
     add: async (item: FuelStationGridData) => {
-      const res = await dispatch(addFuelStation(item)).unwrap();
+      const res = await dispatch(addFuelStation({ ...item, LINK_ID: 96 } as any)).unwrap();
       dispatch(fetchFuelStations("ALL"));
       return res;
     },
     update: async (item: FuelStationGridData) => {
-      const res = await dispatch(updateFuelStation(item)).unwrap();
+      const res = await dispatch(updateFuelStation({ ...item, LINK_ID: 96 } as any)).unwrap();
       dispatch(fetchFuelStations("ALL"));
       return res;
     },

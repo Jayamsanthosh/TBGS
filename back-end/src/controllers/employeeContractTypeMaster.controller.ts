@@ -26,8 +26,13 @@ export const getEmployeeContractTypeMasterById = async (req: Request, res: Respo
     res.status(400).json({ success: false, message: "Contract Type ID is required" });
     return;
   }
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
   try {
-    const contractType = await getEmployeeContractTypeMasterByIdService(parseInt(id as string, 10));
+    const contractType = await getEmployeeContractTypeMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
     if (!contractType) {
       res.status(404).json({ success: false, message: "Contract type not found" });
       return;
@@ -35,7 +40,7 @@ export const getEmployeeContractTypeMasterById = async (req: Request, res: Respo
     res.json({ success: true, data: contractType });
   } catch (error: any) {
     console.error("GetEmployeeContractTypeMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -46,11 +51,17 @@ export const saveEmployeeContractTypeMaster = async (req: Request, res: Response
     return;
   }
   try {
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    contractTypeData.USER = USER || contractTypeData.USER || "Admin";
+    contractTypeData.MAC_ADDRESS = MAC_ADDRESS || contractTypeData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (contractTypeData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 53;
+    (contractTypeData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 53;
     const result = await saveEmployeeContractTypeMasterService(contractTypeData);
     res.json({ success: true, message: result.message || "Contract type saved successfully" });
   } catch (error: any) {
     console.error("SaveEmployeeContractTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -61,11 +72,17 @@ export const updateEmployeeContractTypeMaster = async (req: Request, res: Respon
     if (!contractTypeData.CONTRACT_TYPE_ID && id) {
       contractTypeData.CONTRACT_TYPE_ID = parseInt(id as string, 10);
     }
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    contractTypeData.USER = USER || contractTypeData.USER || "Admin";
+    contractTypeData.MAC_ADDRESS = MAC_ADDRESS || contractTypeData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (contractTypeData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 53;
+    (contractTypeData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 53;
     const result = await updateEmployeeContractTypeMasterService(contractTypeData);
     res.json({ success: true, message: result.message || "Contract type updated successfully" });
   } catch (error: any) {
     console.error("UpdateEmployeeContractTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 

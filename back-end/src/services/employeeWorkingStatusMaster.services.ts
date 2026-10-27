@@ -10,6 +10,7 @@ export interface EmployeeWorkingStatusMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllEmployeeWorkingStatusMasterService = async (status?: string) => {
@@ -28,13 +29,14 @@ export const getAllEmployeeWorkingStatusMasterService = async (status?: string) 
   }
 };
 
-export const getEmployeeWorkingStatusMasterByIdService = async (id: number) => {
+export const getEmployeeWorkingStatusMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
   try {
     const result = await pool
       .request()
       .input("EMP_CURRENT_STATUS_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_EMPLOYEE_WORKING_STATUS_MASTER");
     return result.recordset[0] || null;
   } catch (error) {
@@ -55,6 +57,7 @@ export const saveEmployeeWorkingStatusMasterService = async (data: EmployeeWorki
       .input("STATUS_MASTER", sql.VarChar(50), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 54)
       .execute("VMaster.SAVE_EMPLOYEE_WORKING_STATUS_MASTER");
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save working status");
 
@@ -77,6 +80,7 @@ export const updateEmployeeWorkingStatusMasterService = async (data: EmployeeWor
       .input("STATUS_MASTER", sql.VarChar(50), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 54)
       .execute("VMaster.UPDATE_EMPLOYEE_WORKING_STATUS_MASTER");
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update working status");
 

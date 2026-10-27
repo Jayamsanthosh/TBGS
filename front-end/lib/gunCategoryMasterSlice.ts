@@ -46,10 +46,11 @@ export const addGunCategory = createAsyncThunk(
   "gunCategory/addGunCategory",
   async (item: GunCategoryGridData, { rejectWithValue }) => {
     try {
+      const payload = { ...item, LINK_ID: (item as any).LINK_ID ?? 120 };
       const response = await fetch(`${API_URL}/gun-category-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -66,7 +67,7 @@ export const updateGunCategory = createAsyncThunk(
   "gunCategory/updateGunCategory",
   async (item: GunCategoryGridData, { rejectWithValue }) => {
     try {
-      const payload = { ...item, GUN_CATEGORY_ID: Number(item.id) || item.GUN_CATEGORY_ID };
+      const payload = { ...item, GUN_CATEGORY_ID: Number(item.id) || item.GUN_CATEGORY_ID, LINK_ID: (item as any).LINK_ID ?? 120 };
       const response = await fetch(`${API_URL}/gun-category-master/${payload.GUN_CATEGORY_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

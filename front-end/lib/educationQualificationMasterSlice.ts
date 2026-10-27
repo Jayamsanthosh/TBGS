@@ -8,6 +8,7 @@ export interface EducationQualificationGridData {
   SKILL_TYPE?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface EducationQualificationState {
@@ -43,10 +44,11 @@ export const addEducationQualification = createAsyncThunk(
   "educationQualification/addEducationQualification",
   async (item: EducationQualificationGridData, { rejectWithValue }) => {
     try {
+      const payload = { ...item, LINK_ID: (item as any).LINK_ID ?? null };
       const response = await fetch(`${API_URL}/education-qualification-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -63,7 +65,7 @@ export const updateEducationQualification = createAsyncThunk(
   "educationQualification/updateEducationQualification",
   async (item: EducationQualificationGridData, { rejectWithValue }) => {
     try {
-      const payload = { ...item, EDUCATION_QUALIFICATION_ID: Number(item.id) || item.EDUCATION_QUALIFICATION_ID };
+      const payload = { ...item, EDUCATION_QUALIFICATION_ID: Number(item.id) || item.EDUCATION_QUALIFICATION_ID, LINK_ID: (item as any).LINK_ID ?? null };
       const response = await fetch(`${API_URL}/education-qualification-master/${payload.EDUCATION_QUALIFICATION_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

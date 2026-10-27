@@ -9,6 +9,7 @@ export interface FuelTypeGridData {
   ERP_PRODUCT_ID?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface FuelTypeState {
@@ -44,10 +45,11 @@ export const addFuelType = createAsyncThunk(
   "fuelType/addFuelType",
   async (item: FuelTypeGridData, { rejectWithValue }) => {
     try {
+      const payload = { ...item, LINK_ID: (item as any).LINK_ID ?? 183 };
       const response = await fetch(`${API_URL}/fuel-type-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -64,7 +66,7 @@ export const updateFuelType = createAsyncThunk(
   "fuelType/updateFuelType",
   async (item: FuelTypeGridData, { rejectWithValue }) => {
     try {
-      const payload = { ...item, FUEL_TYPE_ID: Number(item.id) || item.FUEL_TYPE_ID };
+      const payload = { ...item, FUEL_TYPE_ID: Number(item.id) || item.FUEL_TYPE_ID, LINK_ID: (item as any).LINK_ID ?? 183 };
       const response = await fetch(`${API_URL}/fuel-type-master/${payload.FUEL_TYPE_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

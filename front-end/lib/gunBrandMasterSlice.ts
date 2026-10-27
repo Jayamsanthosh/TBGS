@@ -50,7 +50,7 @@ export const fetchGunBrandById = createAsyncThunk(
   "gunBrand/fetchById",
   async (id: number, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/gun-brand-master/${id}`);
+      const response = await fetch(`${API_URL}/gun-brand-master/${id}?LINK_ID=121`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch gun brand");
@@ -67,10 +67,11 @@ export const addGunBrand = createAsyncThunk(
   "gunBrand/addGunBrand",
   async (item: GunBrandGridData, { rejectWithValue }) => {
     try {
+      const payload = { ...item, LINK_ID: (item as any).LINK_ID ?? 121 };
       const response = await fetch(`${API_URL}/gun-brand-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -87,7 +88,7 @@ export const updateGunBrand = createAsyncThunk(
   "gunBrand/updateGunBrand",
   async (item: GunBrandGridData, { rejectWithValue }) => {
     try {
-      const payload = { ...item, GUN_BRAND_ID: Number(item.id) || item.GUN_BRAND_ID };
+      const payload = { ...item, GUN_BRAND_ID: Number(item.id) || item.GUN_BRAND_ID, LINK_ID: (item as any).LINK_ID ?? 121 };
       const response = await fetch(`${API_URL}/gun-brand-master/${payload.GUN_BRAND_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

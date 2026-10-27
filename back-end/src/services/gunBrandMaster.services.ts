@@ -17,6 +17,7 @@ export interface GunBrandMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllGunBrandMasterService = async (status = "ALL") => {
@@ -48,7 +49,7 @@ export const getAllGunBrandMasterService = async (status = "ALL") => {
   }
 };
 
-export const getGunBrandMasterByIdService = async (id: number) => {
+export const getGunBrandMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -56,6 +57,7 @@ export const getGunBrandMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("GUN_BRAND_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_GUN_BRAND_MASTER");
 
     return result.recordset[0] || null;
@@ -85,6 +87,7 @@ export const saveGunBrandMasterService = async (data: GunBrandMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 121)
       .execute("VMaster.SAVE_GUN_BRAND_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save gun brand");
@@ -116,6 +119,7 @@ export const updateGunBrandMasterService = async (data: GunBrandMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 121)
       .execute("VMaster.UPDATE_GUN_BRAND_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update gun brand");

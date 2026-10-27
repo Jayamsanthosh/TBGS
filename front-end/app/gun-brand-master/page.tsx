@@ -117,7 +117,7 @@ export default function GunBrandMasterPage() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), LINK_ID: 121 });
     setDialogOpen(true);
   };
 
@@ -141,6 +141,7 @@ export default function GunBrandMasterPage() {
       STATUS_MASTER: src.STATUS_MASTER === "ACTIVE" ? "AC" : (src.STATUS_MASTER === "INACTIVE" ? "IA" : (src.STATUS_MASTER || "AC")),
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: src.LINK_ID ?? 121,
     });
     setDialogOpen(true);
   };
@@ -181,6 +182,7 @@ export default function GunBrandMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER,
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: form.LINK_ID ?? 121,
       };
 
       if (editing) {

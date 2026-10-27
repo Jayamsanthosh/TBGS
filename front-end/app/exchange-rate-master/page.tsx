@@ -253,7 +253,7 @@ export default function ExchangeRateMasterPage() {
     add: async (item: ExchangeRateGridData) => {
       let res;
       try {
-        res = await dispatch(addExchangeRate(item)).unwrap();
+        res = await dispatch(addExchangeRate({ ...item, LINK_ID: 26 } as any)).unwrap();
       } catch (e) {
         throw new Error(typeof e === 'string' ? e : (e as any)?.message || 'Failed to add exchange rate');
       }
@@ -263,7 +263,7 @@ export default function ExchangeRateMasterPage() {
     update: async (item: ExchangeRateGridData) => {
       let res;
       try {
-        res = await dispatch(updateExchangeRate(item)).unwrap();
+        res = await dispatch(updateExchangeRate({ ...item, LINK_ID: 26 } as any)).unwrap();
       } catch (e) {
         throw new Error(typeof e === 'string' ? e : (e as any)?.message || 'Failed to update exchange rate');
       }

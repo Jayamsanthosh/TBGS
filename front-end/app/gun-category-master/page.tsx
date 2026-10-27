@@ -83,12 +83,12 @@ export default function GunCategoryMasterPage() {
     data: gunCategories,
     isLoading: loading,
     add: async (item: GunCategoryGridData) => {
-      const res = await dispatch(addGunCategory(item)).unwrap();
+      const res = await dispatch(addGunCategory({ ...item, LINK_ID: 120 } as any)).unwrap();
       dispatch(fetchGunCategories(currentStatus));
       return res;
     },
     update: async (item: GunCategoryGridData) => {
-      const res = await dispatch(updateGunCategory(item)).unwrap();
+      const res = await dispatch(updateGunCategory({ ...item, LINK_ID: 120 } as any)).unwrap();
       dispatch(fetchGunCategories(currentStatus));
       return res;
     },

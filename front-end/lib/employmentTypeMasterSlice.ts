@@ -7,6 +7,7 @@ export interface EmploymentTypeGridData {
   EMPLOYMENT_TYPE_NAME: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface EmploymentTypeState {
@@ -42,10 +43,11 @@ export const addEmploymentType = createAsyncThunk(
   "employmentType/addEmploymentType",
   async (item: EmploymentTypeGridData, { rejectWithValue }) => {
     try {
+      const payload = { ...item, LINK_ID: (item as any).LINK_ID ?? 87 };
       const response = await fetch(`${API_URL}/employment-type-master`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -62,7 +64,7 @@ export const updateEmploymentType = createAsyncThunk(
   "employmentType/updateEmploymentType",
   async (item: EmploymentTypeGridData, { rejectWithValue }) => {
     try {
-      const payload = { ...item, EMPLOYMENT_TYPE_ID: Number(item.id) || item.EMPLOYMENT_TYPE_ID };
+      const payload = { ...item, EMPLOYMENT_TYPE_ID: Number(item.id) || item.EMPLOYMENT_TYPE_ID, LINK_ID: (item as any).LINK_ID ?? 87 };
       const response = await fetch(`${API_URL}/employment-type-master/${payload.EMPLOYMENT_TYPE_ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

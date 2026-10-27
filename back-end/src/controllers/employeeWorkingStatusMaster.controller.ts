@@ -26,8 +26,13 @@ export const getEmployeeWorkingStatusMasterById = async (req: Request, res: Resp
     res.status(400).json({ success: false, message: "Working Status ID is required" });
     return;
   }
+  const rawLinkId = req.query.LINK_ID ?? req.query.link_id;
+  const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : null;
   try {
-    const status = await getEmployeeWorkingStatusMasterByIdService(parseInt(id as string, 10));
+    const status = await getEmployeeWorkingStatusMasterByIdService(
+      parseInt(id as string, 10),
+      linkId != null && Number.isFinite(linkId) ? linkId : null
+    );
     if (!status) {
       res.status(404).json({ success: false, message: "Working status not found" });
       return;
@@ -35,7 +40,7 @@ export const getEmployeeWorkingStatusMasterById = async (req: Request, res: Resp
     res.json({ success: true, data: status });
   } catch (error: any) {
     console.error("GetEmployeeWorkingStatusMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -46,11 +51,17 @@ export const saveEmployeeWorkingStatusMaster = async (req: Request, res: Respons
     return;
   }
   try {
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    statusData.USER = USER || statusData.USER || "Admin";
+    statusData.MAC_ADDRESS = MAC_ADDRESS || statusData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (statusData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 54;
+    (statusData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 54;
     const result = await saveEmployeeWorkingStatusMasterService(statusData);
     res.json({ success: true, message: result.message || "Working status saved successfully" });
   } catch (error: any) {
     console.error("SaveEmployeeWorkingStatusMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -61,11 +72,17 @@ export const updateEmployeeWorkingStatusMaster = async (req: Request, res: Respo
     if (!statusData.EMP_CURRENT_STATUS_ID && id) {
       statusData.EMP_CURRENT_STATUS_ID = parseInt(id as string, 10);
     }
+    const { USER, MAC_ADDRESS } = identityFrom(req);
+    statusData.USER = USER || statusData.USER || "Admin";
+    statusData.MAC_ADDRESS = MAC_ADDRESS || statusData.MAC_ADDRESS || "WEB";
+    const rawLinkId = (statusData as any).LINK_ID ?? req.query.LINK_ID ?? req.query.link_id;
+    const linkId = rawLinkId != null && rawLinkId !== "" ? Number(rawLinkId) : 54;
+    (statusData as any).LINK_ID = linkId != null && Number.isFinite(linkId) ? linkId : 54;
     const result = await updateEmployeeWorkingStatusMasterService(statusData);
     res.json({ success: true, message: result.message || "Working status updated successfully" });
   } catch (error: any) {
     console.error("UpdateEmployeeWorkingStatusMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 

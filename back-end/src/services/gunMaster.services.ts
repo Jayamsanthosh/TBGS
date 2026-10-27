@@ -24,6 +24,7 @@ export interface GunMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export interface GunMasterFilter {
@@ -97,7 +98,7 @@ const addFilterParam = (req: any, name: string, value: string | undefined) => {
   req.input(name, sql.VarChar(50), value || "0");
 };
 
-export const getGunMasterByIdService = async (id: number) => {
+export const getGunMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -105,6 +106,7 @@ export const getGunMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("GUN_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_GUN_MASTER");
 
     return pickGunOwnerFields(result.recordset[0]) || null;
@@ -141,6 +143,7 @@ export const saveGunMasterService = async (data: GunMasterData) => {
       .input("GUN_SOURCE_TYPE_ID", sql.Int, data.GUN_SOURCE_TYPE_ID ?? null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 122)
       .execute("VMaster.SAVE_GUN_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save gun master");
@@ -179,6 +182,7 @@ export const updateGunMasterService = async (data: GunMasterData) => {
       .input("GUN_SOURCE_TYPE_ID", sql.Int, data.GUN_SOURCE_TYPE_ID ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 122)
       .execute("VMaster.UPDATE_GUN_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update gun master");

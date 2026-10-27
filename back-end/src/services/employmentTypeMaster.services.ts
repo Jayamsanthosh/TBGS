@@ -10,6 +10,7 @@ export interface EmploymentTypeMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const normalizeRow = (r: any) => ({
@@ -46,7 +47,7 @@ export const getAllEmploymentTypeMasterService = async (status = "ALL") => {
   }
 };
 
-export const getEmploymentTypeMasterByIdService = async (id: number) => {
+export const getEmploymentTypeMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -54,6 +55,7 @@ export const getEmploymentTypeMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("EMPLOYMENT_TYPE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? null)
       .execute("VMaster.GET_EMPLOYMENT_TYPE_MASTER");
 
     const row = result.recordset[0] || null;
@@ -77,6 +79,7 @@ export const saveEmploymentTypeMasterService = async (data: EmploymentTypeMaster
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 87)
       .execute("VMaster.SAVE_EMPLOYMENT_TYPE_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save employment type");
@@ -107,6 +110,7 @@ export const updateEmploymentTypeMasterService = async (data: EmploymentTypeMast
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 87)
       .execute("VMaster.UPDATE_EMPLOYMENT_TYPE_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update employment type");
