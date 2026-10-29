@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 //app/[approvalType]/[id]/page.tsx
 import React, { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -60,6 +61,22 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
         return `${Number(amount).toLocaleString()} ${currency || ''}`;
     };
 
+    // Table cells prefer a dash over "N/A" for a missing money value.
+    const formatMoneyCell = (amount: any) => {
+        if (amount === undefined || amount === null || amount === '') return "-";
+        const n = Number(amount);
+        return isNaN(n)
+            ? String(amount)
+            : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    // Dates arrive as ISO strings or as the SP's 'dd-MMM-yyyy' text.
+    const formatDate = (value: any) => {
+        if (value === undefined || value === null || value === '') return "N/A";
+        const d = new Date(value);
+        return isNaN(d.getTime()) ? String(value) : d.toLocaleDateString();
+    };
+
     // Get status badge styling
     const getStatusBadge = (status: string) => {
         const statusText = status || "PENDING";
@@ -92,6 +109,88 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
     };
 
     const isAttendance = approvalType === "attendance";
+    const isPurchaseRequest = approvalType === "purchase-request" || approvalType === "purchase-requests";
+    const isPurchaseQuotation = approvalType === "purchase-quotation" || approvalType === "purchase-quotations";
+
+    const purchaseRequestSections = [
+        {
+            title: "Purchase Request",
+            items: [
+                { label: "PR Number", value: rowData?.poRefNo || "N/A" },
+                { label: "PR Date", value: formatDate(rowData?.poDate) },
+                { label: "Requested By", value: rowData?.requestedBy || "N/A" },
+                { label: "Requester EMP ID", value: rowData?.empId ? `EMP ${rowData.empId}` : "N/A" },
+                { label: "Company", value: rowData?.companyName || rowData?.companyId?.toString() || "N/A" },
+                { label: "Branch", value: rowData?.branchName || rowData?.branchId?.toString() || "N/A" },
+                { label: "Purchase Store", value: rowData?.requestStoreName || rowData?.storeName || "N/A" },
+                { label: "Camp", value: rowData?.campName || rowData?.campId?.toString() || "N/A" },
+            ]
+        },
+        {
+            title: "Request Details",
+            items: [
+                { label: "Request Type", value: rowData?.requestTypeName || rowData?.purchaseType || "N/A" },
+                { label: "Priority", value: rowData?.priorityName || "N/A" },
+                { label: "Required Date", value: formatDate(rowData?.requiredDate) },
+                { label: "Delivery Location", value: rowData?.deliveryLocationName || "N/A" },
+                { label: "Reason", value: rowData?.reason || "N/A", isRemark: true },
+                { label: "Remarks", value: rowData?.remarks || "N/A", isRemark: true },
+            ]
+        },
+    ];
+
+    const purchaseQuotationSections = [
+        {
+            title: "Purchase Quotation",
+            items: [
+                { label: "PQ Number", value: rowData?.purchaseQuotationNo || rowData?.poRefNo || "N/A" },
+                { label: "PQ Date", value: formatDate(rowData?.purchaseQuotationDate || rowData?.poDate) },
+                { label: "Purchase Request No", value: rowData?.purchaseRequestNo || "N/A" },
+                { label: "Supplier", value: rowData?.supplierName || rowData?.supplier?.supplierName || "N/A" },
+                { label: "Supplier Quote No", value: rowData?.supplierQuotationNo || "N/A" },
+                { label: "Supplier Quote Date", value: formatDate(rowData?.supplierQuotationDate) },
+                { label: "Company", value: rowData?.companyName || rowData?.company?.companyName || "N/A" },
+                { label: "Branch", value: rowData?.branchName || "N/A" },
+                { label: "Purchase Store", value: rowData?.poStoreName || rowData?.storeName || rowData?.requestStoreName || "N/A" },
+                { label: "Camp", value: rowData?.campName || "N/A" },
+                { label: "Created By", value: rowData?.createdBy || rowData?.requestedBy || "N/A" },
+                { label: "Created Date", value: formatDate(rowData?.createdDate) },
+            ]
+        },
+        {
+            title: "Terms & Delivery",
+            items: [
+                { label: "Payment Term", value: rowData?.paymentTermName || "N/A" },
+                { label: "Payment Mode", value: rowData?.paymentModeName || "N/A" },
+                { label: "Shipment Mode", value: rowData?.shipmentModeName || "N/A" },
+                { label: "Delivery Date", value: formatDate(rowData?.deliveryDate) },
+                { label: "Delivery Term", value: rowData?.deliveryTerm || "N/A" },
+                { label: "Delivery Location", value: rowData?.deliveryLocationName || "N/A" },
+                { label: "Valid From", value: formatDate(rowData?.validFromDate) },
+                { label: "Valid To", value: formatDate(rowData?.validToDate) },
+                {
+                    label: "Currency / FX",
+                    value: rowData?.currencyName
+                        ? `${rowData.currencyName}${rowData?.exchangeRate != null ? ` @ ${Number(rowData.exchangeRate).toLocaleString()}` : ""}`
+                        : (rowData?.currencyType || "N/A")
+                },
+                { label: "Shipment Remarks", value: rowData?.shipmentRemarks || "N/A", isRemark: true },
+                { label: "Remarks", value: rowData?.remarks || "N/A", isRemark: true },
+            ]
+        },
+        {
+            title: "Quotation Totals",
+            items: [
+                { label: "Subtotal (FC)", value: formatAmount(rowData?.subTotalAmount, rowData?.currencyName) },
+                { label: "Subtotal (LC)", value: formatAmount(rowData?.subTotalAmountLc, "") },
+                { label: "Discount (FC)", value: formatAmount(rowData?.discountAmount, rowData?.currencyName) },
+                { label: "Total Product (FC)", value: formatAmount(rowData?.totalProductAmount, rowData?.currencyName) },
+                { label: "Tax / VAT (FC)", value: formatAmount(rowData?.taxAmount, rowData?.currencyName) },
+                { label: "Final Total (FC)", value: formatAmount(rowData?.totalAmount, rowData?.currencyName) },
+                { label: "Final Total (LC)", value: formatAmount(rowData?.totalAmountLc, "") },
+            ]
+        },
+    ];
 
     const detailSections = isAttendance
         ? [
@@ -122,6 +221,10 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
                 ]
             }
         ]
+        : isPurchaseRequest
+        ? purchaseRequestSections
+        : isPurchaseQuotation
+        ? purchaseQuotationSections
         : [
             {
                 title: `${pageTitle || 'Request'} Information`,
@@ -146,32 +249,44 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
             }
         ];
 
+    // Purchase requests carry the approver's name and a timestamp per level;
+    // the HR rows only carry the EMP_ID, so the Date row is PR-only.
+    const approvalDateItems = (value: any) =>
+        isPurchaseRequest || isPurchaseQuotation ? [{ label: "Date", value: formatDate(value) }] : [];
+
     const approvalSections = [
         {
             title: "Section Head Approval",
             items: [
-                { label: "Authority", value: rowData?.sectionHeadPerson || "Not Assigned" },
+                { label: "Authority", value: rowData?.sectionHeadPersonName || rowData?.sectionHeadPerson || "Not Assigned" },
                 { label: "Status", value: rowData?.sectionHeadStatus || "PENDING", isStatus: true },
+                ...approvalDateItems(rowData?.sectionHeadDate),
                 { label: "Remarks", value: rowData?.sectionHeadRemarks || "No remarks provided" },
             ]
         },
         {
             title: "First Approval Workflow",
             items: [
-                { label: "Authority", value: rowData?.response1Person || "Not Assigned" },
+                { label: "Authority", value: rowData?.response1PersonName || rowData?.response1Person || "Not Assigned" },
                 { label: "Status", value: rowData?.response1Status || "PENDING", isStatus: true },
+                ...approvalDateItems(rowData?.response1Date),
                 { label: "Remarks", value: rowData?.response1Remarks || "No remarks provided" },
             ]
         },
         {
             title: "Second Approval Workflow",
             items: [
-                { label: "Authority", value: rowData?.response2Person || "Not Assigned" },
+                { label: "Authority", value: rowData?.response2PersonName || rowData?.response2Person || "Not Assigned" },
                 { label: "Status", value: rowData?.response2Status || "PENDING", isStatus: true },
+                ...approvalDateItems(rowData?.response2Date),
                 { label: "Remarks", value: rowData?.response2Remarks || "No remarks provided" },
             ]
         }
     ];
+
+    const productLineItems: any[] = Array.isArray(rowData?.productLineItems)
+        ? rowData.productLineItems
+        : [];
 
 
     if (loading) {
@@ -270,6 +385,123 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
                     </div>
                 ))}
             </div>
+
+            {/* Purchase Request / Purchase Quotation Line Items */}
+            {(isPurchaseRequest || isPurchaseQuotation) && (
+                <div className="mb-8 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="bg-slate-50/50 px-8 py-5 border-b border-slate-100 flex items-center justify-between">
+                        <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">
+                            {isPurchaseQuotation ? 'Quotation Lines' : 'Request Lines'}
+                        </h3>
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
+                            {productLineItems.length} {productLineItems.length === 1 ? 'line' : 'lines'}
+                        </span>
+                    </div>
+                    {productLineItems.length === 0 ? (
+                        <div className="p-8 text-center text-sm font-semibold text-slate-400">
+                            {isPurchaseQuotation ? 'No quotation lines found.' : 'No request lines found.'}
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50/70">
+                                    <tr>
+                                        {(isPurchaseQuotation
+                                            ? ['#', 'Product', 'Description', 'Category', 'Reference', 'Qty', 'UOM', 'Rate', 'Disc %', 'Tax %', 'Final (FC)', 'Final (LC)']
+                                            : ['#', 'Product', 'Description', 'Category', 'Reference', 'Qty', 'UOM', 'Packing', 'Truck', 'Required Date', 'Reason']
+                                        ).map((heading) => (
+                                            <th
+                                                key={heading}
+                                                className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400 whitespace-nowrap"
+                                            >
+                                                {heading}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {productLineItems.map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="border-t border-slate-50 hover:bg-slate-50/50">
+                                            <td className="px-4 py-3 font-bold text-slate-500">{item.lineNo ?? index + 1}</td>
+                                            <td className="px-4 py-3 font-bold text-slate-800">{item.productName || '-'}</td>
+                                            <td className="px-4 py-3 text-slate-600">{item.description || item.remarks || '-'}</td>
+                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                                                {[item.mainCategoryName, item.subCategoryName].filter(Boolean).join(' / ') || '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                                                {[item.referenceTypeName, item.referenceNo].filter(Boolean).join(' ') || '-'}
+                                            </td>
+                                            <td className="px-4 py-3 font-semibold text-slate-800 text-right">{item.totalQuantity ?? '-'}</td>
+                                            <td className="px-4 py-3 text-slate-600">{item.uomName || '-'}</td>
+                                            {isPurchaseQuotation ? (
+                                                <>
+                                                    <td className="px-4 py-3 text-slate-700 text-right whitespace-nowrap">{formatMoneyCell(item.rate ?? item.ratePerPcs)}</td>
+                                                    <td className="px-4 py-3 text-slate-600 text-right whitespace-nowrap">{item.discountPercentage != null ? `${Number(item.discountPercentage)}%` : '-'}</td>
+                                                    <td className="px-4 py-3 text-slate-600 text-right whitespace-nowrap">{item.taxPercentage != null ? `${Number(item.taxPercentage)}%` : '-'}</td>
+                                                    <td className="px-4 py-3 font-semibold text-slate-800 text-right whitespace-nowrap">{formatMoneyCell(item.finalAmount ?? item.amount)}</td>
+                                                    <td className="px-4 py-3 text-slate-600 text-right whitespace-nowrap">{formatMoneyCell(item.finalAmountLc)}</td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td className="px-4 py-3 text-slate-600">{item.totalPacking ?? '-'}</td>
+                                                    <td className="px-4 py-3 text-slate-600">{item.truckNo || '-'}</td>
+                                                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(item.requiredDate)}</td>
+                                                    <td className="px-4 py-3 text-slate-600 max-w-[240px]">{item.reason || '-'}</td>
+                                                </>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Purchase Quotation Additional Charges */}
+            {isPurchaseQuotation && Array.isArray(rowData?.additionalCosts) && rowData.additionalCosts.length > 0 && (
+                <div className="mb-8 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="bg-slate-50/50 px-8 py-5 border-b border-slate-100 flex items-center justify-between">
+                        <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">
+                            Additional Charges
+                        </h3>
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
+                            {rowData.additionalCosts.length} {rowData.additionalCosts.length === 1 ? 'charge' : 'charges'}
+                        </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-slate-50/70">
+                                <tr>
+                                    {['#', 'Charge Type', 'Description', 'Qty', 'Rate', 'Tax %', 'Total (FC)', 'Final (FC)', 'Final (LC)'].map((heading) => (
+                                        <th
+                                            key={heading}
+                                            className="text-left px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400 whitespace-nowrap"
+                                        >
+                                            {heading}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rowData.additionalCosts.map((charge: any, index: number) => (
+                                    <tr key={charge.id ?? index} className="border-t border-slate-50 hover:bg-slate-50/50">
+                                        <td className="px-4 py-3 font-bold text-slate-500">{charge.lineNo ?? index + 1}</td>
+                                        <td className="px-4 py-3 font-bold text-slate-800">{charge.chargeTypeName || charge.additionalCostType || '-'}</td>
+                                        <td className="px-4 py-3 text-slate-600">{charge.description || '-'}</td>
+                                        <td className="px-4 py-3 text-slate-600 text-right">{charge.quantity ?? '-'}</td>
+                                        <td className="px-4 py-3 text-slate-700 text-right whitespace-nowrap">{formatMoneyCell(charge.rate)}</td>
+                                        <td className="px-4 py-3 text-slate-600 text-right whitespace-nowrap">{charge.taxPercentage != null ? `${Number(charge.taxPercentage)}%` : '-'}</td>
+                                        <td className="px-4 py-3 text-slate-700 text-right whitespace-nowrap">{formatMoneyCell(charge.totalAmount)}</td>
+                                        <td className="px-4 py-3 font-semibold text-slate-800 text-right whitespace-nowrap">{formatMoneyCell(charge.finalAmount)}</td>
+                                        <td className="px-4 py-3 text-slate-600 text-right whitespace-nowrap">{formatMoneyCell(charge.finalAmountLc)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {/* Approval Details Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

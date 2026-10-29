@@ -4,7 +4,19 @@
    runner (src/scripts/deployProcs.ts and src/apply_sps.ts). */
 export const SP_FILES: string[] = [
   "purchase_request_submit.sql",
+  /* The approval panel reads and writes the purchase request through its own
+     procs; they live beside the submit proc because both operate on the same
+     header row. */
+  "purchase_request_approval.sql",
+  /* The entry screen's final status has to use the same three-level rollup as
+     the approval panel, or a request stopped at the Section Head reads
+     "Pending" on one screen and "Rejected" on the other. */
+  "purchase_request_final_status_rollup.sql",
   "purchase_quotation_submit.sql",
+  /* The quotation approval panel reads and writes through its own procs, kept
+     next to the submit proc they depend on (the panel only shows rows the
+     submit proc marked as submitted). */
+  "purchase_quotation_approval.sql",
   "purchase_request_load_grid_fields.sql",
   "purchase_request_requested_by_name.sql",
   /* The quotation wizard copies lines from a request via this read; without

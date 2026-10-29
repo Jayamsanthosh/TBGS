@@ -151,6 +151,24 @@ const FilterForm: React.FC<FilterFormProps> = ({
 
 
 
+                    <InputWrapper label="Approval Status">
+                        <div className="relative">
+                            <select
+                                value={localFilters.status || ""}
+                                onChange={(e) => handleChange("status", e.target.value)}
+                                className="w-full appearance-none bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100"
+                            >
+                                <option value="">All Statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="hold">Hold</option>
+                                <option value="approved">Approved</option>
+                                <option value="rejected">Rejected</option>
+                                <option value="closed">Closed</option>
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        </div>
+                    </InputWrapper>
+
                     <InputWrapper label="Search From Date">
                         <div className="relative">
                             <input

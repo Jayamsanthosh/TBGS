@@ -15,9 +15,21 @@ import { SP_FILES } from "./spFiles";
    GO is a SSMS batch separator, not T-SQL, so each file is split on it and the
    batches run one at a time - CREATE OR ALTER PROCEDURE has to be the first
    statement in its batch. */
-/* Purchase request procs are ordered so the read fix lands in the same pass:
-   submit first, then the grid projection. */
-const FILES = SP_FILES;
+/* The deploy order lives in SP_FILES (purchase request procs are ordered so the
+   read fix lands in the same pass: submit first, then the grid projection).
+   Optional file filter: `npx tsx src/scripts/deployProcs.ts purchase_request_approval.sql`
+   applies only the named files (still in SP_FILES order). Without arguments the
+   whole list runs, which is the behaviour a fresh database needs. */
+const requestedFiles = process.argv.slice(2).filter((arg) => !arg.startsWith("-"));
+const unknownFiles = requestedFiles.filter((f) => !SP_FILES.includes(f));
+if (unknownFiles.length) {
+  console.error(`Unknown SP file(s): ${unknownFiles.join(", ")}`);
+  console.error(`Known files: ${SP_FILES.join(", ")}`);
+  process.exit(1);
+}
+const FILES = requestedFiles.length
+  ? SP_FILES.filter((f) => requestedFiles.includes(f))
+  : SP_FILES;
 
 const dir = path.join(__dirname, "..", "SPs");
 

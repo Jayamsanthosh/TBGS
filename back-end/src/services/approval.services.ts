@@ -21,7 +21,31 @@ export const REQUEST_TYPE_MAP: Record<string, string> = {
   "leave-encashment-request": "Leave Encashment Request",
   "promotion-demotion-transfer": "Promotion Demotion Transfer Request",
   "promotion-demotion-transfer-request": "Promotion Demotion Transfer Request",
+  /* Purchase Request and Purchase Quotation are the non-HR types in the panel.
+     Each has its own approval procs because its header table stores the
+     workflow in SECTION_HEAD_/RESPONSE_1_/RESPONSE_2_ columns under VPurchase
+     instead of the STATUS_MASTER-driven tables the request types above share. */
+  "purchase-request": "Purchase Request",
+  "purchase-requests": "Purchase Request",
+  "purchase-request-approval": "Purchase Request",
+  "purchase_request": "Purchase Request",
+  "purchase request": "Purchase Request",
+  "purchase-quotation": "Purchase Quotation",
+  "purchase-quotations": "Purchase Quotation",
+  "purchase-quotation-approval": "Purchase Quotation",
+  "purchase_quotation": "Purchase Quotation",
+  "purchase quotation": "Purchase Quotation",
 };
+
+/** Request types whose approval flow is driven by their own procedures. */
+export const PURCHASE_REQUEST_TYPE = "Purchase Request";
+export const PURCHASE_QUOTATION_TYPE = "Purchase Quotation";
+
+const isPurchaseRequest = (requestType: string): boolean =>
+  requestType === PURCHASE_REQUEST_TYPE;
+
+const isPurchaseQuotation = (requestType: string): boolean =>
+  requestType === PURCHASE_QUOTATION_TYPE;
 
 /** Request type -> table. All tables share the same approval-status columns. */
 const REQUEST_TABLE_MAP: Record<string, string> = {
@@ -48,10 +72,85 @@ export const validateActionableRequests = async (
 
   const table = REQUEST_TABLE_MAP[requestType];
   const idList = (ids || []).map(Number).filter((n) => Number.isFinite(n));
-  if (!table || idList.length === 0) return idList;
+  if (idList.length === 0) return idList;
 
   const norm = (v: string): string =>
     v === "APPROVAL" ? "APPROVED" : v === "REJECT" ? "REJECTED" : v;
+
+  /* Purchase Request: its header has no STATUS_MASTER lifecycle column, and the
+     chain has three levels (Section Head -> Response 1 -> Response 2) with no
+     separate FINAL level - the final outcome is mirrored into
+     FINAL_RESPONSE_STATUS by the update proc. STATUS_ENTRY = 'CL' means
+     "submitted for approval" and is NOT terminal. */
+  if (isPurchaseRequest(requestType)) {
+    const result = await pool.request().query(`
+      SELECT SNO,
+        UPPER(ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)), ''), 'PENDING')) AS sh,
+        UPPER(ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)), ''), 'PENDING')) AS r1,
+        UPPER(ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)), ''), 'PENDING')) AS r2,
+        UPPER(LTRIM(RTRIM(ISNULL(STATUS_ENTRY, '')))) AS se
+      FROM [VPurchase].[TBL_PURCHASE_REQUEST_HDR]
+      WHERE SNO IN (${idList.join(",")})`);
+
+    const seen = new Set<number>();
+    const nonActionable: number[] = [];
+    for (const row of result.recordset || []) {
+      const sno = Number(row.SNO);
+      seen.add(sno);
+      const sh = norm(row.sh), r1 = norm(row.r1), r2 = norm(row.r2);
+      const submitted = String(row.se || "") === "CL";
+      const actionable =
+        submitted &&
+        (sh === "PENDING" || sh === "HOLD" ||
+          (sh === "APPROVED" && (r1 === "PENDING" || r1 === "HOLD")) ||
+          (r1 === "APPROVED" && (r2 === "PENDING" || r2 === "HOLD")));
+      if (!actionable) nonActionable.push(sno);
+    }
+    // Ids that don't exist (or are still drafts) are also not actionable.
+    for (const id of idList) if (!seen.has(id)) nonActionable.push(id);
+
+    return nonActionable;
+  }
+
+  /* Purchase Quotation: same three-level chain, but the header stores the
+     workflow state in QUOTATION_STATUS_ID (2 Draft, 3 Pending, 4 Approved)
+     instead of STATUS_ID. That column is a Purchase-Order gate rather than a
+     level, so it is only used to recognise a quotation that the final approval
+     already completed - the level columns decide everything else. */
+  if (isPurchaseQuotation(requestType)) {
+    const result = await pool.request().query(`
+      SELECT SNO,
+        ISNULL(QUOTATION_STATUS_ID, 0) AS qsid,
+        UPPER(ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)), ''), 'PENDING')) AS sh,
+        UPPER(ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)), ''), 'PENDING')) AS r1,
+        UPPER(ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)), ''), 'PENDING')) AS r2,
+        UPPER(LTRIM(RTRIM(ISNULL(STATUS_ENTRY, '')))) AS se
+      FROM [VPurchase].[TBL_PURCHASE_QUOTATION_HDR]
+      WHERE SNO IN (${idList.join(",")})`);
+
+    const seen = new Set<number>();
+    const nonActionable: number[] = [];
+    for (const row of result.recordset || []) {
+      const sno = Number(row.SNO);
+      seen.add(sno);
+      const sh = norm(row.sh), r1 = norm(row.r1), r2 = norm(row.r2);
+      const submitted = String(row.se || "") === "CL";
+      const completed = Number(row.qsid) === 4;
+      const actionable =
+        submitted &&
+        !completed &&
+        (sh === "PENDING" || sh === "HOLD" ||
+          (sh === "APPROVED" && (r1 === "PENDING" || r1 === "HOLD")) ||
+          (r1 === "APPROVED" && (r2 === "PENDING" || r2 === "HOLD")));
+      if (!actionable) nonActionable.push(sno);
+    }
+    // Ids that don't exist (or are still drafts) are also not actionable.
+    for (const id of idList) if (!seen.has(id)) nonActionable.push(id);
+
+    return nonActionable;
+  }
+
+  if (!table) return idList;
 
   const result = await pool.request().query(`
     SELECT SNO,
@@ -104,12 +203,30 @@ const mapRowToFrontend = (_requestType: string, r: any) => ({
   id: r.sno ?? r.SNO,
 });
 
-/** Summary rows: CardName, PendingCount, ApprovedCount, HoldCount, RejectedCount. */
+/**
+ * Summary rows: CardName, PendingCount, ApprovedCount, HoldCount, RejectedCount.
+ *
+ * The seven HR request types come from VRequest.GET_REQUEST_SUMMARY; the two
+ * purchase types have their own header tables and status rollups, so their
+ * cards are merged in from VRequest.GET_PURCHASE_REQUEST_SUMMARY and
+ * VRequest.GET_PURCHASE_QUOTATION_SUMMARY. Keeping them separate means the
+ * seven-type proc is never rewritten just to add one card.
+ */
 export const getApprovalSummaryService = async (): Promise<any[]> => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
-  const result = await pool.request().execute("VRequest.GET_REQUEST_SUMMARY");
-  return result.recordset || [];
+
+  const [requests, purchaseRequests, purchaseQuotations] = await Promise.all([
+    pool.request().execute("VRequest.GET_REQUEST_SUMMARY"),
+    pool.request().execute("VRequest.GET_PURCHASE_REQUEST_SUMMARY"),
+    pool.request().execute("VRequest.GET_PURCHASE_QUOTATION_SUMMARY"),
+  ]);
+
+  return [
+    ...(requests.recordset || []),
+    ...(purchaseRequests.recordset || []),
+    ...(purchaseQuotations.recordset || []),
+  ];
 };
 
 /** List rows for one request type, optionally filtered by canonical status. */
@@ -119,6 +236,29 @@ export const getRequestListService = async (
 ): Promise<any[]> => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
+
+  if (isPurchaseRequest(requestType)) {
+    // The PR list proc already joins every master (company / store / camp /
+    // branch / type / priority / requester names) and returns camelCase, so no
+    // display-name attachment pass is needed.
+    const result = await pool
+      .request()
+      .input("Status", sql.VarChar(50), status || "ALL")
+      .execute("VPurchase.GET_APPROVAL_LIST_PURCHASE_REQUEST");
+
+    return (result.recordset || []).map((r) => mapRowToFrontend(requestType, r));
+  }
+
+  if (isPurchaseQuotation(requestType)) {
+    // Same contract as PR: the PQ proc joins the masters (company / store /
+    // branch / camp / supplier / currency) and returns camelCase.
+    const result = await pool
+      .request()
+      .input("Status", sql.VarChar(50), status || "ALL")
+      .execute("VPurchase.GET_APPROVAL_LIST_PURCHASE_QUOTATION");
+
+    return (result.recordset || []).map((r) => mapRowToFrontend(requestType, r));
+  }
 
   const result = await pool
     .request()
@@ -163,9 +303,8 @@ export const getRequestPageService = async (
   const toNullablePage = (v: number | null | undefined): number | null =>
     v == null || !Number.isFinite(v) || v < 1 ? null : Math.floor(v);
 
-  const result = await pool
+  const request = pool
     .request()
-    .input("RequestType", sql.VarChar(100), requestType)
     .input("Status", sql.VarChar(50), status || "ALL")
     .input("FromDate", sql.Date, filter.fromDate || null)
     .input("ToDate", sql.Date, filter.toDate || null)
@@ -175,17 +314,34 @@ export const getRequestPageService = async (
     .input("DepartmentId", sql.Int, toNullableInt(filter.departmentId))
     .input("Search", sql.NVarChar(200), filter.search || null)
     .input("Page", sql.Int, toNullablePage(filter.page))
-    .input("PageSize", sql.Int, toNullablePage(filter.pageSize))
-    .execute("VRequest.GET_REQUEST_LIST_BY_TYPE");
+    .input("PageSize", sql.Int, toNullablePage(filter.pageSize));
+
+  const purchaseRequest = isPurchaseRequest(requestType);
+  const purchaseQuotation = isPurchaseQuotation(requestType);
+  const purchaseType = purchaseRequest || purchaseQuotation;
+  if (!purchaseType) {
+    request.input("RequestType", sql.VarChar(100), requestType);
+  }
+
+  const result = await request.execute(
+    purchaseQuotation
+      ? "VPurchase.GET_APPROVAL_LIST_PURCHASE_QUOTATION"
+      : purchaseRequest
+        ? "VPurchase.GET_APPROVAL_LIST_PURCHASE_REQUEST"
+        : "VRequest.GET_REQUEST_LIST_BY_TYPE"
+  );
+
+  const withNames = async (rows: any[]) =>
+    purchaseType ? rows : attachDisplayNames(pool, rows);
 
   const recordsets = (result.recordsets || []) as any[][];
   if (recordsets.length >= 2) {
     const rows = (recordsets[1] || []).map((r) => mapRowToFrontend(requestType, r));
     const total = Number(recordsets[0]?.[0]?.Total ?? 0);
-    return { total, rows: await attachDisplayNames(pool, rows) };
+    return { total, rows: await withNames(rows) };
   }
   const rows = (recordsets[0] || []).map((r) => mapRowToFrontend(requestType, r));
-  return { total: rows.length, rows: await attachDisplayNames(pool, rows) };
+  return { total: rows.length, rows: await withNames(rows) };
 };
 
 /**
@@ -252,14 +408,352 @@ const normalizeStatus = (value: unknown): string => {
   return s;
 };
 
+/**
+ * First non-blank value. Used instead of `??` so an empty SP alias cannot
+ * shadow a populated raw column (and vice versa).
+ */
+const firstNonEmpty = (...values: unknown[]): any => {
+  for (const value of values) {
+    if (value !== null && value !== undefined && String(value).trim() !== "") return value;
+  }
+  return null;
+};
+
+/**
+ * Purchase Request lines, shaped for the detail panel.
+ *
+ * SHOW_PURCHASE_REQUEST_DTL returns UPPERCASE columns; the panel works in
+ * camelCase, so every field is aliased here. totalPcs/orderedQty keep the
+ * names the PDF export already reads.
+ */
+const getPurchaseRequestLineItems = async (pool: any, refNo: string): Promise<any[]> => {
+  if (!refNo) return [];
+
+  const result = await pool
+    .request()
+    .input("PURCHASE_REQUEST_NO", sql.VarChar(50), refNo)
+    .execute("VPurchase.SHOW_PURCHASE_REQUEST_DTL");
+
+  return (result.recordset || []).map((d: any) => ({
+    id: d.ID ?? d.PURCHASE_REQUEST_DTL_ID,
+    lineNo: d.LINE_NO,
+    referenceTypeName: d.REFERENCE_TYPE_NAME,
+    referenceNo: d.REFERENCE_NO,
+    mainCategoryName: d.MAIN_CATEGORY_NAME,
+    subCategoryName: d.SUB_CATEGORY_NAME,
+    productId: d.PRODUCT_ID,
+    productName: d.PRODUCT_NAME,
+    description: d.DESCRIPTION,
+    noOfPcsPerPacking: d.NO_OF_PCS_PER_PACKING,
+    totalQuantity: d.Total_Quantity,
+    orderedQty: d.Total_Quantity,
+    uomId: d.UOM_ID,
+    uomName: d.UOM_NAME,
+    totalPacking: d.Total_Packing,
+    truckNo: d.TRUCK_NO,
+    requiredDate: d.REQUIRED_DATE,
+    reason: d.REASON,
+  }));
+};
+
+/**
+ * Purchase Quotation header, lines and additional charges, shaped for the
+ * detail panel and the expansion cards.
+ *
+ * The header table (TBL_PURCHASE_QUOTATION_HDR) has no STATUS_ID and no CAMP_ID:
+ * the workflow state is QUOTATION_STATUS_ID and the camp sits on the lines. The
+ * read proc only filters by status, so the requested row is picked out of the
+ * full SHOW_PURCHASE_QUOTATION_HDR result by quotation number.
+ *
+ * Quotation lines are stored with STATUS_ENTRY = 'AC', which is not a draft
+ * marker for this table - the entry screen writes 'AC' on every saved line - so
+ * the lines are never filtered on it.
+ */
+const getPurchaseQuotationDetail = async (
+  pool: any,
+  refNo: string,
+  row: any
+): Promise<{ header: any; lines: any[]; additionalCharges: any[] }> => {
+  if (!refNo) return { header: {}, lines: [], additionalCharges: [] };
+
+  const [hdrResult, dtlResult, chargeResult] = await Promise.all([
+    pool
+      .request()
+      .input("STATUS", sql.VarChar(20), "ALL")
+      .execute("VPurchase.SHOW_PURCHASE_QUOTATION_HDR"),
+    pool
+      .request()
+      .input("STATUS", sql.VarChar(20), "ALL")
+      .input("PURCHASE_QUOTATION_NO", sql.VarChar(50), refNo)
+      .execute("VPurchase.SHOW_PURCHASE_QUOTATION_DTL"),
+    pool
+      .request()
+      .input("PURCHASE_QUOTATION_NO", sql.VarChar(50), refNo)
+      .execute("VPurchase.SHOW_PURCHASE_QUOTATION_ADDITIONAL_CHARGES_DTL"),
+  ]);
+
+  const h: any =
+    (hdrResult.recordset || []).find(
+      (r: any) => String(r.PURCHASE_QUOTATION_NO) === String(refNo)
+    ) || {};
+
+  /* Payment term / payment mode names are not in the header projection, and the
+     additional charge type name is not in the charge row, so both are resolved
+     here. Best effort: an unknown id simply leaves the name null. */
+  const lookupName = async (
+    table: string,
+    idCol: string,
+    nameCol: string,
+    id: any
+  ): Promise<string | null> => {
+    const numericId = Number(id);
+    if (!Number.isFinite(numericId)) return null;
+    try {
+      const res = await pool
+        .request()
+        .query(
+          `SELECT TOP 1 ${nameCol} AS name FROM VMaster.${table} WHERE ${idCol} = ${numericId}`
+        );
+      return res.recordset?.[0]?.name ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  const chargeRows: any[] = chargeResult.recordset || [];
+  const chargeTypeIds = Array.from(
+    new Set(
+      chargeRows
+        .map((c) => Number(c.ADDITIONAL_CHARGE_TYPE_ID))
+        .filter((n) => Number.isFinite(n))
+    )
+  );
+
+  const [paymentTermName, paymentModeName, chargeTypeNames] = await Promise.all([
+    lookupName(
+      "TBL_PAYMENT_TERM_MASTER",
+      "PAYMENT_TERM_ID",
+      "PAYMENT_TERM_NAME",
+      h.PAYMENT_TERM_ID
+    ),
+    lookupName(
+      "TBL_PAYMENT_MODE_MASTER",
+      "PAYMENT_MODE_ID",
+      "PAYMENT_MODE_NAME",
+      h.PAYMENT_MODE_ID
+    ),
+    (async () => {
+      const map = new Map<number, string>();
+      if (chargeTypeIds.length === 0) return map;
+      try {
+        const res = await pool
+          .request()
+          .query(
+            `SELECT ADDITIONAL_CHARGE_TYPE_ID, ADDITIONAL_CHARGE_TYPE_NAME
+               FROM VMaster.TBL_ADDITIONAL_CHARGE_TYPE_MASTER
+              WHERE ADDITIONAL_CHARGE_TYPE_ID IN (${chargeTypeIds.join(",")})`
+          );
+        for (const r of res.recordset || []) {
+          map.set(Number(r.ADDITIONAL_CHARGE_TYPE_ID), String(r.ADDITIONAL_CHARGE_TYPE_NAME ?? ""));
+        }
+      } catch {
+        /* name resolution is cosmetic */
+      }
+      return map;
+    })(),
+  ]);
+
+  const header = {
+    purchaseQuotationNo: h.PURCHASE_QUOTATION_NO ?? refNo,
+    purchaseQuotationDate: h.PURCHASE_QUOTATION_DATE ?? row?.poDate ?? null,
+    purchaseRequestNo: row?.purchaseRequestNo ?? null,
+    companyId: h.COMPANY_ID ?? row?.companyId ?? null,
+    companyName: h.COMPANY_NAME ?? row?.companyName ?? null,
+    supplierId: h.SUPPLIER_BP_ID ?? row?.supplierId ?? null,
+    supplierName: h.SUPPLIER_NAME ?? row?.supplierName ?? null,
+    branchId: h.BRANCH_ID ?? row?.branchId ?? null,
+    branchName: h.BRANCH_NAME ?? row?.branchName ?? null,
+    poStoreId: h.PO_STORE_ID ?? row?.poStoreId ?? null,
+    poStoreName: h.PO_STORE_NAME ?? row?.storeName ?? null,
+    supplierQuotationNo: h.SUPPLIER_QUOTATION_NO ?? null,
+    supplierQuotationDate: h.SUPPLIER_QUOTATION_DATE ?? null,
+    validFromDate: h.VALID_FROM_DATE ?? null,
+    validToDate: h.VALID_TO_DATE ?? null,
+    paymentTermId: h.PAYMENT_TERM_ID ?? null,
+    paymentTermName,
+    paymentModeId: h.PAYMENT_MODE_ID ?? null,
+    paymentModeName,
+    shipmentModeId: h.SHIPMENT_MODE_ID ?? null,
+    shipmentModeName: h.SHIPMENT_MODE_NAME ?? null,
+    deliveryDate: h.DELIVERY_DATE ?? null,
+    deliveryTerm: h.DELIVERY_TERM ?? null,
+    deliveryLocationId: h.DELIVERY_LOCATION_ID ?? row?.deliveryLocationId ?? null,
+    deliveryLocationName: row?.deliveryLocationName ?? null,
+    currencyId: h.CURRENCY_ID ?? row?.currencyType ?? null,
+    currencyName: row?.currencyName ?? null,
+    exchangeRate: h.EXCHANGE_RATE ?? null,
+    subTotalAmount: h.TOTAL_SUB_TOTAL_HDR_AMOUNT_FC ?? null,
+    discountAmount: h.TOTAL_DISCOUNT_HDR_AMOUNT_FC ?? null,
+    totalProductAmount: h.TOTAL_PRODUCT_HDR_AMOUNT_FC ?? null,
+    taxAmount: h.TOTAL_VAT_HDR_AMOUNT_FC ?? null,
+    totalAmount: h.FINAL_PRODUCT_HDR_AMOUNT_FC ?? row?.amount ?? null,
+    subTotalAmountLc: h.TOTAL_SUB_TOTAL_HDR_AMOUNT_LC ?? null,
+    discountAmountLc: h.TOTAL_DISCOUNT_HDR_AMOUNT_LC ?? null,
+    totalProductAmountLc: h.TOTAL_PRODUCT_HDR_AMOUNT_LC ?? null,
+    taxAmountLc: h.TOTAL_TAX_HDR_AMOUNT_LC ?? null,
+    totalAmountLc: h.FINAL_PRODUCT_HDR_AMOUNT_LC ?? null,
+    quotationStatusId: h.QUOTATION_STATUS_ID ?? null,
+    quotationStatusName: h.QUOTATION_STATUS_NAME ?? null,
+    statusEntry: h.STATUS_ENTRY ?? row?.statusEntry ?? null,
+    shipmentRemarks: h.SHIPMENT_REMARKS ?? row?.reason ?? null,
+    remarks: h.REMARKS ?? row?.remarks ?? null,
+    createdBy: h.CREATED_BY ?? row?.requestedBy ?? null,
+    createdDate: h.CREATED_DATE ?? row?.createdDate ?? null,
+    modifiedBy: h.MODIFIED_BY ?? null,
+    modifiedDate: h.MODIFIED_DATE ?? null,
+  };
+
+  const lines = (dtlResult.recordset || []).map((d: any) => ({
+    id: d.PURCHASE_QUOTATION_DTL_ID,
+    lineNo: d.LINE_NO,
+    purchaseRequestNo: d.PURCHASE_REQUEST_NO,
+    referenceTypeName: d.REFERENCE_TYPE_NAME,
+    referenceNo: d.REFERENCE_NO,
+    mainCategoryName: d.MAIN_CATEGORY_NAME,
+    subCategoryName: d.SUB_CATEGORY_NAME,
+    productId: d.PRODUCT_ID,
+    productName: d.PRODUCT_NAME,
+    description: d.REMARKS,
+    noOfPcsPerPacking: d.NO_OF_PCS_PER_PACKING,
+    totalQuantity: d.TOTAL_QUANTITY,
+    orderedQty: d.TOTAL_QUANTITY,
+    uomId: d.UOM_ID,
+    uomName: d.UOM_NAME,
+    altUomId: d.ALT_UOM_ID,
+    altUomName: d.ALT_UOM_NAME,
+    totalPacking: d.TOTAL_PACKING,
+    rate: d.RATE,
+    ratePerPcs: d.RATE,
+    discountPercentage: d.DISCOUNT_PERCENTAGE,
+    discountAmount: d.DISCOUNT_AMOUNT_FC,
+    subTotalAmount: d.SUB_TOTAL_AMOUNT_FC,
+    totalProductAmount: d.TOTAL_PRODUCT_AMOUNT_FC,
+    taxName: d.TAX_NAME,
+    taxPercentage: d.TAX_PERCENTAGE,
+    taxAmount: d.TAX_AMOUNT_FC,
+    finalAmount: d.FINAL_AMOUNT_FC,
+    amount: d.FINAL_AMOUNT_FC,
+    exchangeRate: d.EXCHANGE_RATE,
+    subTotalAmountLc: d.SUB_TOTAL_AMOUNT_LC,
+    discountAmountLc: d.DISCOUNT_AMOUNT_LC,
+    totalProductAmountLc: d.TOTAL_PRODUCT_AMOUNT_LC,
+    taxAmountLc: d.TAX_AMOUNT_LC,
+    finalAmountLc: d.FINAL_AMOUNT_LC,
+    requiredDate: d.REQUIRED_DATE,
+    reason: d.REASON,
+    remarks: d.REMARKS,
+    campId: d.CAMP_ID,
+    requestStoreId: d.REQUEST_STORE_ID,
+  }));
+
+  const additionalCharges = chargeRows.map((c: any) => ({
+    id: c.PURCHASE_QUOTATION_ADDITIONAL_CHARGES_ID,
+    lineNo: c.LINE_NO,
+    chargeTypeId: c.ADDITIONAL_CHARGE_TYPE_ID,
+    chargeTypeName:
+      chargeTypeNames.get(Number(c.ADDITIONAL_CHARGE_TYPE_ID)) ?? null,
+    description: c.DESCRIPTION,
+    quantity: c.QUANTITY,
+    uomId: c.UOM_ID,
+    rate: c.RATE,
+    totalAmount: c.TOTAL_AMOUNT_FC,
+    taxPercentage: c.TAX_PERCENTAGE,
+    taxAmount: c.TAX_AMOUNT_FC,
+    finalAmount: c.FINAL_AMOUNT_FC,
+    totalAmountLc: c.TOTAL_AMOUNT_LC,
+    taxAmountLc: c.TAX_AMOUNT_LC,
+    finalAmountLc: c.FINAL_AMOUNT_LC,
+    remarks: c.REMARKS,
+  }));
+
+  return { header, lines, additionalCharges };
+};
+
 /** Single record detail (row + display aliases for the raw UPPERCASE columns). */
 export const getRequestDetailService = async (
   requestType: string,
   sno: number
 ): Promise<any | null> => {
+  const pool = getPool();
+  if (!pool) throw new Error("Database not connected");
+
   const rows = await getRequestListService(requestType, "ALL");
   const row = rows.find((r: any) => Number(r.sno ?? r.SNO) === Number(sno));
   if (!row) return null;
+
+  if (isPurchaseRequest(requestType)) {
+    const productLineItems = await getPurchaseRequestLineItems(
+      pool,
+      String(firstNonEmpty(row.poRefNo, row.requestRefNo, row.refNo) ?? "")
+    );
+
+    return {
+      ...row,
+      files: [],
+      productLineItems,
+      additionalCosts: [],
+      supplier: {},
+      company: row.companyName ? { companyName: row.companyName } : {},
+      store: firstNonEmpty(row.requestStoreName, row.storeName)
+        ? { storeName: firstNonEmpty(row.requestStoreName, row.storeName) }
+        : {},
+      // The list proc already maps each level; normalising keeps '' / 'Hold' /
+      // 'Approval' on the same badge set the panel paints.
+      sectionHeadStatus: normalizeStatus(row.sectionHeadStatus),
+      response1Status: normalizeStatus(row.response1Status),
+      response2Status: normalizeStatus(row.response2Status),
+      finalResponseStatus: normalizeStatus(row.finalResponseStatus),
+      requestedBy: firstNonEmpty(row.requestedBy),
+      requestedDate: firstNonEmpty(row.requestedDate, row.poDate, row.createdDate),
+    };
+  }
+
+  if (isPurchaseQuotation(requestType)) {
+    const refNo = String(
+      firstNonEmpty(row.poRefNo, row.requestRefNo, row.refNo) ?? ""
+    );
+    const { header, lines, additionalCharges } =
+      await getPurchaseQuotationDetail(pool, refNo, row);
+
+    return {
+      ...row,
+      ...header,
+      files: [],
+      productLineItems: lines,
+      additionalCosts: additionalCharges,
+      supplier: header.supplierName
+        ? { supplierId: header.supplierId, supplierName: header.supplierName }
+        : {},
+      company: header.companyName ? { companyName: header.companyName } : {},
+      store: header.poStoreName ? { storeName: header.poStoreName } : {},
+      // The list proc already maps each level; normalising keeps '' / 'Hold' /
+      // 'Approval' on the same badge set the panel paints.
+      sectionHeadStatus: normalizeStatus(row.sectionHeadStatus),
+      response1Status: normalizeStatus(row.response1Status),
+      response2Status: normalizeStatus(row.response2Status),
+      finalResponseStatus: normalizeStatus(row.finalResponseStatus),
+      requestedBy: firstNonEmpty(header.createdBy, row.requestedBy),
+      requestedDate: firstNonEmpty(
+        row.requestedDate,
+        row.poDate,
+        header.createdDate
+      ),
+      // The panel's money columns read currencyType / amount, so the currency
+      // NAME (not the id) is what they get.
+      currencyType: firstNonEmpty(header.currencyName, row.currencyName),
+      amount: firstNonEmpty(header.totalAmount, row.amount),
+    };
+  }
 
   // Effective status = latest non-empty level in the approval cascade
   // (FINAL -> RESPONSE_2 -> RESPONSE_1 -> SECTION_HEAD). A level-1 approval
@@ -297,26 +791,83 @@ export const getRequestDetailService = async (
     createdDate: row.createdDate ?? row.CREATED_DATE ?? null,
     amount: row.amount ?? row.REQUEST_AMOUNT ?? row.NO_OF_DAYS ?? null,
     currencyType: row.currencyName || "TZS",
-    response1Status: normalizeStatus(row.RESPONSE_1_STATUS),
-    response1Person: row.response1Person ?? row.RESPONSE_1_EMP_ID ?? null,
-    response1Remarks: row.REMARKS ?? null,
-    response2Status: normalizeStatus(row.RESPONSE_2_STATUS),
-    response2Person: row.response2Person ?? row.RESPONSE_2_EMP_ID ?? null,
-    response2Remarks: row.REMARKS ?? null,
-    finalResponseStatus: normalizeStatus(firstSetStatus),
+    // Prefer the proc's camelCase alias: the raw UPPERCASE columns may be
+    // missing from the projection, which used to reset every badge to PENDING.
+    response1Status: normalizeStatus(firstNonEmpty(row.response1Status, row.RESPONSE_1_STATUS)),
+    response1Person: firstNonEmpty(row.response1Person, row.RESPONSE_1_EMP_ID),
+    response1Remarks: firstNonEmpty(row.response1Remarks),
+    response2Status: normalizeStatus(firstNonEmpty(row.response2Status, row.RESPONSE_2_STATUS)),
+    response2Person: firstNonEmpty(row.response2Person, row.RESPONSE_2_EMP_ID),
+    response2Remarks: firstNonEmpty(row.response2Remarks),
+    finalResponseStatus: normalizeStatus(firstNonEmpty(row.finalResponseStatus, firstSetStatus)),
   };
 };
 
-/** Update a single request's approval status via UPDATE_REQUEST_STATUS. */
+/** Update a single request's approval status. */
 export const updateRequestStatusService = async (params: {
   requestType: string;
   sno: number;
   status: string;
   updatedBy: string;
   holdReason?: string;
+  /** Approver's EMP_ID from the access token (Purchase Request only). */
+  updatedByEmpId?: number | null;
+  /** Approver's IP address (Purchase Request only). */
+  approverIp?: string | null;
 }): Promise<{ message: string; data?: any }> => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
+
+  if (isPurchaseRequest(params.requestType)) {
+    // Purchase Request has its own sequential three-level update proc: the
+    // shared UPDATE_REQUEST_STATUS is table-driven around STATUS_MASTER, which
+    // this header does not have.
+    const result = await pool
+      .request()
+      .input("RequestID", sql.Int, params.sno)
+      .input("Status", sql.VarChar(50), params.status)
+      .input("UpdatedBy", sql.VarChar(50), params.updatedBy || "Admin")
+      .input("HoldReason", sql.VarChar(1000), params.holdReason || null)
+      .input("UpdatedByEmpId", sql.Int, params.updatedByEmpId ?? null)
+      .input("ApproverIp", sql.VarChar(50), params.approverIp || null)
+      .execute("VPurchase.UPDATE_APPROVAL_STATUS_PURCHASE_REQUEST");
+
+    const parsed = parseSprocResult(
+      result.recordset?.[0],
+      "Failed to update purchase request status"
+    );
+
+    return {
+      message: parsed.message || "Status updated successfully",
+      data: parsed.data,
+    };
+  }
+
+  if (isPurchaseQuotation(params.requestType)) {
+    // Purchase Quotation has its own three-level update proc. Its header also
+    // lacks STATUS_ID/STATUS_MASTER, so the shared UPDATE_REQUEST_STATUS does
+    // not apply. The proc moves QUOTATION_STATUS_ID to 4 on the final approval
+    // so the Purchase Order gate opens exactly like the entry screen expects.
+    const result = await pool
+      .request()
+      .input("RequestID", sql.Int, params.sno)
+      .input("Status", sql.VarChar(50), params.status)
+      .input("UpdatedBy", sql.VarChar(50), params.updatedBy || "Admin")
+      .input("HoldReason", sql.VarChar(1000), params.holdReason || null)
+      .input("UpdatedByEmpId", sql.Int, params.updatedByEmpId ?? null)
+      .input("ApproverIp", sql.VarChar(50), params.approverIp || null)
+      .execute("VPurchase.UPDATE_APPROVAL_STATUS_PURCHASE_QUOTATION");
+
+    const parsed = parseSprocResult(
+      result.recordset?.[0],
+      "Failed to update purchase quotation status"
+    );
+
+    return {
+      message: parsed.message || "Status updated successfully",
+      data: parsed.data,
+    };
+  }
 
   const result = await pool
     .request()

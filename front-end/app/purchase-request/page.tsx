@@ -79,6 +79,35 @@ const finalBadgeClass = (s: any) => {
   return "bg-blue-500/10 text-blue-600 border-blue-200";
 };
 
+/* A request leaves this screen's hands the moment the Submit action runs:
+   VPurchase.SUBMIT_PURCHASE_REQUEST moves STATUS_ENTRY to 'CL' (Submitted) and
+   STATUS_ID to Pending for Approval, and the approval panel owns it from there
+   on. The Submit button therefore has to be disabled for the whole submitted
+   state, not just for STATUS_ID = Pending. A request that has since been
+   approved, rejected, held or closed is just as submitted - SUBMIT_PURCHASE_
+   REQUEST refuses those too ("already entered the approval workflow") - so
+   looking at STATUS_ID = Pending alone leaves most decided rows re-submittable.
+
+   Any recorded level answer counts as submitted for the same reason: the proc
+   treats it as proof the chain has already started.
+
+   Drafts (CF / DRAFT, nothing answered) are the only rows that keep the button
+   enabled, which is exactly what entryLabel() calls "Pending for Submitted". */
+const SUBMITTED_ENTRY_CODES = ["CL", "SUBMITTED"];
+/* 3 Pending for Approval, 4 Approved, 5 Rejected, 6 Cancelled, 7 Closed: every
+   status a request can only have after it was submitted. */
+const SUBMITTED_STATUS_IDS = ["3", "4", "5", "6", "7"];
+
+const isSubmittedRequest = (row: any) => {
+  const entry = String(row?.statusEntry ?? "").trim().toUpperCase();
+  if (SUBMITTED_ENTRY_CODES.includes(entry)) return true;
+  if (SUBMITTED_STATUS_IDS.includes(String(row?.statusId ?? "").trim())) return true;
+  const answers = [row?.sectionHeadStatus, row?.response1Status, row?.response2Status];
+  if (answers.some((value) => String(value ?? "").trim() !== "")) return true;
+  const final = String(row?.finalResponseStatus ?? "").trim().toUpperCase();
+  return final !== "" && final !== "PENDING";
+};
+
 const fmtDate = (d: any) => {
   if (!d) return "";
   const date = new Date(d);
@@ -783,6 +812,10 @@ export default function PurchaseRequestPage() {
     const refNo = row?.purchaseRequestNo ?? row?.PURCHASE_REQUEST_NO;
     if (!refNo || missingStatusMaster || !pendingStatusId) return;
     if (submittingRef === refNo) return;
+    /* The button is already disabled for these rows; this keeps a stale table
+       (submitted from another tab) from firing a request the server will
+       refuse anyway. */
+    if (isSubmittedRequest(row)) return;
     setSubmittingRef(refNo);
     try {
       const res: any = await dispatch(
@@ -1096,9 +1129,10 @@ export default function PurchaseRequestPage() {
                 {paginated.map((item: any, idx: number) => {
                   const refNo = item.purchaseRequestNo ?? item.PURCHASE_REQUEST_NO;
                   const isSubmitting = submittingRef === refNo;
-                  /* Submitting is one-way: once a row is pending the button stays
-                     disabled. The status comes from the server row, not local state. */
-                  const isPending = !!pendingStatusId && String(item.statusId ?? "") === pendingStatusId;
+                  /* Submitting is one-way: once a row has been submitted the
+                     button stays disabled, whatever the approvers then decided.
+                     The state comes from the server row, not local state. */
+                  const isSubmitted = isSubmittedRequest(item);
                   return (
                   <tr key={item.id || idx} className="border-b hover:bg-muted/30 transition-colors">
                     <td className="p-3 flex gap-2">
@@ -1106,12 +1140,12 @@ export default function PurchaseRequestPage() {
                       {isAdmin && <button onClick={() => setDeleteId(item.purchaseRequestNo ?? item.PURCHASE_REQUEST_NO)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4 text-destructive" /></button>}
                       <button
                         onClick={() => handleSubmitRow(item)}
-                        disabled={isSubmitting || isPending}
+                        disabled={isSubmitting || isSubmitted}
                         title={
                           missingStatusMaster
                             ? "Status Master is unavailable - PENDING_APPROVAL could not be resolved"
-                            : isPending
-                              ? "Already pending for approval"
+                            : isSubmitted
+                              ? "Already submitted for approval"
                               : "Submit for approval"
                         }
                         className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"

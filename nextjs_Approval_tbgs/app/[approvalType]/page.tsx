@@ -21,6 +21,8 @@ import Image from "next/image";
 import toast from "react-hot-toast";
 
 import PdfViewerModal from "../components/ApprovalDetails/PdfViewerModal";
+import PurchaseRequestExpansion from "../components/ApprovalDetails/PurchaseRequestExpansion";
+import PurchaseQuotationExpansion from "../components/ApprovalDetails/PurchaseQuotationExpansion";
 import DashboardCard from "../components/DashboardCard";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchApprovalRecords, updateApprovalStatusByType } from "@/redux/slices/approvalSlice";
@@ -50,8 +52,10 @@ function getTableColumns(
     const isWO = nType === 'work-order';
     const isPA = nType === 'price-approval';
     const isSR = nType === 'sales-return-approval';
+    const isPR = nType === 'purchase-request' || nType === 'purchase-requests';
+    const isPQ = nType === 'purchase-quotation' || nType === 'purchase-quotations';
 
-    const refLabel = isPO ? 'PO NO' : isWO ? 'WO NO' : isPA ? 'PA NO' : isSR ? 'SR NO' : 'REF NO';
+    const refLabel = isPO ? 'PO NO' : isWO ? 'WO NO' : isPA ? 'PA NO' : isSR ? 'SR NO' : isPR ? 'PR NO' : isPQ ? 'PQ NO' : 'REF NO';
 
     // ── Shared helpers for the request-type columns ───────────────────
     const fmtMoney = (v: any) => (v == null || v === '' ? '-' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -292,6 +296,85 @@ function getTableColumns(
         middleCols = [pendingDaysCol];
     }
 
+    // ── Purchase Request columns ───────────────────────────────────────
+    // DataTable has expansion disabled by default, so `middleCols` is never
+    // painted. PR therefore gets its own columns in the visible list.
+    const prCols: Column[] = isPR
+        ? [
+            { key: 'poDate', label: 'PR Date', responsiveClass: 'hidden lg:table-cell', render: (v: any) => <span className="text-slate-600 whitespace-nowrap">{fmtDate(v)}</span> },
+            { key: 'branchName', label: 'Branch', responsiveClass: 'hidden xl:table-cell', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'requestStoreName', label: 'Purchase Store', responsiveClass: 'hidden lg:table-cell', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'campName', label: 'Camp', responsiveClass: 'hidden xl:table-cell', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'requestTypeName', label: 'Req Type', render: (_: any, row: any) => <span className="text-slate-700 font-medium">{nm(row.requestTypeName || row.purchaseType)}</span> },
+            { key: 'priorityName', label: 'Priority', responsiveClass: 'hidden md:table-cell', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'requiredDate', label: 'Required Date', responsiveClass: 'hidden lg:table-cell', render: (v: any) => <span className="text-slate-600 whitespace-nowrap">{fmtDate(v)}</span> },
+            {
+                key: 'approvedLevels',
+                label: 'Stage',
+                headerAlign: 'center',
+                render: (v: any) => {
+                    const done = Number(v ?? 0);
+                    return (
+                        <span className="inline-flex items-center gap-1" title={`${done} of 3 approval levels cleared`}>
+                            {[1, 2, 3].map(level => (
+                                <span key={level} className={`w-1.5 h-1.5 rounded-full ${level <= done ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                            ))}
+                            <span className="text-[11px] font-bold text-slate-500 ml-0.5">{done}/3</span>
+                        </span>
+                    );
+                }
+            },
+            {
+                key: 'lineCount',
+                label: 'Lines',
+                headerAlign: 'center',
+                render: (v: any) => <span className="text-slate-700 font-semibold">{Number(v ?? 0)}</span>
+            },
+        ]
+        : [];
+
+    // ── Purchase Quotation columns ─────────────────────────────────────
+    // Same idea as PR: the quotation has its own header contract, so its
+    // important fields get their own visible columns instead of the generic
+    // "No of Days" cell (expansion is also enabled for these types).
+    const pqCols: Column[] = isPQ
+        ? [
+            { key: 'poDate', label: 'PQ Date', responsiveClass: 'hidden lg:table-cell', render: (v: any) => <span className="text-slate-600 whitespace-nowrap">{fmtDate(v)}</span> },
+            { key: 'supplierName', label: 'Supplier', render: (v: any) => <span className="text-slate-700 font-medium">{nm(v)}</span> },
+            { key: 'branchName', label: 'Branch', responsiveClass: 'hidden xl:table-cell', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'storeName', label: 'Store', responsiveClass: 'hidden lg:table-cell', render: (_: any, row: any) => <span className="text-slate-600">{nm(row.storeName || row.requestStoreName || row.poStoreName)}</span> },
+            { key: 'campName', label: 'Camp', responsiveClass: 'hidden xl:table-cell', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'currencyName', label: 'Currency', responsiveClass: 'hidden md:table-cell', render: (_: any, row: any) => <span className="text-slate-600">{nm(row.currencyName || row.currencyType)}</span> },
+            { key: 'amount', label: 'Amount', headerAlign: 'right', render: (v: any) => <span className="text-slate-700 font-semibold inline-block min-w-[80px] text-right whitespace-nowrap">{fmtMoney(v)}</span> },
+            {
+                key: 'approvedLevels',
+                label: 'Stage',
+                headerAlign: 'center',
+                render: (v: any) => {
+                    const done = Number(v ?? 0);
+                    return (
+                        <span className="inline-flex items-center gap-1" title={`${done} of 3 approval levels cleared`}>
+                            {[1, 2, 3].map(level => (
+                                <span key={level} className={`w-1.5 h-1.5 rounded-full ${level <= done ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                            ))}
+                            <span className="text-[11px] font-bold text-slate-500 ml-0.5">{done}/3</span>
+                        </span>
+                    );
+                }
+            },
+            {
+                key: 'lineCount',
+                label: 'Lines',
+                headerAlign: 'center',
+                render: (v: any) => <span className="text-slate-700 font-semibold">{Number(v ?? 0)}</span>
+            },
+        ]
+        : [];
+
+    // A purchase request / quotation has no department, so the shared Dept
+    // column is dropped instead of painting an empty cell.
+    const visibleBaseCols = isPR || isPQ ? baseCols.filter((c) => c.key !== 'departmentId') : baseCols;
+
     const statusCol: Column = {
         key: 'finalResponseStatus',
         label: 'Status',
@@ -315,7 +398,7 @@ function getTableColumns(
     };
 
     return {
-        columns: [...baseCols, statusCol],
+        columns: [...visibleBaseCols, ...prCols, ...pqCols, statusCol],
         middleCols
     };
 }
@@ -325,6 +408,15 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
     const params = useParams();
     const dispatch = useAppDispatch();
     const approvalType = (params?.approvalType as string) || "";
+    // Purchase Requests expand into a full panel (header, approval trail and
+    // lines) that is fetched lazily; the other types keep the narrow
+    // "Request Details" grid built from the list row.
+    const isPurchaseRequestType =
+        approvalType === "purchase-request" || approvalType === "purchase-requests";
+    // Purchase Quotations expand into their own full panel (header, terms,
+    // approval trail, FC/LC totals, priced lines and additional charges).
+    const isPurchaseQuotationType =
+        approvalType === "purchase-quotation" || approvalType === "purchase-quotations";
 
     const { records, loading: recordsLoading } = useAppSelector((state: any) => state.approval);
     const { cards: allCards } = useAppSelector((state: any) => state.dashboard);
@@ -442,6 +534,13 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
 
     const handleGenerateInvoicePdf = React.useCallback(async (row: any) => {
         setIsLoading(true);
+        // A purchase request has no supplier prices - its PDF is a line-item
+        // pick list, not an invoice, so the money columns are not rendered.
+        const isPurchaseRequestPdf = approvalType === 'purchase-request' || approvalType === 'purchase-requests';
+        // A purchase quotation is a supplier quote: rate, discount, tax and
+        // final amount per line, with FC and LC totals. The generic invoice
+        // layout would price it from fields it does not have.
+        const isPurchaseQuotationPdf = approvalType === 'purchase-quotation' || approvalType === 'purchase-quotations';
         try {
             // ── Fetch live data from API ──────────────────────────────────────
             const res = await fetch(apiUrl(`/approvals/${approvalType}/${row.sno || row.id}`));
@@ -449,16 +548,20 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
             const detail = await res.json();
 
             const lineItems: any[] = (detail?.productLineItems || []).map((item: any) => {
-                const qty = Number(item.totalPcs ?? item.totalPacking ?? item.orderedQty ?? 0);
-                const unitPrice = Number(item.ratePerPcs ?? item.unitPrice ?? 0);
+                const qty = isPurchaseRequestPdf || isPurchaseQuotationPdf
+                    ? Number(item.totalQuantity ?? item.orderedQty ?? 0)
+                    : Number(item.totalPcs ?? item.totalPacking ?? item.orderedQty ?? 0);
+                const unitPrice = Number(item.ratePerPcs ?? item.rate ?? item.unitPrice ?? 0);
                 const amount = Number(
-                    item.totalProductAmount ?? item.productAmount ??
-                    item.finalProductAmount ?? item.amount ?? (qty * unitPrice)
+                    isPurchaseQuotationPdf
+                        ? (item.finalAmount ?? item.amount ?? 0)
+                        : item.totalProductAmount ?? item.productAmount ??
+                          item.finalProductAmount ?? item.amount ?? (qty * unitPrice)
                 );
                 return {
                     ...item,
                     productName: item.productName || item.alternateProductName || `Product ${item.productId ?? ''}`.trim(),
-                    specification: item.specification || item.remarks || '-',
+                    specification: item.specification || item.remarks || item.description || '-',
                     orderedQty: qty,
                     unitPrice,
                     amount
@@ -490,8 +593,13 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                 .replace(/-/g, ' ')
                 .replace(/\b\w/g, (c: string) => c.toUpperCase());
 
-            const poRef = row.poRefNo || row.refNo || row.requestRefNo || '-';
-            const poDate = String(row.poDate || row.createdDate || '').split('T')[0] || '-';
+            const poRef = isPurchaseQuotationPdf
+                ? (detail?.purchaseQuotationNo || row.poRefNo || row.refNo || '-')
+                : (row.poRefNo || row.refNo || row.requestRefNo || '-');
+            const poDate = String(
+                (isPurchaseQuotationPdf ? detail?.purchaseQuotationDate : null) ||
+                row.poDate || row.createdDate || ''
+            ).split('T')[0] || '-';
 
             // ── QR Code ───────────────────────────────────────────────────────
             const qrContent = `${process.env.NEXT_PUBLIC_APP_URL}qrscan?id=%22${encodeURIComponent(poRef)}%22`;
@@ -544,72 +652,183 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
             doc.text(`Generated: ${new Date().toLocaleDateString()}`, margin, 31);
 
             doc.setFont('helvetica', 'bold');
-            doc.text('Supplier', margin, 38);
+            doc.text(isPurchaseRequestPdf ? 'Requested By' : 'Supplier', margin, 38);
             doc.text('Company / Store', right - 70, 38);
             doc.setFont('helvetica', 'normal');
-            doc.text(String(supplier.supplierName || '-'), margin, 43);
+            doc.text(String(isPurchaseRequestPdf ? (detail?.requestedBy || '-') : (supplier.supplierName || '-')), margin, 43);
             doc.text(String(company.companyName || '-'), right - 70, 43);
             doc.text(String(store.storeName || '-'), right - 70, 48);
 
+            if (isPurchaseQuotationPdf) {
+                const supplierQuote = [
+                    detail?.supplierQuotationNo ? `Quote No: ${detail.supplierQuotationNo}` : null,
+                    detail?.supplierQuotationDate ? `Quote Date: ${String(detail.supplierQuotationDate).split('T')[0]}` : null,
+                ].filter(Boolean).join('   ');
+                doc.text(supplierQuote || 'Quote No: -', margin, 48);
+                doc.text(
+                    `Currency: ${detail?.currencyName || '-'}${detail?.exchangeRate != null ? `   FX: ${fmt(detail.exchangeRate)}` : ''}`,
+                    margin,
+                    53
+                );
+                doc.text(
+                    `Payment: ${detail?.paymentModeName || '-'} / ${detail?.paymentTermName || '-'}`,
+                    margin,
+                    58
+                );
+            }
+
             autoTable(doc, {
-                startY: 55,
-                head: [['#', 'Product', 'Specification', 'Qty', 'Unit Price', 'Amount']],
-                body: lineItems.map((item: any, index: number) => [
-                    index + 1,
-                    item.productName || '-',
-                    item.specification || '-',
-                    fmt(item.orderedQty),
-                    fmt(item.unitPrice),
-                    fmt(item.amount)
-                ]),
+                startY: isPurchaseQuotationPdf ? 64 : 55,
+                head: [isPurchaseRequestPdf
+                    ? ['#', 'Product', 'Description', 'Qty', 'UOM', 'Required Date']
+                    : isPurchaseQuotationPdf
+                        ? ['#', 'Product', 'Description', 'Qty', 'UOM', 'Rate', 'Disc %', 'Tax %', 'Final (FC)']
+                        : ['#', 'Product', 'Specification', 'Qty', 'Unit Price', 'Amount']],
+                body: lineItems.map((item: any, index: number) => isPurchaseRequestPdf
+                    ? [
+                        index + 1,
+                        item.productName || '-',
+                        item.description || item.specification || '-',
+                        fmt(item.orderedQty),
+                        item.uomName || '-',
+                        item.requiredDate ? String(item.requiredDate) : '-'
+                    ]
+                    : isPurchaseQuotationPdf
+                        ? [
+                            index + 1,
+                            item.productName || '-',
+                            item.description || item.specification || '-',
+                            fmt(item.orderedQty),
+                            item.uomName || '-',
+                            fmt(item.unitPrice),
+                            item.discountPercentage != null ? `${Number(item.discountPercentage)}%` : '-',
+                            item.taxPercentage != null ? `${Number(item.taxPercentage)}%` : '-',
+                            fmt(item.amount)
+                        ]
+                        : [
+                            index + 1,
+                            item.productName || '-',
+                            item.specification || '-',
+                            fmt(item.orderedQty),
+                            fmt(item.unitPrice),
+                            fmt(item.amount)
+                        ]),
                 theme: 'grid',
                 styles: { fontSize: 8, cellPadding: 2.5 },
                 headStyles: { fillColor: [15, 23, 42] },
-                columnStyles: {
-                    0: { halign: 'center', cellWidth: 10 },
-                    3: { halign: 'right', cellWidth: 20 },
-                    4: { halign: 'right', cellWidth: 26 },
-                    5: { halign: 'right', cellWidth: 26 }
-                }
+                columnStyles: isPurchaseRequestPdf
+                    ? {
+                        0: { halign: 'center', cellWidth: 10 },
+                        3: { halign: 'right', cellWidth: 20 },
+                        5: { cellWidth: 28 }
+                    }
+                    : isPurchaseQuotationPdf
+                        ? {
+                            0: { halign: 'center', cellWidth: 8 },
+                            3: { halign: 'right', cellWidth: 16 },
+                            4: { cellWidth: 14 },
+                            5: { halign: 'right', cellWidth: 20 },
+                            6: { halign: 'right', cellWidth: 14 },
+                            7: { halign: 'right', cellWidth: 14 },
+                            8: { halign: 'right', cellWidth: 24 }
+                        }
+                        : {
+                            0: { halign: 'center', cellWidth: 10 },
+                            3: { halign: 'right', cellWidth: 20 },
+                            4: { halign: 'right', cellWidth: 26 },
+                            5: { halign: 'right', cellWidth: 26 }
+                        }
             });
 
             const lineItemsEndY = (doc as any).lastAutoTable?.finalY || 70;
 
-            autoTable(doc, {
-                startY: lineItemsEndY + 6,
-                head: [['Cost Type', 'Amount', 'VAT']],
-                body: additionalCosts.map((cost: any) => [
-                    String(cost.costType || '-').replaceAll('_', ' '),
-                    fmt(cost.amount),
-                    fmt(cost.vatAmount ?? 0)
-                ]),
-                theme: 'grid',
-                styles: { fontSize: 8, cellPadding: 2.5 },
-                headStyles: { fillColor: [30, 64, 175] },
-                columnStyles: {
-                    1: { halign: 'right', cellWidth: 30 },
-                    2: { halign: 'right', cellWidth: 30 }
-                }
-            });
+            if (isPurchaseQuotationPdf) {
+                // ── Additional charges (quotation) ────────────────────────────
+                const chargeRows: any[] = Array.isArray(detail?.additionalCosts) ? detail.additionalCosts : [];
+                autoTable(doc, {
+                    startY: lineItemsEndY + 6,
+                    head: [['Charge Type', 'Description', 'Qty', 'Rate', 'Tax %', 'Final (FC)']],
+                    body: chargeRows.length > 0
+                        ? chargeRows.map((charge: any) => [
+                            charge.chargeTypeName || charge.additionalCostType || '-',
+                            charge.description || '-',
+                            fmt(charge.quantity),
+                            fmt(charge.rate),
+                            charge.taxPercentage != null ? `${Number(charge.taxPercentage)}%` : '-',
+                            fmt(charge.finalAmount)
+                        ])
+                        : [['-', 'No additional charges', '-', '-', '-', '-']],
+                    theme: 'grid',
+                    styles: { fontSize: 8, cellPadding: 2.5 },
+                    headStyles: { fillColor: [91, 33, 182] },
+                    columnStyles: {
+                        2: { halign: 'right', cellWidth: 18 },
+                        3: { halign: 'right', cellWidth: 24 },
+                        4: { halign: 'right', cellWidth: 16 },
+                        5: { halign: 'right', cellWidth: 26 }
+                    }
+                });
 
-            const costsEndY = (doc as any).lastAutoTable?.finalY || lineItemsEndY + 20;
+                const chargesEndY = (doc as any).lastAutoTable?.finalY || lineItemsEndY + 20;
 
-            autoTable(doc, {
-                startY: costsEndY + 6,
-                margin: { left: right - 78 },
-                body: [
-                    ['Subtotal', fmt(subtotal)],
-                    ['Additional Costs', fmt(addCostTotal)],
-                    ['VAT', fmt(vat)],
-                    ['Total', `${fmt(total)} ${row.currencyType || 'TZS'}`]
-                ],
-                theme: 'grid',
-                styles: { fontSize: 9, cellPadding: 2.5 },
-                columnStyles: {
-                    0: { fontStyle: 'bold', cellWidth: 45 },
-                    1: { halign: 'right', cellWidth: 33 }
-                }
-            });
+                // ── Totals in FC and LC ───────────────────────────────────────
+                autoTable(doc, {
+                    startY: chargesEndY + 6,
+                    margin: { left: right - 96 },
+                    head: [['', `FC (${detail?.currencyName || '-'})`, 'LC']],
+                    body: [
+                        ['Subtotal', fmt(detail?.subTotalAmount), fmt(detail?.subTotalAmountLc)],
+                        ['Discount', fmt(detail?.discountAmount), fmt(detail?.discountAmountLc)],
+                        ['Total Product', fmt(detail?.totalProductAmount), fmt(detail?.totalProductAmountLc)],
+                        ['Tax / VAT', fmt(detail?.taxAmount), fmt(detail?.taxAmountLc)],
+                        ['Final Total', fmt(detail?.totalAmount), fmt(detail?.totalAmountLc)]
+                    ],
+                    theme: 'grid',
+                    styles: { fontSize: 9, cellPadding: 2.5 },
+                    headStyles: { fillColor: [91, 33, 182] },
+                    columnStyles: {
+                        0: { fontStyle: 'bold', cellWidth: 38 },
+                        1: { halign: 'right', cellWidth: 32 },
+                        2: { halign: 'right', cellWidth: 26 }
+                    }
+                });
+            } else if (!isPurchaseRequestPdf) {
+                autoTable(doc, {
+                    startY: lineItemsEndY + 6,
+                    head: [['Cost Type', 'Amount', 'VAT']],
+                    body: additionalCosts.map((cost: any) => [
+                        String(cost.costType || '-').replaceAll('_', ' '),
+                        fmt(cost.amount),
+                        fmt(cost.vatAmount ?? 0)
+                    ]),
+                    theme: 'grid',
+                    styles: { fontSize: 8, cellPadding: 2.5 },
+                    headStyles: { fillColor: [30, 64, 175] },
+                    columnStyles: {
+                        1: { halign: 'right', cellWidth: 30 },
+                        2: { halign: 'right', cellWidth: 30 }
+                    }
+                });
+
+                const costsEndY = (doc as any).lastAutoTable?.finalY || lineItemsEndY + 20;
+
+                autoTable(doc, {
+                    startY: costsEndY + 6,
+                    margin: { left: right - 78 },
+                    body: [
+                        ['Subtotal', fmt(subtotal)],
+                        ['Additional Costs', fmt(addCostTotal)],
+                        ['VAT', fmt(vat)],
+                        ['Total', `${fmt(total)} ${row.currencyType || 'TZS'}`]
+                    ],
+                    theme: 'grid',
+                    styles: { fontSize: 9, cellPadding: 2.5 },
+                    columnStyles: {
+                        0: { fontStyle: 'bold', cellWidth: 45 },
+                        1: { halign: 'right', cellWidth: 33 }
+                    }
+                });
+            }
 
             const pdfOutput = doc.output('datauristring');
             setCurrentPdfData(pdfOutput);
@@ -1022,7 +1241,12 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                                 expandedRows,
                                 hideExpansionColumn: true,
                                 onExpandedRowsChange: setExpandedRows,
-                                renderExpansion: (row: any) => (
+                                renderExpansion: (row: any) =>
+                                    isPurchaseQuotationType ? (
+                                        <PurchaseQuotationExpansion row={row} approvalType={approvalType} />
+                                    ) : isPurchaseRequestType ? (
+                                        <PurchaseRequestExpansion row={row} approvalType={approvalType} />
+                                    ) : (
                                     <div className="flex flex-col space-y-6 px-4 py-6 bg-slate-50/30 rounded-xl border border-slate-100 animate-in slide-in-from-top-2 duration-500">
 
                                         {/* --- Section 1.5: Request Details (moved from table so no side-scroll needed) --- */}
@@ -1042,7 +1266,7 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                                             </div>
                                         )}
                                     </div>
-                                )
+                                    )
                             }}
 
                             // Custom Toolbar Actions

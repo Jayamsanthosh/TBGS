@@ -127,6 +127,28 @@ const toNum = (v: any): number => {
   return isNaN(n) ? 0 : n;
 };
 
+/* ------------------------------------------------------- submitted state ---
+   The per-row Submit button is one-way: once the quotation has gone through
+   SUBMIT_PURCHASE_QUOTATION it must never be submitted again. The old check
+   only compared QUOTATION_STATUS_ID with the Pending id, so a quotation that
+   had been approved (status 4) or had a level answered still offered Submit.
+   This mirrors the approval panel gate: submitted when the entry code says so,
+   the quotation status is one only a submitted quotation can hold, or any
+   approval level (or the final status) has actually been answered. */
+const SUBMITTED_ENTRY_CODES = ["CL", "SUBMITTED"];
+/* 3 Pending for Approval, 4 Approved, 5 Rejected, 6 Cancelled, 7 Closed. */
+const SUBMITTED_QUOTATION_STATUS_IDS = ["3", "4", "5", "6", "7"];
+
+const isSubmittedQuotation = (row: any) => {
+  const entry = String(row?.statusEntry ?? "").trim().toUpperCase();
+  if (SUBMITTED_ENTRY_CODES.includes(entry)) return true;
+  if (SUBMITTED_QUOTATION_STATUS_IDS.includes(String(row?.quotationStatusId ?? "").trim())) return true;
+  const answers = [row?.sectionHeadStatus, row?.response1Status, row?.response2Status];
+  if (answers.some((value) => String(value ?? "").trim() !== "")) return true;
+  const final = String(row?.finalResponseStatus ?? "").trim().toUpperCase();
+  return final !== "" && final !== "PENDING";
+};
+
 /* ------------------------------------------------ line level calculations */
 const calcLine = (row: any, headerRate: any) => {
   const qty = toNum(row.TOTAL_QUANTITY);
@@ -1158,6 +1180,13 @@ export default function PurchaseQuotationPage() {
     const refNo = row?.purchaseQuotationNo ?? row?.PURCHASE_QUOTATION_NO;
     if (!refNo) return;
     if (submittingRef === refNo) return;
+    if (isSubmittedQuotation(row)) {
+      toast({
+        title: "Already submitted for approval",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+      return;
+    }
     if (!row?.hasDocument) {
       toast({
         title: "Upload the purchase quotation document first (Documents tab).",
@@ -1555,9 +1584,11 @@ export default function PurchaseQuotationPage() {
                 {paginated.map((item: any, idx: number) => {
                   const refNo = item.purchaseQuotationNo ?? item.PURCHASE_QUOTATION_NO;
                   const isSubmitting = submittingRef === refNo;
-                  /* Submitting is one-way: once a row is pending the button stays
-                     disabled. The status comes from the server row, not local state. */
-                  const isPending = !!pendingStatusId && String(item.quotationStatusId ?? "") === pendingStatusId;
+                  /* Submitting is one-way: once a quotation has been submitted
+                     the button stays disabled. The status comes from the server
+                     row, not local state, and covers approved/held/rejected rows
+                     as well as a plain Pending one. */
+                  const isPending = isSubmittedQuotation(item);
                   /* SUBMIT_PURCHASE_QUOTATION refuses a quotation with no uploaded
                      document, so the action is refused on click until one exists. The
                      button itself stays enabled (a too-eager disable hid the reason). */
@@ -1587,7 +1618,7 @@ export default function PurchaseQuotationPage() {
                               : lacksDocument
                                 ? "Upload the purchase quotation document first (Documents tab)"
                                 : isPending
-                                  ? "Already pending for approval"
+                                  ? "Already submitted for approval"
                                   : "Submit for approval"
                           }
                           className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"

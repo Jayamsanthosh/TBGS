@@ -75,6 +75,26 @@ const CARD_DEFAULTS: Record<string, CardDefaults> = {
     backgroundColor: "rose",
     approvalType: "Promotion Demotion Transfer Request",
   },
+  /* Purchase Request is the non-HR card. It keeps the same panel chrome, but
+     its list/detail/update all go through VPurchase procs. */
+  "Purchase Request": {
+    sno: 8,
+    routeSlug: "purchase-request",
+    iconKey: "ShoppingCart",
+    permissionColumn: "purchaseRequest",
+    backgroundColor: "blue",
+    approvalType: "Purchase Request",
+  },
+  /* Purchase Quotation is the priced sibling of the request: same three-level
+     chain, its own header table and its own update proc. */
+  "Purchase Quotation": {
+    sno: 9,
+    routeSlug: "purchase-quotation",
+    iconKey: "FileSpreadsheet",
+    permissionColumn: "purchaseQuotation",
+    backgroundColor: "violet",
+    approvalType: "Purchase Quotation",
+  },
 };
 
 const getCurrentUser = (req: Request): string => {
@@ -195,6 +215,18 @@ const runStatusUpdate = async (
     }
 
     const updatedBy = getCurrentUser(req);
+    // Purchase Request stamps the approver's EMP_ID and IP on the level row.
+    // The login name is not numeric, so the EMP_ID has to come from the token.
+    const user = (req as any).user;
+    const tokenEmpId = user?.employee?.empId;
+    const updatedByEmpId =
+      tokenEmpId === null || tokenEmpId === undefined || tokenEmpId === ""
+        ? null
+        : Number(tokenEmpId);
+    const approverIp =
+      String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
+      req.ip ||
+      null;
 
     // Pre-validate the whole batch BEFORE applying anything so a single
     // non-actionable row cannot cause a partial apply (some ids changed,
@@ -221,6 +253,8 @@ const runStatusUpdate = async (
         status: spStatus,
         updatedBy,
         holdReason: remarks,
+        updatedByEmpId,
+        approverIp,
       });
       results.push(result.message);
     }
@@ -228,7 +262,12 @@ const runStatusUpdate = async (
     res.json({ success: true, message: results.join(" | ") });
   } catch (error: any) {
     console.error("Approval status update error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Failed to update status" });
+    // Stored procedures report validation failures (missing Hold reason, no
+    // pending level left) through parseSprocResult, which marks them 400. Pass
+    // that through so the panel shows a validation message instead of a 500.
+    res
+      .status(Number(error?.httpStatus) || 500)
+      .json({ success: false, message: error?.message || "Failed to update status" });
   }
 };
 

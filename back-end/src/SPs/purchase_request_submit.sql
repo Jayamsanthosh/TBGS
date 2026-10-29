@@ -80,6 +80,27 @@ BEGIN
         RETURN;
     END
 
+    /* A request that already entered the approval flow must not be re-submitted.
+       Re-submitting would report a fresh "submitted" state while the previous
+       SECTION_HEAD_ / RESPONSE_1_ / RESPONSE_2_ / FINAL_RESPONSE_ answers stay
+       in place, so the entry screen and the approval panel would disagree. Any
+       recorded response means the flow has already started. */
+    IF EXISTS (
+        SELECT 1
+        FROM [VPurchase].[TBL_PURCHASE_REQUEST_HDR]
+        WHERE PURCHASE_REQUEST_NO = @PURCHASE_REQUEST_NO
+          AND (
+                LTRIM(RTRIM(ISNULL(SECTION_HEAD_RESPONSE_STATUS, ''))) <> ''
+             OR LTRIM(RTRIM(ISNULL(RESPONSE_1_STATUS, ''))) <> ''
+             OR LTRIM(RTRIM(ISNULL(RESPONSE_2_STATUS, ''))) <> ''
+             OR LTRIM(RTRIM(ISNULL(FINAL_RESPONSE_STATUS, ''))) <> ''
+          )
+    )
+    BEGIN
+        RAISERROR('Purchase request %s has already entered the approval workflow and cannot be submitted again.', 16, 1, @PURCHASE_REQUEST_NO);
+        RETURN;
+    END
+
     UPDATE [VPurchase].[TBL_PURCHASE_REQUEST_HDR]
     SET
         STATUS_ID = @STATUS_ID,
