@@ -40,20 +40,28 @@ const fields: MasterField[] = [
   },
 ];
 
+const formatVal = (val: any) => {
+  if (val === null || val === undefined || val === "") return "-";
+  return val;
+};
+
 const columns = [
   { key: "CAMP_NAME", label: "Camp Name" },
-  { key: "REMARKS", label: "Remarks" },
+  { key: "COUNTRY_NAME", label: "Country", render: (val: any, row: any) => formatVal(row?.COUNTRY_NAME || row?.COUNTRY_ID) },
+  { key: "REGION_NAME", label: "Region", render: (val: any, row: any) => formatVal(row?.REGION_NAME || row?.REGION_ID) },
+  { key: "DISTRICT_NAME", label: "District", render: (val: any, row: any) => formatVal(row?.DISTRICT_NAME || row?.DISTRICT_ID) },
+  { key: "REMARKS", label: "Remarks", render: (val: any) => formatVal(val) },
   {
     key: "STATUS_MASTER",
     label: "Status",
     render: (val: any) => {
       const sv = String(val || "").toLowerCase();
-      const colorClass = sv === "active"
+      const colorClass = sv === "active" || sv === "ac"
         ? "bg-green-500/10 text-green-600 border-green-200"
         : "bg-red-500/10 text-red-600 border-red-200";
       return (
         <Badge variant="outline" className={`${colorClass} px-2 py-0.5 text-[10px] uppercase font-bold`}>
-          {sv === "active" ? "Active" : "Inactive"}
+          {sv === "active" || sv === "ac" ? "Active" : "Inactive"}
         </Badge>
       );
     },

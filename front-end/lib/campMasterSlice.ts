@@ -32,7 +32,13 @@ export const fetchCamps = createAsyncThunk(
         throw new Error(errorData.message || "Failed to fetch camps");
       }
       const json = await response.json();
-      return (json.data || []).map((u: any) => ({ ...u, id: u.CAMP_ID }));
+      return (json.data || []).map((u: any) => ({
+        ...u,
+        id: u.CAMP_ID,
+        COUNTRY_NAME: u.COUNTRY_NAME ?? u.COUNTRY ?? (u.COUNTRY_ID != null && u.COUNTRY_ID !== "" ? u.COUNTRY_ID : "-"),
+        REGION_NAME: u.REGION_NAME ?? u.REGION ?? (u.REGION_ID != null && u.REGION_ID !== "" ? u.REGION_ID : "-"),
+        DISTRICT_NAME: u.DISTRICT_NAME ?? u.DISTRICT ?? (u.DISTRICT_ID != null && u.DISTRICT_ID !== "" ? u.DISTRICT_ID : "-"),
+      }));
     } catch (error: any) {
       if (error?.name === "AbortError") throw error;
       return rejectWithValue(error?.message || "Failed to fetch camps");

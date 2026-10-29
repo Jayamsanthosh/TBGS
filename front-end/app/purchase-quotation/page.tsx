@@ -902,6 +902,32 @@ export default function PurchaseQuotationPage() {
         STATUS_ENTRY: hdr.STATUS_ENTRY || "CF",
       });
 
+      const reqFromHdr = hdr.PURCHASE_REQUEST_NO || hdr.purchaseRequestNo || hdr.PURCHASE_REQ_NO || hdr.PRF_NO || hdr.PR_NO || "";
+      if (reqFromHdr) {
+        setReqNo(String(reqFromHdr).trim());
+        setForm((prev) => ({ ...prev, PURCHASE_REQUEST_NO: String(reqFromHdr).trim() }));
+        setPreviewOpen(true);
+        setPreviewLoading(true);
+        try {
+          const [ph, pl] = await Promise.all([
+            dispatch(fetchPurchaseRequestHdr(reqFromHdr)).unwrap(),
+            dispatch(fetchPurchaseRequestDtls(reqFromHdr)).unwrap(),
+          ]);
+          setPreviewHdr(ph ?? null);
+          setPreviewLines(Array.isArray(pl) ? pl : []);
+        } catch {
+          setPreviewHdr(null);
+          setPreviewLines([]);
+        } finally {
+          setPreviewLoading(false);
+        }
+      } else {
+        setReqNo("");
+        setPreviewOpen(false);
+        setPreviewHdr(null);
+        setPreviewLines([]);
+      }
+
       const dtlRows: any[] = await dispatch(fetchPurchaseQuotationDtls(refNo)).unwrap();
       const rows = (dtlRows || []).map((d: any) => ({
         key: newKey(),
@@ -1758,13 +1784,20 @@ export default function PurchaseQuotationPage() {
                   <div className="flex flex-col gap-2 w-full lg:w-80 shrink-0">
                     <div className="flex flex-col gap-1.5 w-full">
                       <Label className="text-xs">Purchase Request</Label>
-                      <Select value={reqNo} onValueChange={onReqNoChange}>
+                      <Select value={String(reqNo || "")} onValueChange={onReqNoChange}>
                         <SelectTrigger className="!h-9 text-xs">
                           <SelectValue placeholder="Select purchase request" />
                         </SelectTrigger>
                         <SelectContent>
-                          {requestOptions.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
+                          {(() => {
+                            const base = requestOptions.slice();
+                            const cur = String(reqNo ?? "").trim();
+                            if (cur && !base.some((o) => o.value === cur)) {
+                              base.unshift({ value: cur, label: cur, summary: undefined });
+                            }
+                            return base;
+                          })().map((o) => (
+                            <SelectItem key={o.value} value={String(o.value)}>
                               <span className="block">{o.label}</span>
                               {o.summary ? (
                                 <span className="mt-0.5 block w-full rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground leading-snug">

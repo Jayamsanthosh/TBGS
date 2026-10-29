@@ -69,11 +69,13 @@ const entryBadgeClass = (v: any) => {
 
 const responseBadgeClass = (v: any) => {
   const s = String(v ?? "").toUpperCase();
-  if (!s) return "bg-muted/50 text-muted-foreground border-border";
-  if (s === "QUERY") return "bg-amber-500/10 text-amber-600 border-amber-200";
-  if (s === "RESPONSE") return "bg-blue-500/10 text-blue-600 border-blue-200";
-  if (s === "RESOLVED" || s === "CLOSED") return "bg-green-500/10 text-green-600 border-green-200";
-  return "bg-purple-500/10 text-purple-600 border-purple-200";
+  if (!s) return "bg-muted/40 text-muted-foreground border-border";
+  if (s === "QUERY") return "bg-amber-500/10 text-amber-700 border-amber-200";
+  if (s === "RESPONSE") return "bg-sky-500/10 text-sky-700 border-sky-200";
+  if (s === "RESOLVED" || s === "CLOSED") return "bg-emerald-500/10 text-emerald-700 border-emerald-200";
+  if (s === "APPROVED") return "bg-green-500/10 text-green-700 border-green-200";
+  if (s === "REJECTED") return "bg-red-500/10 text-red-700 border-red-200";
+  return "bg-violet-500/10 text-violet-700 border-violet-200";
 };
 
 const initials = (name: string) =>
@@ -433,8 +435,8 @@ export default function ConversationDialog({
             </p>
           </DialogHeader>
 
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="px-6 py-5">
+          <ScrollArea className="min-h-0 flex-1 bg-gradient-to-b from-muted/5 to-background">
+            <div className="px-6 py-6">
               {loading ? (
                 <div className="space-y-5">
                   {[...Array(3)].map((_, i) => (
@@ -449,14 +451,13 @@ export default function ConversationDialog({
                   ))}
                 </div>
               ) : sorted.length === 0 ? (
-                <div className="py-16 text-center">
-                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-                    <MessageSquare className="h-6 w-6 text-muted-foreground" />
+                <div className="py-20 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/15">
+                    <MessageSquare className="h-7 w-7 text-primary" />
                   </div>
-                  <p className="text-sm font-medium">No conversation yet</p>
-                  <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-                    Use the box below to raise a query, record a response, or note
-                    how a quotation was agreed with the supplier.
+                  <p className="text-base font-semibold">No conversation yet</p>
+                  <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
+                    Start the discussion below. Add a query, response, status update, or notes on how this quotation was agreed with the supplier.
                   </p>
                 </div>
               ) : (
@@ -488,19 +489,19 @@ export default function ConversationDialog({
                       const isLast = gi === groups.length - 1 && ei === g.entries.length - 1;
 
                       return (
-                        <div key={sno} className="group relative flex gap-4 pb-6">
+                        <div key={sno} className="group relative flex gap-4 pb-7">
                           {!isLast && (
                             <span
                               aria-hidden
-                              className="absolute left-5 top-11 bottom-0 w-px bg-border"
+                              className="absolute left-5 top-11 bottom-0 w-px bg-gradient-to-b from-border via-border/70 to-transparent"
                             />
                           )}
                           <div
                             className={cn(
-                              "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
+                              "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border shadow-sm ring-1 ring-background",
                               name
-                                ? "border-primary/20 bg-primary/10 text-primary"
-                                : "border-border bg-muted text-muted-foreground"
+                                ? "border-primary/40 bg-gradient-to-br from-primary/20 to-primary/5 text-primary"
+                                : "border-border bg-muted/80 text-muted-foreground"
                             )}
                           >
                             {name ? initials(who) : <User className="w-4 h-4" />}
@@ -600,18 +601,28 @@ export default function ConversationDialog({
 
           {/* The composer is always present, so opening Add does not push the
               layout around or remove the button that opened it. */}
-          <div className="shrink-0 border-t bg-muted/20">
+          <div className="shrink-0 border-t bg-gradient-to-b from-muted/10 to-muted/20">
             <div className="flex items-center justify-between px-6 pt-4">
-              <h3 className="text-sm font-semibold">
-                {editing ? "Edit response" : "Add response"}
-              </h3>
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                  <MessageSquare className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold leading-none">
+                    {editing ? "Edit response" : "Add response"}
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {editing ? "Update the conversation entry" : "Share an update with the supplier"}
+                  </p>
+                </div>
+              </div>
               {editing ? (
                 <Button
-                  variant="ghost" size="sm" className="h-7 w-7 p-0"
-                  title="Cancel editing" aria-label="Cancel editing"
+                  variant="ghost" size="sm" className="h-8 px-2 text-xs"
                   onClick={cancelEdit}
                 >
-                  <X className="w-4 h-4" />
+                  <X className="mr-1.5 h-3.5 w-3.5" />
+                  Cancel
                 </Button>
               ) : (
                 <span className="text-xs text-muted-foreground">
@@ -714,12 +725,12 @@ export default function ConversationDialog({
 
             <div className="flex items-center justify-end gap-2 border-t px-6 py-3">
               {editing && (
-                <Button variant="outline" className="h-9 text-sm" onClick={cancelEdit}>
+                <Button variant="outline" className="h-9 px-4 text-sm" onClick={cancelEdit}>
                   Cancel
                 </Button>
               )}
               <Button
-                className="h-9 text-sm"
+                className="h-9 px-4 text-sm"
                 onClick={handleSave}
                 disabled={saving}
               >
@@ -729,13 +740,13 @@ export default function ConversationDialog({
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center justify-between gap-3 bg-background px-6 py-3">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t bg-background px-6 py-2.5">
             <p className="text-xs text-muted-foreground">
               {locked
                 ? "This quotation is submitted. Its conversation can still be added to and edited."
-                : "Discussion is required. Everything else is optional."}
+                : "Discussion is required. All other fields are optional."}
             </p>
-            <Button variant="outline" className="h-9 text-sm" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" className="h-8 px-3 text-xs" onClick={() => onOpenChange(false)}>
               Close
             </Button>
           </div>

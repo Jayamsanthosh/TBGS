@@ -595,7 +595,15 @@ export default function PurchaseInvoicePage() {
         REMARKS: hdr.REMARKS || "",
         STATUS_ENTRY: hdr.STATUS_ENTRY || "CF",
       });
-      setPoNo(hdr.PURCHASE_ORDER_NO || "");
+      const poVal = hdr.PURCHASE_ORDER_NO || "";
+      setPoNo(poVal);
+      if (poVal) {
+        try {
+          await loadSourceOrder(poVal);
+        } catch {
+          // ignore
+        }
+      }
 
       const dtlRows: any[] = await dispatch(fetchPurchaseInvoiceDtls(refNo)).unwrap();
       setDtls(renumber((dtlRows || []).map((d: any) => ({
@@ -1001,7 +1009,7 @@ export default function PurchaseInvoicePage() {
       PAYMENT_TERM_ID: pick(paymentTermOptions, form.PAYMENT_TERM_ID),
       PAYMENT_MODE_ID: pick(paymentModeOptions, form.PAYMENT_MODE_ID),
       CURRENCY_ID: pick(currencyOptions, form.CURRENCY_ID),
-      STATUS_ENTRY: form.STATUS_ENTRY || "CF",
+      STATUS_ENTRY: entryLabel(form.STATUS_ENTRY),
     };
   }, [form, supplierOptions, companyOptions, branchOptions, campOptions, storeOptions, paymentTermOptions, paymentModeOptions, currencyOptions]);
 
@@ -1245,14 +1253,25 @@ export default function PurchaseInvoicePage() {
                   <div className="flex flex-col gap-2 w-full lg:w-80 shrink-0">
                     <div className="flex flex-col gap-1.5 w-full">
                       <Label className="text-xs">Purchase Order</Label>
-                      <Select value={poNo} onValueChange={loadSourceOrder}>
+                      <Select value={poNo} onValueChange={loadSourceOrder} disabled={!!editing}>
                         <SelectTrigger className="!h-9 text-xs">
                           <SelectValue placeholder="Select purchase order" />
                         </SelectTrigger>
                         <SelectContent>
-                          {(Array.isArray(sourceOrders) ? sourceOrders : []).map((o: any) => (
-                            <SelectItem key={String(o.purchaseOrderNo)} value={String(o.purchaseOrderNo)}>
-                              <span className="block">{o.label || o.purchaseOrderNo}</span>
+                          {(() => {
+                            const base = (Array.isArray(sourceOrders) ? sourceOrders : []).map((o: any) => ({
+                              value: String(o.purchaseOrderNo ?? ""),
+                              label: o.label || o.purchaseOrderNo,
+                              itemSummary: o.itemSummary,
+                            }));
+                            const cur = String(poNo ?? "").trim();
+                            if (cur && !base.some((o) => o.value === cur)) {
+                              base.unshift({ value: cur, label: cur, itemSummary: undefined });
+                            }
+                            return base;
+                          })().map((o: any) => (
+                            <SelectItem key={String(o.value)} value={String(o.value)}>
+                              <span className="block">{o.label || o.value}</span>
                               {o.itemSummary ? (
                                 <span className="mt-0.5 block w-full rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground leading-snug">
                                   {o.itemSummary}
