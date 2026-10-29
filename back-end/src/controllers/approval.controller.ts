@@ -96,6 +96,16 @@ const CARD_DEFAULTS: Record<string, CardDefaults> = {
     backgroundColor: "violet",
     approvalType: "Purchase Quotation",
   },
+  /* Purchase Order closes the purchase chain: it is raised from a quotation and
+     approved by the same three levels through its own VPurchase procs. */
+  "Purchase Order": {
+    sno: 10,
+    routeSlug: "purchase-order",
+    iconKey: "Package",
+    permissionColumn: "purchaseOrder",
+    backgroundColor: "orange",
+    approvalType: "Purchase Order",
+  },
 };
 
 const getCurrentUser = (req: Request): string => {

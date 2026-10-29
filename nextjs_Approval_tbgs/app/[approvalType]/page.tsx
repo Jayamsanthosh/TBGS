@@ -23,6 +23,7 @@ import toast from "react-hot-toast";
 import PdfViewerModal from "../components/ApprovalDetails/PdfViewerModal";
 import PurchaseRequestExpansion from "../components/ApprovalDetails/PurchaseRequestExpansion";
 import PurchaseQuotationExpansion from "../components/ApprovalDetails/PurchaseQuotationExpansion";
+import PurchaseOrderExpansion from "../components/ApprovalDetails/PurchaseOrderExpansion";
 import DashboardCard from "../components/DashboardCard";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchApprovalRecords, updateApprovalStatusByType } from "@/redux/slices/approvalSlice";
@@ -48,7 +49,7 @@ function getTableColumns(
     onStatusAction: (row: any, status: "APPROVED" | "REJECTED" | "HOLD") => void,
 ): { columns: Column[]; middleCols: Column[] } {
     const nType = (approvalType || '').toLowerCase();
-    const isPO = nType === 'purchase-order';
+    const isPO = nType === 'purchase-order' || nType === 'purchase-orders';
     const isWO = nType === 'work-order';
     const isPA = nType === 'price-approval';
     const isSR = nType === 'sales-return-approval';
@@ -291,8 +292,9 @@ function getTableColumns(
             { key: 'managerRecommendedYn', label: 'Mgr Rec', headerAlign: 'center', render: (v: any) => <span className="text-slate-600">{nm(v || '-')}</span> },
         ];
     } else {
-        // Purchase Order / Work Order / Price Approval / Sales Return keep the
-        // legacy "No of Days" summary column.
+        // Work Order / Price Approval / Sales Return keep the legacy "No of
+        // Days" summary column. (Purchase Order used to sit here; it now has
+        // its own expansion panel and its own visible columns.)
         middleCols = [pendingDaysCol];
     }
 
@@ -371,9 +373,48 @@ function getTableColumns(
         ]
         : [];
 
-    // A purchase request / quotation has no department, so the shared Dept
-    // column is dropped instead of painting an empty cell.
-    const visibleBaseCols = isPR || isPQ ? baseCols.filter((c) => c.key !== 'departmentId') : baseCols;
+    // ── Purchase Order columns ──────────────────────────────────────────
+    // The order header has the same money/shape contract as the quotation it
+    // was raised from, so the grid shows the order's own dates, supplier,
+    // place of delivery and the 3-level stage instead of the legacy "No of
+    // Days" cell.
+    const poCols: Column[] = isPO
+        ? [
+            { key: 'poDate', label: 'PO Date', responsiveClass: 'hidden lg:table-cell', render: (v: any, row: any) => <span className="text-slate-600 whitespace-nowrap">{fmtDate(v || row.createdDate)}</span> },
+            { key: 'supplierName', label: 'Supplier', render: (v: any) => <span className="text-slate-700 font-medium">{nm(v)}</span> },
+            { key: 'branchName', label: 'Branch', responsiveClass: 'hidden xl:table-cell', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'storeName', label: 'Store', responsiveClass: 'hidden lg:table-cell', render: (_: any, row: any) => <span className="text-slate-600">{nm(row.storeName || row.poStoreName || row.requestStoreName)}</span> },
+            { key: 'campName', label: 'Camp', responsiveClass: 'hidden xl:table-cell', render: (v: any) => <span className="text-slate-600">{nm(v)}</span> },
+            { key: 'currencyName', label: 'Currency', responsiveClass: 'hidden md:table-cell', render: (_: any, row: any) => <span className="text-slate-600">{nm(row.currencyName || row.currencyType)}</span> },
+            { key: 'amount', label: 'Amount', headerAlign: 'right', render: (v: any) => <span className="text-slate-700 font-semibold inline-block min-w-[80px] text-right whitespace-nowrap">{fmtMoney(v)}</span> },
+            {
+                key: 'approvedLevels',
+                label: 'Stage',
+                headerAlign: 'center',
+                render: (v: any) => {
+                    const done = Number(v ?? 0);
+                    return (
+                        <span className="inline-flex items-center gap-1" title={`${done} of 3 approval levels cleared`}>
+                            {[1, 2, 3].map(level => (
+                                <span key={level} className={`w-1.5 h-1.5 rounded-full ${level <= done ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                            ))}
+                            <span className="text-[11px] font-bold text-slate-500 ml-0.5">{done}/3</span>
+                        </span>
+                    );
+                }
+            },
+            {
+                key: 'lineCount',
+                label: 'Lines',
+                headerAlign: 'center',
+                render: (v: any) => <span className="text-slate-700 font-semibold">{Number(v ?? 0)}</span>
+            },
+        ]
+        : [];
+
+    // A purchase request / quotation / order has no department, so the shared
+    // Dept column is dropped instead of painting an empty cell.
+    const visibleBaseCols = isPR || isPQ || isPO ? baseCols.filter((c) => c.key !== 'departmentId') : baseCols;
 
     const statusCol: Column = {
         key: 'finalResponseStatus',
@@ -398,7 +439,7 @@ function getTableColumns(
     };
 
     return {
-        columns: [...visibleBaseCols, ...prCols, ...pqCols, statusCol],
+        columns: [...visibleBaseCols, ...prCols, ...pqCols, ...poCols, statusCol],
         middleCols
     };
 }
@@ -417,6 +458,11 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
     // approval trail, FC/LC totals, priced lines and additional charges).
     const isPurchaseQuotationType =
         approvalType === "purchase-quotation" || approvalType === "purchase-quotations";
+    // Purchase Orders expand into their own full panel as well: header, terms,
+    // approval trail, FC/LC totals, order lines, additional charges and the
+    // documents attached on the entry screen.
+    const isPurchaseOrderType =
+        approvalType === "purchase-order" || approvalType === "purchase-orders";
 
     const { records, loading: recordsLoading } = useAppSelector((state: any) => state.approval);
     const { cards: allCards } = useAppSelector((state: any) => state.dashboard);
@@ -541,6 +587,11 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
         // final amount per line, with FC and LC totals. The generic invoice
         // layout would price it from fields it does not have.
         const isPurchaseQuotationPdf = approvalType === 'purchase-quotation' || approvalType === 'purchase-quotations';
+        // A purchase order is the priced commitment that follows the quotation,
+        // so it uses the same per-line money columns and FC/LC totals; only the
+        // header block differs (it also carries the quotation / request refs).
+        const isPurchaseOrderPdf = approvalType === 'purchase-order' || approvalType === 'purchase-orders';
+        const isPricedPdf = isPurchaseQuotationPdf || isPurchaseOrderPdf;
         try {
             // ── Fetch live data from API ──────────────────────────────────────
             const res = await fetch(apiUrl(`/approvals/${approvalType}/${row.sno || row.id}`));
@@ -548,12 +599,12 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
             const detail = await res.json();
 
             const lineItems: any[] = (detail?.productLineItems || []).map((item: any) => {
-                const qty = isPurchaseRequestPdf || isPurchaseQuotationPdf
+                const qty = isPurchaseRequestPdf || isPricedPdf
                     ? Number(item.totalQuantity ?? item.orderedQty ?? 0)
                     : Number(item.totalPcs ?? item.totalPacking ?? item.orderedQty ?? 0);
                 const unitPrice = Number(item.ratePerPcs ?? item.rate ?? item.unitPrice ?? 0);
                 const amount = Number(
-                    isPurchaseQuotationPdf
+                    isPricedPdf
                         ? (item.finalAmount ?? item.amount ?? 0)
                         : item.totalProductAmount ?? item.productAmount ??
                           item.finalProductAmount ?? item.amount ?? (qty * unitPrice)
@@ -595,9 +646,12 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
 
             const poRef = isPurchaseQuotationPdf
                 ? (detail?.purchaseQuotationNo || row.poRefNo || row.refNo || '-')
-                : (row.poRefNo || row.refNo || row.requestRefNo || '-');
+                : isPurchaseOrderPdf
+                    ? (detail?.purchaseOrderNo || row.poRefNo || row.refNo || '-')
+                    : (row.poRefNo || row.refNo || row.requestRefNo || '-');
             const poDate = String(
                 (isPurchaseQuotationPdf ? detail?.purchaseQuotationDate : null) ||
+                (isPurchaseOrderPdf ? detail?.purchaseOrderDate : null) ||
                 row.poDate || row.createdDate || ''
             ).split('T')[0] || '-';
 
@@ -677,11 +731,34 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                 );
             }
 
+            if (isPurchaseOrderPdf) {
+                const references = [
+                    detail?.purchaseQuotationNo ? `Quotation: ${detail.purchaseQuotationNo}` : null,
+                    detail?.purchaseRequestNo ? `Request: ${detail.purchaseRequestNo}` : null,
+                ].filter(Boolean).join('   ');
+                doc.text(references || 'Quotation: -', margin, 48);
+                doc.text(
+                    `Currency: ${detail?.currencyName || '-'}${detail?.exchangeRate != null ? `   FX: ${fmt(detail.exchangeRate)}` : ''}`,
+                    margin,
+                    53
+                );
+                doc.text(
+                    `Payment: ${detail?.paymentModeName || '-'} / ${detail?.paymentTermName || '-'}`,
+                    margin,
+                    58
+                );
+                doc.text(
+                    `Delivery: ${detail?.deliveryDate ? String(detail.deliveryDate).split('T')[0] : '-'}${detail?.deliveryLocationName ? ` to ${detail.deliveryLocationName}` : ''}`,
+                    margin,
+                    63
+                );
+            }
+
             autoTable(doc, {
-                startY: isPurchaseQuotationPdf ? 64 : 55,
+                startY: isPricedPdf ? (isPurchaseOrderPdf ? 68 : 64) : 55,
                 head: [isPurchaseRequestPdf
                     ? ['#', 'Product', 'Description', 'Qty', 'UOM', 'Required Date']
-                    : isPurchaseQuotationPdf
+                    : isPricedPdf
                         ? ['#', 'Product', 'Description', 'Qty', 'UOM', 'Rate', 'Disc %', 'Tax %', 'Final (FC)']
                         : ['#', 'Product', 'Specification', 'Qty', 'Unit Price', 'Amount']],
                 body: lineItems.map((item: any, index: number) => isPurchaseRequestPdf
@@ -693,7 +770,7 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                         item.uomName || '-',
                         item.requiredDate ? String(item.requiredDate) : '-'
                     ]
-                    : isPurchaseQuotationPdf
+                    : isPricedPdf
                         ? [
                             index + 1,
                             item.productName || '-',
@@ -722,7 +799,7 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                         3: { halign: 'right', cellWidth: 20 },
                         5: { cellWidth: 28 }
                     }
-                    : isPurchaseQuotationPdf
+                    : isPricedPdf
                         ? {
                             0: { halign: 'center', cellWidth: 8 },
                             3: { halign: 'right', cellWidth: 16 },
@@ -742,8 +819,8 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
 
             const lineItemsEndY = (doc as any).lastAutoTable?.finalY || 70;
 
-            if (isPurchaseQuotationPdf) {
-                // ── Additional charges (quotation) ────────────────────────────
+            if (isPricedPdf) {
+                // ── Additional charges (quotation / order) ─────────────────────
                 const chargeRows: any[] = Array.isArray(detail?.additionalCosts) ? detail.additionalCosts : [];
                 autoTable(doc, {
                     startY: lineItemsEndY + 6,
@@ -1242,7 +1319,9 @@ const ApprovalDetailsPage = ({ searchParams }: ApprovalDetailsPageProps) => {
                                 hideExpansionColumn: true,
                                 onExpandedRowsChange: setExpandedRows,
                                 renderExpansion: (row: any) =>
-                                    isPurchaseQuotationType ? (
+                                    isPurchaseOrderType ? (
+                                        <PurchaseOrderExpansion row={row} approvalType={approvalType} />
+                                    ) : isPurchaseQuotationType ? (
                                         <PurchaseQuotationExpansion row={row} approvalType={approvalType} />
                                     ) : isPurchaseRequestType ? (
                                         <PurchaseRequestExpansion row={row} approvalType={approvalType} />

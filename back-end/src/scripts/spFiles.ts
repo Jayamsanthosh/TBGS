@@ -17,6 +17,12 @@ export const SP_FILES: string[] = [
      next to the submit proc they depend on (the panel only shows rows the
      submit proc marked as submitted). */
   "purchase_quotation_approval.sql",
+  /* The order submit proc has to move PURCHASE_ORDER_STATUS_ID to Pending as
+     well as STATUS_ENTRY, and the approval panel only shows submitted orders. */
+  "purchase_order_submit.sql",
+  /* The order approval panel reads and writes through its own procs, kept next
+     to the submit proc they depend on. */
+  "purchase_order_approval.sql",
   "purchase_request_load_grid_fields.sql",
   "purchase_request_requested_by_name.sql",
   /* The quotation wizard copies lines from a request via this read; without

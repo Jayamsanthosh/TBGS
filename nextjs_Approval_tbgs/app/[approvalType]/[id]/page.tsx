@@ -112,6 +112,10 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
     const isAttendance = approvalType === "attendance";
     const isPurchaseRequest = approvalType === "purchase-request" || approvalType === "purchase-requests";
     const isPurchaseQuotation = approvalType === "purchase-quotation" || approvalType === "purchase-quotations";
+    const isPurchaseOrder = approvalType === "purchase-order" || approvalType === "purchase-orders";
+    // Quotation and order lines both carry rate / discount / tax and FC + LC
+    // money, so they share the priced line table.
+    const isPricedLines = isPurchaseQuotation || isPurchaseOrder;
 
     const purchaseRequestSections = [
         {
@@ -193,6 +197,64 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
         },
     ];
 
+    const purchaseOrderSections = [
+        {
+            title: "Purchase Order",
+            items: [
+                { label: "PO Number", value: rowData?.purchaseOrderNo || rowData?.poRefNo || "N/A" },
+                { label: "PO Date", value: formatDate(rowData?.purchaseOrderDate || rowData?.poDate) },
+                { label: "Supplier", value: rowData?.supplierName || rowData?.supplier?.supplierName || "N/A" },
+                { label: "Company", value: rowData?.companyName || rowData?.company?.companyName || "N/A" },
+                { label: "Branch", value: rowData?.branchName || "N/A" },
+                { label: "Purchase Store", value: rowData?.poStoreName || rowData?.storeName || rowData?.requestStoreName || "N/A" },
+                { label: "Camp", value: rowData?.campName || "N/A" },
+                { label: "Order Status", value: rowData?.purchaseOrderStatusName || "N/A" },
+                { label: "Created By", value: rowData?.createdBy || rowData?.requestedBy || "N/A" },
+                { label: "Created Date", value: formatDate(rowData?.createdDate) },
+            ]
+        },
+        {
+            title: "Purchase References",
+            items: [
+                { label: "Purchase Quotation No", value: rowData?.purchaseQuotationNo || "N/A" },
+                { label: "Purchase Request No", value: rowData?.purchaseRequestNo || "N/A" },
+                { label: "Delivery Location", value: rowData?.deliveryLocationName || "N/A" },
+                { label: "Reason", value: rowData?.reason || rowData?.shipmentRemarks || "N/A", isRemark: true },
+                { label: "Remarks", value: rowData?.remarks || "N/A", isRemark: true },
+            ]
+        },
+        {
+            title: "Terms & Delivery",
+            items: [
+                { label: "Payment Term", value: rowData?.paymentTermName || "N/A" },
+                { label: "Payment Mode", value: rowData?.paymentModeName || "N/A" },
+                { label: "Shipment Mode", value: rowData?.shipmentModeName || "N/A" },
+                { label: "Delivery Date", value: formatDate(rowData?.deliveryDate) },
+                { label: "Delivery Term", value: rowData?.deliveryTerm || "N/A" },
+                {
+                    label: "Currency / FX",
+                    value: rowData?.currencyName
+                        ? `${rowData.currencyName}${rowData?.exchangeRate != null ? ` @ ${Number(rowData.exchangeRate).toLocaleString()}` : ""}`
+                        : (rowData?.currencyType || "N/A")
+                },
+                { label: "Shipment Remarks", value: rowData?.shipmentRemarks || "N/A", isRemark: true },
+            ]
+        },
+        {
+            title: "Order Totals",
+            items: [
+                { label: "Subtotal (FC)", value: formatAmount(rowData?.subTotalAmount, rowData?.currencyName) },
+                { label: "Subtotal (LC)", value: formatAmount(rowData?.subTotalAmountLc, "") },
+                { label: "Discount (FC)", value: formatAmount(rowData?.discountAmount, rowData?.currencyName) },
+                { label: "Additional Cost (FC)", value: formatAmount(rowData?.additionalCostAmount, rowData?.currencyName) },
+                { label: "Total Product (FC)", value: formatAmount(rowData?.totalProductAmount, rowData?.currencyName) },
+                { label: "Tax / VAT (FC)", value: formatAmount(rowData?.taxAmount, rowData?.currencyName) },
+                { label: "Final Total (FC)", value: formatAmount(rowData?.totalAmount, rowData?.currencyName) },
+                { label: "Final Total (LC)", value: formatAmount(rowData?.totalAmountLc, "") },
+            ]
+        },
+    ];
+
     const detailSections = isAttendance
         ? [
             {
@@ -226,6 +288,8 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
         ? purchaseRequestSections
         : isPurchaseQuotation
         ? purchaseQuotationSections
+        : isPurchaseOrder
+        ? purchaseOrderSections
         : [
             {
                 title: `${pageTitle || 'Request'} Information`,
@@ -253,7 +317,7 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
     // Purchase requests carry the approver's name and a timestamp per level;
     // the HR rows only carry the EMP_ID, so the Date row is PR-only.
     const approvalDateItems = (value: any) =>
-        isPurchaseRequest || isPurchaseQuotation ? [{ label: "Date", value: formatDate(value) }] : [];
+        isPurchaseRequest || isPurchaseQuotation || isPurchaseOrder ? [{ label: "Date", value: formatDate(value) }] : [];
 
     const approvalSections = [
         {
@@ -389,12 +453,12 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
                 ))}
             </div>
 
-            {/* Purchase Request / Purchase Quotation Line Items */}
-            {(isPurchaseRequest || isPurchaseQuotation) && (
+            {/* Purchase Request / Purchase Quotation / Purchase Order Line Items */}
+            {(isPurchaseRequest || isPricedLines) && (
                 <div className="mb-8 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                     <div className="bg-slate-50/50 px-8 py-5 border-b border-slate-100 flex items-center justify-between">
                         <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">
-                            {isPurchaseQuotation ? 'Quotation Lines' : 'Request Lines'}
+                            {isPurchaseOrder ? 'Order Lines' : isPurchaseQuotation ? 'Quotation Lines' : 'Request Lines'}
                         </h3>
                         <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
                             {productLineItems.length} {productLineItems.length === 1 ? 'line' : 'lines'}
@@ -402,14 +466,14 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
                     </div>
                     {productLineItems.length === 0 ? (
                         <div className="p-8 text-center text-sm font-semibold text-slate-400">
-                            {isPurchaseQuotation ? 'No quotation lines found.' : 'No request lines found.'}
+                            {isPurchaseOrder ? 'No order lines found.' : isPurchaseQuotation ? 'No quotation lines found.' : 'No request lines found.'}
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50/70">
                                     <tr>
-                                        {(isPurchaseQuotation
+                                        {(isPricedLines
                                             ? ['#', 'Product', 'Description', 'Category', 'Reference', 'Qty', 'UOM', 'Rate', 'Disc %', 'Tax %', 'Final (FC)', 'Final (LC)']
                                             : ['#', 'Product', 'Description', 'Category', 'Reference', 'Qty', 'UOM', 'Packing', 'Truck', 'Required Date', 'Reason']
                                         ).map((heading) => (
@@ -436,7 +500,7 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
                                             </td>
                                             <td className="px-4 py-3 font-semibold text-slate-800 text-right">{item.totalQuantity ?? '-'}</td>
                                             <td className="px-4 py-3 text-slate-600">{item.uomName || '-'}</td>
-                                            {isPurchaseQuotation ? (
+                                            {isPricedLines ? (
                                                 <>
                                                     <td className="px-4 py-3 text-slate-700 text-right whitespace-nowrap">{formatMoneyCell(item.rate ?? item.ratePerPcs)}</td>
                                                     <td className="px-4 py-3 text-slate-600 text-right whitespace-nowrap">{item.discountPercentage != null ? `${Number(item.discountPercentage)}%` : '-'}</td>
@@ -461,8 +525,8 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
                 </div>
             )}
 
-            {/* Purchase Quotation Additional Charges */}
-            {isPurchaseQuotation && Array.isArray(rowData?.additionalCosts) && rowData.additionalCosts.length > 0 && (
+            {/* Purchase Quotation / Purchase Order Additional Charges */}
+            {isPricedLines && Array.isArray(rowData?.additionalCosts) && rowData.additionalCosts.length > 0 && (
                 <div className="mb-8 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                     <div className="bg-slate-50/50 px-8 py-5 border-b border-slate-100 flex items-center justify-between">
                         <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">
@@ -507,7 +571,7 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
             )}
 
             {/* Attached Documents */}
-            {(isPurchaseRequest || isPurchaseQuotation) && (
+            {(isPurchaseRequest || isPricedLines) && (
                 <div className="mb-8 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                     <div className="bg-slate-50/50 px-8 py-5 border-b border-slate-100 flex items-center justify-between">
                         <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">
