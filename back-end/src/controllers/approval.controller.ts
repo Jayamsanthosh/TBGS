@@ -7,6 +7,7 @@ import {
   getRequestDetailService,
   updateRequestStatusService,
   validateActionableRequests,
+  getApprovalFileService,
 } from "../services/approval.services";
 
 interface CardDefaults {
@@ -189,6 +190,46 @@ export const getRequestDetail = async (req: Request, res: Response): Promise<voi
 
 export const getConversation = async (_req: Request, res: Response): Promise<void> => {
   res.json([]);
+};
+
+/**
+ * Streams one attached document to the approval app. The response is the raw
+ * file (not base64 JSON) so a PDF or image can be opened straight from a blob
+ * URL without inflating it by a third on the way out.
+ */
+export const getApprovalFile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(String(req.params.id));
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ success: false, message: "Invalid document id" });
+      return;
+    }
+
+    const file = await getApprovalFileService(id);
+    if (!file) {
+      res.status(404).json({ success: false, message: "Document not found" });
+      return;
+    }
+
+    /* A filename is echoed in a header, so it has to be reduced to printable
+       ASCII: CR/LF would split the response and a quote would end the value.
+       The original name still travels in the RFC 5987 filename* parameter. */
+    const asciiName = file.fileName
+      .replace(/[^\x20-\x7E]/g, "_")
+      .replace(/["\\]/g, "_");
+    const encodedName = encodeURIComponent(file.fileName);
+    res.setHeader("Content-Type", file.contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${asciiName}"; filename*=UTF-8''${encodedName}`
+    );
+    res.setHeader("Content-Length", String(file.buffer.length));
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.send(file.buffer);
+  } catch (error: any) {
+    console.error("Approval file error:", error);
+    res.status(500).json({ success: false, message: error?.message || "Failed to load document" });
+  }
 };
 
 const runStatusUpdate = async (

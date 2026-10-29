@@ -1,6 +1,7 @@
 import sql from "mssql";
 import { getPool } from "../config/db";
 import { parseSprocResult } from "../utils/sprocResult";
+import { getAllDocumentsService, getDocumentByIdService } from "./dms.services";
 
 /**
  * Slug (URL param) -> exact SP request-type string.
@@ -679,6 +680,81 @@ const getPurchaseQuotationDetail = async (
   return { header, lines, additionalCharges };
 };
 
+/* The entry screens store their attachments against the page that owns the
+   entity: Purchase Request = 262, Purchase Quotation = 266. The approval screen
+   has no upload rights, but it must show what was attached before submission,
+   so it reads the same document store through these two page ids only. */
+const PURCHASE_REQUEST_DMS_PAGE = 262;
+const PURCHASE_QUOTATION_DMS_PAGE = 266;
+/* Every document the entry screens write is owned by the Document Management
+   module (LINK_ID 267); LINK_PAGES_ID is what says which entity it belongs to.
+   GET_DOCUMENT_MANAGEMENT_SYSTEM needs the owning link or it returns nothing. */
+const DMS_MODULE_LINK_ID = 267;
+
+const approvalDocumentPage = (requestType: string): number | null => {
+  if (isPurchaseRequest(requestType)) return PURCHASE_REQUEST_DMS_PAGE;
+  if (isPurchaseQuotation(requestType)) return PURCHASE_QUOTATION_DMS_PAGE;
+  return null;
+};
+
+/** Documents attached to the entity, without the binary payload. */
+export const getRequestDocuments = async (
+  requestType: string,
+  refNo: string
+): Promise<any[]> => {
+  const pageId = approvalDocumentPage(requestType);
+  if (!refNo || pageId === null) return [];
+
+  try {
+    const rows = await getAllDocumentsService("ALL", pageId, refNo);
+    return rows.map((r: any) => ({
+      id: Number(r.DMS_ID ?? r.id),
+      dmsId: Number(r.DMS_ID ?? r.id),
+      fileName: r.FILE_NAME ?? "",
+      documentType: r.DOCUMENT_TYPE ?? "",
+      description: r.DESCRIPTIONS ?? "",
+      contentType: r.CONTENT_TYPE ?? "",
+      remarks: r.REMARKS ?? "",
+      status: r.STATUS_MASTER ?? "",
+      pageRefNo: r.PAGE_REF_NO ?? refNo,
+      uploadedBy: r.CREATED_BY ?? "",
+      uploadedDate: r.CREATED_DATE ?? null,
+    }));
+  } catch (error) {
+    /* A document-store hiccup must never block the approval detail itself. */
+    console.error("Approval documents error:", error);
+    return [];
+  }
+};
+
+/**
+ * Binary content for one attached document. Only purchase-flow documents are
+ * exposed: the approval app has no DMS permission of its own, so serving an
+ * arbitrary DMS id would turn this endpoint into a way around that gate.
+ */
+export const getApprovalFileService = async (
+  id: number
+): Promise<{ dmsId: number; fileName: string; contentType: string; pageRefNo: string | null; buffer: Buffer } | null> => {
+  const document = await getDocumentByIdService(id, DMS_MODULE_LINK_ID);
+  if (!document) return null;
+
+  const pageId = Number(document.LINK_PAGES_ID);
+  if (pageId !== PURCHASE_REQUEST_DMS_PAGE && pageId !== PURCHASE_QUOTATION_DMS_PAGE) {
+    return null;
+  }
+
+  const base64 = typeof document.CONTENT_DATA === "string" ? document.CONTENT_DATA : null;
+  if (!base64) return null;
+
+  return {
+    dmsId: Number(document.DMS_ID ?? id),
+    fileName: String(document.FILE_NAME || `document-${id}`),
+    contentType: String(document.CONTENT_TYPE || "application/octet-stream"),
+    pageRefNo: document.PAGE_REF_NO ?? null,
+    buffer: Buffer.from(base64, "base64"),
+  };
+};
+
 /** Single record detail (row + display aliases for the raw UPPERCASE columns). */
 export const getRequestDetailService = async (
   requestType: string,
@@ -692,14 +768,13 @@ export const getRequestDetailService = async (
   if (!row) return null;
 
   if (isPurchaseRequest(requestType)) {
-    const productLineItems = await getPurchaseRequestLineItems(
-      pool,
-      String(firstNonEmpty(row.poRefNo, row.requestRefNo, row.refNo) ?? "")
-    );
+    const refNo = String(firstNonEmpty(row.poRefNo, row.requestRefNo, row.refNo) ?? "");
+    const productLineItems = await getPurchaseRequestLineItems(pool, refNo);
+    const files = await getRequestDocuments(requestType, refNo);
 
     return {
       ...row,
-      files: [],
+      files,
       productLineItems,
       additionalCosts: [],
       supplier: {},
@@ -724,11 +799,12 @@ export const getRequestDetailService = async (
     );
     const { header, lines, additionalCharges } =
       await getPurchaseQuotationDetail(pool, refNo, row);
+    const files = await getRequestDocuments(requestType, refNo);
 
     return {
       ...row,
       ...header,
-      files: [],
+      files,
       productLineItems: lines,
       additionalCosts: additionalCharges,
       supplier: header.supplierName

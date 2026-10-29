@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Download, AlertCircle, ArrowLeft, Loader2, FileText } from "lucide-react";
 import ExpandableText from "@/app/components/ExpandableText";
+import ApprovalDocuments from "@/app/components/ApprovalDetails/ApprovalDocuments";
 
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchApprovalDetail, clearCurrentRecord } from "@/redux/slices/approvalSlice";
@@ -288,6 +289,8 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
         ? rowData.productLineItems
         : [];
 
+    const attachedFiles: any[] = Array.isArray(rowData?.files) ? rowData.files : [];
+
 
     if (loading) {
         return (
@@ -499,6 +502,26 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Attached Documents */}
+            {(isPurchaseRequest || isPurchaseQuotation) && (
+                <div className="mb-8 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="bg-slate-50/50 px-8 py-5 border-b border-slate-100 flex items-center justify-between">
+                        <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">
+                            Documents / Attachments
+                        </h3>
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
+                            {attachedFiles.length} {attachedFiles.length === 1 ? 'document' : 'documents'}
+                        </span>
+                    </div>
+                    <div className="p-6">
+                        <ApprovalDocuments
+                            files={attachedFiles}
+                            emptyMessage="No documents were attached to this record."
+                        />
                     </div>
                 </div>
             )}

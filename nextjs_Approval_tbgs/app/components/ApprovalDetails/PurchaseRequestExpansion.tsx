@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import api from "@/lib/axios";
 import { apiUrl } from "@/lib/config";
+import ApprovalDocuments from "./ApprovalDocuments";
 
 interface PurchaseRequestExpansionProps {
     /** The list row (already camelCase). Used while the detail is loading. */
@@ -145,6 +146,7 @@ const PurchaseRequestExpansion = ({ row, approvalType }: PurchaseRequestExpansio
     // Show whatever the list row already has until the detail arrives.
     const data = detail ?? row ?? {};
     const lines: any[] = Array.isArray(data.productLineItems) ? data.productLineItems : [];
+    const files: any[] = Array.isArray(data.files) ? data.files : [];
     const overallStatus = String(data.finalResponseStatus || data.statusEntry || "PENDING").toUpperCase();
 
     const prNumber = data.poRefNo || data.requestRefNo || data.refNo || "-";
@@ -329,6 +331,24 @@ const PurchaseRequestExpansion = ({ row, approvalType }: PurchaseRequestExpansio
                         ))}
                     </div>
                 )}
+            </div>
+
+            {/* ── Attached documents ───────────────────────────────────────── */}
+            <div>
+                <SectionTitle
+                    hint={
+                        <span className="text-[10px] font-bold text-slate-400">
+                            {files.length} {files.length === 1 ? "document" : "documents"}
+                        </span>
+                    }
+                >
+                    Documents / Attachments
+                </SectionTitle>
+                <ApprovalDocuments
+                    files={files}
+                    loading={loading}
+                    emptyMessage="No documents were attached to this request."
+                />
             </div>
         </div>
     );
