@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { identityFrom } from "../utils/identity";
 import {
   getAllHotelResortMasterService,
   getHotelResortMasterByIdService,
@@ -7,6 +8,14 @@ import {
   deleteHotelResortMasterService,
   HotelResortMasterData
 } from "../services/hotelResortMaster.services";
+
+const DELETE_ROLES = new Set(["admin", "super admin", "administrator"]);
+
+const linkIdFromQuery = (query: Request["query"]): number | null => {
+  const raw = (query.link_id as string) || (query.linkId as string) || "0";
+  const linkId = parseInt(raw, 10);
+  return Number.isFinite(linkId) && linkId > 0 ? linkId : null;
+};
 
 export const getAllHotelResortMaster = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -28,7 +37,8 @@ export const getHotelResortMasterById = async (req: Request, res: Response): Pro
   }
 
   try {
-    const record = await getHotelResortMasterByIdService(parseInt(id as string, 10));
+    const linkId = linkIdFromQuery(req.query);
+    const record = await getHotelResortMasterByIdService(parseInt(id as string, 10), linkId);
     if (!record) {
       res.status(404).json({ success: false, message: "Hotel not found" });
       return;
@@ -36,7 +46,7 @@ export const getHotelResortMasterById = async (req: Request, res: Response): Pro
     res.json({ success: true, data: record });
   } catch (error: any) {
     console.error("GetHotelResortMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -53,18 +63,28 @@ export const saveHotelResortMaster = async (req: Request, res: Response): Promis
     return;
   }
 
+  if (data.LINK_ID === undefined || data.LINK_ID === null) {
+    const linkId = linkIdFromQuery(req.query);
+    if (linkId) data.LINK_ID = linkId;
+  }
+
   try {
     const result = await saveHotelResortMasterService(data);
     res.json({ success: true, message: result.message || "Data saved successfully", HOTEL_ID: result.HOTEL_ID });
   } catch (error: any) {
     console.error("SaveHotelResortMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
 export const updateHotelResortMaster = async (req: Request, res: Response): Promise<void> => {
   const data: HotelResortMasterData = req.body;
   const { id } = req.params;
+
+  if (data.LINK_ID === undefined || data.LINK_ID === null) {
+    const linkId = linkIdFromQuery(req.query);
+    if (linkId) data.LINK_ID = linkId;
+  }
 
   try {
     if (!data.HOTEL_ID && id) {
@@ -74,15 +94,21 @@ export const updateHotelResortMaster = async (req: Request, res: Response): Prom
     res.json({ success: true, message: result.message || "Record updated successfully", HOTEL_ID: result.HOTEL_ID });
   } catch (error: any) {
     console.error("UpdateHotelResortMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
 export const deleteHotelResortMaster = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const { ROLE } = identityFrom(req);
 
   if (!id) {
     res.status(400).json({ success: false, message: "HOTEL_ID is required" });
+    return;
+  }
+
+  if (!DELETE_ROLES.has(String(ROLE).trim().toLowerCase())) {
+    res.status(403).json({ success: false, message: "Only administrators can delete hotels" });
     return;
   }
 
@@ -91,6 +117,6 @@ export const deleteHotelResortMaster = async (req: Request, res: Response): Prom
     res.json({ success: true, message: result.message || "Record deleted successfully" });
   } catch (error: any) {
     console.error("DeleteHotelResortMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

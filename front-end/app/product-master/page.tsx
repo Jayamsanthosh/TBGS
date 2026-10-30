@@ -7,6 +7,7 @@ import { fetchProducts, fetchProductById, addProduct, updateProduct, deleteProdu
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ export default function ProductMasterPage() {
   const dispatch = useAppDispatch();
   const { products, loading, error } = useAppSelector((s) => s.product);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(110);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -223,7 +225,7 @@ export default function ProductMasterPage() {
   const openEdit = async (item: any) => {
     setEditing(item);
     const detail = item && item.id != null
-      ? await dispatch(fetchProductById(Number(item.id))).unwrap().catch(() => null)
+      ? await dispatch(fetchProductById({ id: Number(item.id), linkId: linkPagesId })).unwrap().catch(() => null)
       : null;
     const src: any = detail ? detail : item;
     setForm({
@@ -288,6 +290,7 @@ export default function ProductMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {

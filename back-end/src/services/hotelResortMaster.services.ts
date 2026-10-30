@@ -24,6 +24,7 @@ export interface HotelResortMasterData {
   STATUS_MASTER?: string;
   USER?: string;
   MAC_ADDRESS?: string;
+  LINK_ID?: number | null;
 }
 
 export const getAllHotelResortMasterService = async (status = 'AC') => {
@@ -42,7 +43,7 @@ export const getAllHotelResortMasterService = async (status = 'AC') => {
   }
 };
 
-export const getHotelResortMasterByIdService = async (id: number) => {
+export const getHotelResortMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -50,6 +51,7 @@ export const getHotelResortMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("HOTEL_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? 0)
       .execute("VMaster.GET_HOTEL_RESORT_MASTER");
     return result.recordset[0] || null;
   } catch (error) {
@@ -78,15 +80,15 @@ export const saveHotelResortMasterService = async (data: HotelResortMasterData) 
       .input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER))
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 0)
       .execute("VMaster.SAVE_HOTEL_RESORT_MASTER");
 
-    const sets = result.recordsets as any[][] || [];
-    const lastSet = sets[sets.length - 1] || [];
-    const response = lastSet[0];
+    const { message, data: savedId } = parseSprocResult(result.recordset?.[0], "Failed to save hotel");
 
-    const { message, data: savedData } = parseSprocResult(response, "Failed to save hotel");
-
-    return { message: message || "Data saved successfully", HOTEL_ID: savedData };
+    return {
+      message: message || "Data saved successfully",
+      HOTEL_ID: savedId !== undefined && savedId !== null && savedId !== "" ? Number(savedId) : undefined,
+    };
   } catch (error) {
     console.error("SAVE_HOTEL_RESORT_MASTER SP error:", error);
     throw error;
@@ -113,15 +115,12 @@ export const updateHotelResortMasterService = async (data: HotelResortMasterData
       .input("STATUS_MASTER", sql.VarChar(20), normalizeStatus(data.STATUS_MASTER))
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 0)
       .execute("VMaster.UPDATE_HOTEL_RESORT_MASTER");
 
-    const sets = result.recordsets as any[][] || [];
-    const lastSet = sets[sets.length - 1] || [];
-    const response = lastSet[0];
+    const { message } = parseSprocResult(result.recordset?.[0], "Failed to update hotel");
 
-    const { message, data: savedData } = parseSprocResult(response, "Failed to update hotel");
-
-    return { message: message || "Record updated successfully", HOTEL_ID: savedData };
+    return { message: message || "Record updated successfully", HOTEL_ID: data.HOTEL_ID };
   } catch (error) {
     console.error("UPDATE_HOTEL_RESORT_MASTER SP error:", error);
     throw error;
@@ -145,7 +144,9 @@ export const deleteHotelResortMasterService = async (id: number) => {
     console.error("DELETE_HOTEL_RESORT_MASTER SP error:", error);
     const msg = ((error as any)?.message as string) || "";
     if (msg.includes("REFERENCE constraint") || msg.includes("FK_")) {
-      throw new Error("Cannot delete: This hotel has associated records.");
+      const conflict = new Error("Cannot delete: This hotel has associated records.") as Error & { httpStatus?: number };
+      conflict.httpStatus = 409;
+      throw conflict;
     }
     throw error;
   }

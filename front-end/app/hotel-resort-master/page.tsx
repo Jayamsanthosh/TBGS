@@ -7,6 +7,7 @@ import { fetchHotelResortMasters, addHotelResortMaster, updateHotelResortMaster,
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ export default function HotelResortMasterPage() {
   const dispatch = useAppDispatch();
   const { records, loading, error } = useAppSelector((s) => s.hotelResortMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(127);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("AC");
@@ -172,7 +174,7 @@ export default function HotelResortMasterPage() {
     setLoadingEdit(true);
     setEditing(item);
     try {
-      const response = await dispatch(fetchHotelResortMasterById(Number(item.HOTEL_ID))).unwrap();
+      const response = await dispatch(fetchHotelResortMasterById({ id: Number(item.HOTEL_ID), linkId: linkPagesId })).unwrap();
       if (response) {
         setForm({
           HOTEL_TYPE: response.HOTEL_TYPE || "",
@@ -225,6 +227,7 @@ export default function HotelResortMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
@@ -293,7 +296,7 @@ export default function HotelResortMasterPage() {
             </SelectContent>
           </Select>
         ) : type === "textarea" ? (
-          <Textarea value={form[key] || ""} onChange={(e) => setForm({ ...form, [key]: e.target.value })} placeholder={placeholder} className={`text-xs ${borderClass}`} />
+          <Textarea value={form[key] || ""} onChange={(e) => setForm({ ...form, [key]: e.target.value })} placeholder={placeholder} className={`text-xs ${borderClass}`} maxLength={maxLength} />
         ) : (
           <Input
             type="text"
@@ -440,8 +443,8 @@ export default function HotelResortMasterPage() {
                 <div className="grid grid-cols-2 gap-4">
                   {renderField("HOTEL_NAME", "Hotel Name", "text", undefined, true, "e.g., SERENA", 10)}
                   {renderField("HOTEL_TYPE", "Type", "select", HOTEL_TYPE_OPTIONS, false, "Select hotel type")}
-                  {renderField("HOTEL_STAR", "Star Rating", "text", undefined, false, "e.g., 5 Star")}
-                  {renderField("LOCATION_NAME", "Location", "text", undefined, false, "e.g., Ngorongoro")}
+                  {renderField("HOTEL_STAR", "Star Rating", "text", undefined, false, "e.g., 5 Star", 20)}
+                  {renderField("LOCATION_NAME", "Location", "text", undefined, false, "e.g., Ngorongoro", 50)}
                 </div>
               </div>
               <div>
@@ -455,14 +458,14 @@ export default function HotelResortMasterPage() {
               <div>
                 <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2 mb-3">Address & Status</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  {renderField("HOTEL_ADDRESS", "Address", "textarea", undefined, false, "Street, city, etc.")}
+                  {renderField("HOTEL_ADDRESS", "Address", "textarea", undefined, false, "Street, city, etc.", 150)}
                   {renderField("STATUS_MASTER", "Status", "select", [{ value: "ACTIVE", label: "Active" }, { value: "INACTIVE", label: "Inactive" }], false)}
                 </div>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2 mb-3">Notes</h3>
                 <div className="grid grid-cols-1 gap-4">
-                  {renderField("REMARKS", "Remarks", "textarea", undefined, false, "Additional notes...")}
+                  {renderField("REMARKS", "Remarks", "textarea", undefined, false, "Additional notes...", 100)}
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-2 border-t">

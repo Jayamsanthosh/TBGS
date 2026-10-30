@@ -11,6 +11,7 @@ export interface GunSourceTypeMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const serializeRecordset = (rows: any[]) =>
@@ -45,7 +46,7 @@ export const getAllGunSourceTypeMasterService = async (status?: string) => {
   }
 };
 
-export const getGunSourceTypeMasterByIdService = async (id: number) => {
+export const getGunSourceTypeMasterByIdService = async (id: number, linkId: number | null = null) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -53,6 +54,7 @@ export const getGunSourceTypeMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("GUN_SOURCE_TYPE_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, linkId ?? 0)
       .execute("VMaster.GET_GUN_SOURCE_TYPE_MASTER");
 
     return result.recordset[0] || null;
@@ -76,6 +78,7 @@ export const saveGunSourceTypeMasterService = async (data: GunSourceTypeMasterDa
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 0)
       .execute("VMaster.SAVE_GUN_SOURCE_TYPE_MASTER");
 
     const { status, message, data: savedData } = parseSprocResult(result.recordset?.[0], "Failed to save gun source type");
@@ -101,6 +104,7 @@ export const updateGunSourceTypeMasterService = async (data: GunSourceTypeMaster
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER ?? null)
       .input("USER", sql.VarChar(50), data.USER ?? "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
+      .input("LINK_ID", sql.Int, data.LINK_ID ?? 0)
       .execute("VMaster.UPDATE_GUN_SOURCE_TYPE_MASTER");
 
     const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update gun source type");

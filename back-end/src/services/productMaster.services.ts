@@ -2,6 +2,8 @@ import sql from "mssql";
 import { getPool } from "../config/db";
 import { parseSprocResult } from "../utils/sprocResult";
 
+export const PRODUCT_MASTER_LINK_ID = 110;
+
 export interface ProductMasterData {
   PRODUCT_ID?: number;
   PRODUCT_NAME: string;
@@ -21,46 +23,63 @@ export interface ProductMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 const toIntOrNull = (v: any): number | null =>
   v === undefined || v === null || v === "" || Number.isNaN(Number(v)) ? null : Number(v);
 
-export const getAllProductMasterService = async () => {
+const toLinkId = (v: any): number => {
+  const n = toIntOrNull(v);
+  return n && n > 0 ? n : PRODUCT_MASTER_LINK_ID;
+};
+
+const stampLinkId = async (productId: number, linkId: number): Promise<number> => {
+  const pool = getPool();
+  const result = await pool
+    .request()
+    .input("PRODUCT_ID", sql.Int, productId)
+    .input("LINK_ID", sql.Int, linkId)
+    .query("UPDATE [VMaster].[TBL_PRODUCT_MASTER] SET LINK_ID = @LINK_ID WHERE PRODUCT_ID = @PRODUCT_ID");
+  return result.rowsAffected?.[0] ?? 0;
+};
+
+const notFound = (): Error & { httpStatus?: number } => {
+  const error = new Error("Product not found. It may have already been deleted.") as Error & { httpStatus?: number };
+  error.httpStatus = 404;
+  return error;
+};
+
+export const getAllProductMasterService = async (status = "ALL") => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
   try {
-    /* Direct SELECT instead of SHOW_PRODUCT_MASTER: the deployed SP predates
-       the TRUCK_ID column and omits it, which silently broke the purchase
-       request's Truck auto-fill (product rows carried no TRUCK_ID). */
-    const result = await pool.request().query(
-      `SELECT
-          PRODUCT_ID,
-          PRODUCT_NAME,
-          MAIN_CATEGORY_ID,
-          SUB_CATEGORY_ID,
-          UOM_ID,
-          NO_OF_PCS_PER_PACKING,
-          ALTERNATE_UOM_ID,
-          COST_CENTRE_ID,
-          COMPANY_ID,
-          TRUCK_ID,
-          PRODUCTION_COST,
-          VAT_PERCENTAGE,
-          REMARKS,
-          STATUS_MASTER
-       FROM [VMaster].[TBL_PRODUCT_MASTER]
-       ORDER BY PRODUCT_NAME;`
+    const result = await pool
+      .request()
+      .input("STATUS", sql.VarChar(50), status || "ALL")
+      .execute("VMaster.SHOW_PRODUCT_MASTER");
+
+    const rows = result.recordset || [];
+    if (!rows.length) return rows;
+
+    /* SHOW_PRODUCT_MASTER does not project TRUCK_ID, but the purchase screens
+       auto-fill Truck from it, so merge the column back in. */
+    const trucks = await pool
+      .request()
+      .query("SELECT PRODUCT_ID, TRUCK_ID FROM [VMaster].[TBL_PRODUCT_MASTER]");
+    const truckById = new Map<number, number | null>(
+      (trucks.recordset || []).map((r: any) => [r.PRODUCT_ID, r.TRUCK_ID ?? null])
     );
-    return result.recordset || [];
+
+    return rows.map((row: any) => ({ ...row, TRUCK_ID: truckById.get(row.PRODUCT_ID) ?? null }));
   } catch (error) {
-    console.error("SHOW_PRODUCT_MASTER error:", error);
+    console.error("SHOW_PRODUCT_MASTER SP error:", error);
     throw error;
   }
 };
 
-export const getProductMasterByIdService = async (id: number) => {
+export const getProductMasterByIdService = async (id: number, linkId: number = PRODUCT_MASTER_LINK_ID) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
@@ -68,6 +87,7 @@ export const getProductMasterByIdService = async (id: number) => {
     const result = await pool
       .request()
       .input("PRODUCT_ID", sql.Int, id)
+      .input("LINK_ID", sql.Int, toLinkId(linkId))
       .execute("VMaster.GET_PRODUCT_MASTER");
 
     return result.recordset[0] || null;
@@ -80,6 +100,8 @@ export const getProductMasterByIdService = async (id: number) => {
 export const saveProductMasterService = async (data: ProductMasterData) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
+
+  const linkId = toLinkId(data.LINK_ID);
 
   try {
     const result = await pool
@@ -103,9 +125,16 @@ export const saveProductMasterService = async (data: ProductMasterData) => {
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
       .execute("VMaster.SAVE_PRODUCT_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to save product");
+    const { message, data: savedId } = parseSprocResult(result.recordset?.[0], "Failed to save product");
 
-    return { message: message || "Product saved successfully" };
+    const productId = savedId === undefined || savedId === null || savedId === "" ? null : Number(savedId);
+    if (productId && (await stampLinkId(productId, linkId)) === 0) throw notFound();
+
+    return {
+      message: message || "Product saved successfully",
+      PRODUCT_ID: productId ?? undefined,
+      LINK_ID: linkId,
+    };
   } catch (error) {
     console.error("SAVE_PRODUCT_MASTER SP error:", error);
     throw error;
@@ -116,10 +145,13 @@ export const updateProductMasterService = async (data: ProductMasterData) => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
+  const linkId = toLinkId(data.LINK_ID);
+  const productId = data.PRODUCT_ID ?? 0;
+
   try {
     const result = await pool
       .request()
-      .input("PRODUCT_ID", sql.Int, data.PRODUCT_ID ?? 0)
+      .input("PRODUCT_ID", sql.Int, productId)
       .input("PRODUCT_NAME", sql.VarChar(1500), data.PRODUCT_NAME ?? null)
       .input("TBS_PRODUCT_NAME", sql.VarChar(sql.MAX), data.TBS_PRODUCT_NAME ?? null)
       .input("MAIN_CATEGORY_ID", sql.Int, data.MAIN_CATEGORY_ID ?? null)
@@ -138,9 +170,13 @@ export const updateProductMasterService = async (data: ProductMasterData) => {
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS ?? "WEB")
       .execute("VMaster.UPDATE_PRODUCT_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to update product");
+    const { message } = parseSprocResult(result.recordset?.[0], "Failed to update product");
 
-    return { message: message || "Product updated successfully" };
+    /* UPDATE_PRODUCT_MASTER has no existence check and never writes LINK_ID, so
+       this also verifies the row and keeps it visible to GET_PRODUCT_MASTER. */
+    if ((await stampLinkId(productId, linkId)) === 0) throw notFound();
+
+    return { message: message || "Product updated successfully", PRODUCT_ID: productId };
   } catch (error) {
     console.error("UPDATE_PRODUCT_MASTER SP error:", error);
     throw error;
@@ -165,11 +201,17 @@ export const deleteProductMasterService = async (
       .input("MAC_ADDRESS", sql.VarChar(50), macAddress || "WEB")
       .execute("VMaster.DELETE_PRODUCT_MASTER");
 
-    const { status, message } = parseSprocResult(result.recordset?.[0], "Failed to delete product");
+    const { message } = parseSprocResult(result.recordset?.[0], "Failed to delete product");
 
     return { message: message || "Product deleted successfully" };
   } catch (error) {
     console.error("DELETE_PRODUCT_MASTER SP error:", error);
+    const msg = ((error as any)?.message as string) || "";
+    if (msg.includes("REFERENCE constraint") || msg.includes("FK_")) {
+      const conflict = new Error("Cannot delete: This product is used by other records.") as Error & { httpStatus?: number };
+      conflict.httpStatus = 409;
+      throw conflict;
+    }
     throw error;
   }
 };

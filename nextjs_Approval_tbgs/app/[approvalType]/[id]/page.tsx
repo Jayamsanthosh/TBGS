@@ -116,6 +116,14 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
     // Quotation and order lines both carry rate / discount / tax and FC + LC
     // money, so they share the priced line table.
     const isPricedLines = isPurchaseQuotation || isPurchaseOrder;
+    const isCashAdvance = approvalType === "cash-advance" || approvalType === "cash-advance-request";
+    const isArrears = approvalType === "arrears" || approvalType === "arrears-request";
+    const isOvertime = approvalType === "overtime" || approvalType === "overtime-request";
+    const isBonus = approvalType === "bonus" || approvalType === "bonus-request";
+    const isLeaveEncashment = approvalType === "leave-encashment" || approvalType === "leave-encashment-request";
+    const isPromotionDemotionTransfer =
+        approvalType === "promotion-demotion-transfer" ||
+        approvalType === "promotion-demotion-transfer-request";
 
     const purchaseRequestSections = [
         {
@@ -255,8 +263,43 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
         },
     ];
 
-    const detailSections = isAttendance
-        ? [
+    const currencyLabel =
+        rowData?.currencyType && rowData.currencyType !== "N/A"
+            ? String(rowData.currencyType)
+            : "";
+    const money = (value: any) => formatAmount(value, currencyLabel);
+
+    const baseRequestItems = (fallbackType: string) => [
+        { label: "Reference Number", value: rowData?.poRefNo || "N/A" },
+        { label: "Type", value: rowData?.purchaseType || fallbackType },
+        { label: "Company", value: rowData?.companyName || rowData?.companyId?.toString() || "N/A" },
+        { label: "Department", value: rowData?.departmentName || rowData?.departmentId?.toString() || "N/A" },
+        { label: "Designation", value: rowData?.designationName || "N/A" },
+        { label: "Store", value: rowData?.storeName || "N/A" },
+        { label: "Camp", value: rowData?.campName || rowData?.campId?.toString() || "N/A" },
+        { label: "Requester EMP ID", value: rowData?.empId != null && rowData?.empId !== "" ? `EMP ${rowData.empId}` : "N/A" },
+        { label: "Requested By", value: rowData?.requestedBy || "N/A" },
+        { label: "Requested Date", value: formatDate(rowData?.requestedDate) },
+        { label: "Created Date", value: formatDate(rowData?.createdDate) },
+    ];
+
+    const monthYearItems = [
+        { label: "Process Month", value: rowData?.monthEntered || "N/A" },
+        { label: "Process Year", value: rowData?.yearEntered ?? "N/A" },
+    ];
+
+    const paymentItems = [
+        { label: "Payment Ref No", value: rowData?.paymentRefNo || "N/A" },
+        { label: "Payment Mode", value: rowData?.paymentModeName || "N/A" },
+        { label: "Bank", value: rowData?.bankName || "N/A" },
+        { label: "Account No", value: rowData?.accountNo || "N/A" },
+        { label: "Paid Status", value: rowData?.paidStatus || "N/A" },
+    ];
+
+    let detailSections: any[] = [];
+
+    if (isAttendance) {
+        detailSections = [
             {
                 title: `${pageTitle || 'Request'} Information`,
                 items: [
@@ -266,58 +309,223 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
                     { label: "Department", value: rowData?.departmentName || rowData?.departmentId?.toString() || "N/A" },
                     { label: "Designation", value: rowData?.designationName || "N/A" },
                     { label: "Store", value: rowData?.storeName || "N/A" },
-                    { label: "Created Date", value: rowData?.createdDate || "N/A" },
+                    { label: "Camp", value: rowData?.campName || "N/A" },
+                    { label: "Requester EMP ID", value: rowData?.empId != null && rowData?.empId !== "" ? `EMP ${rowData.empId}` : "N/A" },
+                    { label: "Requested By", value: rowData?.requestedBy || "N/A" },
+                    { label: "Requested Date", value: formatDate(rowData?.requestedDate) },
+                    { label: "Created Date", value: formatDate(rowData?.createdDate) },
                 ]
             },
             {
                 title: "Attendance Details",
                 items: [
                     { label: "Attendance Type", value: rowData?.attendanceTypeName || rowData?.attendanceTypeId?.toString() || "N/A" },
-                    { label: "Date From", value: rowData?.dateFrom || "N/A" },
-                    { label: "Date To", value: rowData?.dateTo || "N/A" },
+                    { label: "Date From", value: formatDate(rowData?.dateFrom) },
+                    { label: "Date To", value: formatDate(rowData?.dateTo) },
                     { label: "No. of Days", value: rowData?.noOfDays?.toString() || "N/A" },
                     { label: "Eligible Days", value: rowData?.eligibleDays?.toString() || "N/A" },
                     { label: "Balance Leave", value: rowData?.balanceLeave?.toString() || "N/A" },
-                    { label: "Process Month", value: rowData?.monthEntered || "N/A" },
-                    { label: "Process Year", value: rowData?.yearEntered?.toString() || "N/A" },
+                    ...monthYearItems,
                     { label: "Reason", value: rowData?.reason || "N/A", isRemark: true },
                 ]
             }
-        ]
-        : isPurchaseRequest
-        ? purchaseRequestSections
-        : isPurchaseQuotation
-        ? purchaseQuotationSections
-        : isPurchaseOrder
-        ? purchaseOrderSections
-        : [
+        ];
+    } else if (isPurchaseRequest) {
+        detailSections = purchaseRequestSections;
+    } else if (isPurchaseQuotation) {
+        detailSections = purchaseQuotationSections;
+    } else if (isPurchaseOrder) {
+        detailSections = purchaseOrderSections;
+    } else if (isCashAdvance) {
+        detailSections = [
             {
-                title: `${pageTitle || 'Request'} Information`,
+                title: "Cash Advance Information",
                 items: [
-                    { label: "Reference Number", value: rowData?.poRefNo || "N/A" },
-                    { label: "Type", value: rowData?.purchaseType || "N/A" },
-                    { label: "Cell", value: rowData?.cell || "N/A" },
-                    { label: "Company", value: rowData?.companyName || rowData?.companyId?.toString() || "N/A" },
-                    { label: "Department", value: rowData?.departmentName || rowData?.departmentId?.toString() || rowData?.poStoreId?.toString() || "N/A" },
-                    { label: "Currency", value: rowData?.currencyType || "N/A" },
-                    { label: "Total Amount", value: formatAmount(rowData?.amount ?? rowData?.totalFinalProductionHdrAmount, rowData?.currencyType) },
-                    { label: "Created Date", value: rowData?.createdDate || "N/A" },
+                    ...baseRequestItems("Cash Advance"),
+                    { label: "Currency", value: currencyLabel || "N/A" },
                 ]
             },
             {
-                title: "Supplier & Request Details",
+                title: "Advance Details",
                 items: [
-                    { label: "Supplier ID", value: rowData?.supplierId?.toString() || "N/A" },
-                    { label: "Requested By", value: rowData?.requestedBy || "N/A" },
-                    { label: "Requested Date", value: rowData?.requestedDate || "N/A" },
+                    { label: "Advance Type", value: rowData?.advanceType || rowData?.purchaseType || "N/A" },
+                    { label: "Request Amount", value: money(rowData?.amount) },
+                    { label: "Salary Deduction Type", value: rowData?.salaryDeductionType || "N/A" },
+                    { label: "Gross Pay", value: money(rowData?.grossPay) },
+                    { label: "Net Pay", value: money(rowData?.netPay) },
+                    { label: "Eligible Amount", value: money(rowData?.eligibleAmount) },
+                    { label: "Approved Amount", value: money(rowData?.approvedAmount) },
+                    { label: "Reason", value: rowData?.reason || "N/A", isRemark: true },
+                ]
+            },
+            {
+                title: "Deduction Plan",
+                items: [
+                    { label: "Deduction From", value: formatDate(rowData?.deductionFromDate) },
+                    { label: "Deduction To", value: formatDate(rowData?.deductionToDate) },
+                    { label: "No. of Months", value: rowData?.noOfMonths ?? "N/A" },
+                    { label: "Monthly Deduction", value: money(rowData?.monthlyDeduction) },
+                ]
+            },
+            {
+                title: "Payment Details",
+                items: [
+                    { label: "Payment Mode", value: rowData?.paymentModeName || "N/A" },
+                    { label: "Bank", value: rowData?.bankName || "N/A" },
+                    { label: "Account No", value: rowData?.accountNo || "N/A" },
+                    ...monthYearItems,
                 ]
             }
         ];
+    } else if (isArrears) {
+        detailSections = [
+            {
+                title: "Arrears Information",
+                items: [...baseRequestItems("Arrears"), { label: "Currency", value: currencyLabel || "N/A" }]
+            },
+            {
+                title: "Arrears Details",
+                items: [
+                    { label: "Request Amount", value: money(rowData?.amount) },
+                    { label: "Approved Amount", value: money(rowData?.approvedAmount) },
+                    ...monthYearItems,
+                    { label: "Reason", value: rowData?.reason || "N/A", isRemark: true },
+                ]
+            }
+        ];
+    } else if (isOvertime) {
+        detailSections = [
+            {
+                title: "Overtime Information",
+                items: [...baseRequestItems("Overtime"), { label: "Currency", value: currencyLabel || "N/A" }]
+            },
+            {
+                title: "Overtime Details",
+                items: [
+                    { label: "OT From", value: formatDate(rowData?.otFromDate) },
+                    { label: "OT To", value: formatDate(rowData?.otToDate) },
+                    { label: "OT Hours", value: rowData?.otHours ?? "N/A" },
+                    { label: "Request Amount", value: money(rowData?.amount) },
+                    { label: "Approved Amount", value: money(rowData?.approvedAmount) },
+                    ...monthYearItems,
+                    { label: "Reason", value: rowData?.reason || "N/A", isRemark: true },
+                ]
+            },
+            {
+                title: "Payment Details",
+                items: paymentItems
+            }
+        ];
+    } else if (isBonus) {
+        detailSections = [
+            {
+                title: "Bonus Information",
+                items: [...baseRequestItems("Bonus"), { label: "Currency", value: currencyLabel || "N/A" }]
+            },
+            {
+                title: "Bonus Details",
+                items: [
+                    { label: "Bonus Type", value: rowData?.bonusType || "N/A" },
+                    { label: "Request Amount", value: money(rowData?.requestAmount ?? rowData?.amount) },
+                    { label: "Approved Amount", value: money(rowData?.approvedAmount) },
+                    ...monthYearItems,
+                    { label: "Reason", value: rowData?.reason || "N/A", isRemark: true },
+                ]
+            },
+            {
+                title: "Payment Details",
+                items: paymentItems
+            }
+        ];
+    } else if (isLeaveEncashment) {
+        detailSections = [
+            {
+                title: "Leave Encashment Information",
+                items: [...baseRequestItems("Leave Encashment"), { label: "Currency", value: currencyLabel || "N/A" }]
+            },
+            {
+                title: "Encashment Details",
+                items: [
+                    { label: "Balance Leave Days", value: rowData?.balanceLeaveDays ?? "N/A" },
+                    { label: "Encashment Days", value: rowData?.encashmentDays ?? "N/A" },
+                    { label: "Gross Amount", value: money(rowData?.grossAmount ?? rowData?.amount) },
+                    ...monthYearItems,
+                    { label: "Reason", value: rowData?.reason || "N/A", isRemark: true },
+                ]
+            }
+        ];
+    } else if (isPromotionDemotionTransfer) {
+        detailSections = [
+            {
+                title: "Employee Information",
+                items: baseRequestItems("Promotion Demotion Transfer")
+            },
+            {
+                title: "Transfer Details",
+                items: [
+                    { label: "Transfer Type", value: rowData?.transferType || "N/A" },
+                    { label: "Old Company", value: rowData?.oldCompanyName || "N/A" },
+                    { label: "Old Department", value: rowData?.oldDepartmentName || "N/A" },
+                    { label: "Old Designation", value: rowData?.oldDesignationName || "N/A" },
+                    { label: "Old Gross Amount", value: money(rowData?.oldGrossAmount) },
+                    { label: "New Company", value: rowData?.newCompanyName || "N/A" },
+                    { label: "New Department", value: rowData?.newDepartmentName || "N/A" },
+                    { label: "New Designation", value: rowData?.newDesignationName || "N/A" },
+                    { label: "New Store", value: rowData?.newStoreName || "N/A" },
+                    { label: "New Camp", value: rowData?.newCampName || "N/A" },
+                    { label: "New Gross Amount", value: money(rowData?.newGrossAmount) },
+                    { label: "Reporting Manager ID", value: rowData?.reportingManagerId ?? "N/A" },
+                    { label: "Manager Recommended", value: rowData?.managerRecommendedYn || "N/A" },
+                    ...monthYearItems,
+                    { label: "Reason", value: rowData?.reason || "N/A", isRemark: true },
+                ]
+            }
+        ];
+    } else {
+        detailSections = [
+            {
+                title: `${pageTitle || 'Request'} Information`,
+                items: [
+                    ...baseRequestItems(pageTitle || "Request"),
+                    { label: "Currency", value: currencyLabel || "N/A" },
+                    { label: "Total Amount", value: money(rowData?.amount ?? rowData?.totalFinalProductionHdrAmount) },
+                ]
+            },
+            {
+                title: "Request Details",
+                items: [
+                    { label: "Approved Amount", value: money(rowData?.approvedAmount) },
+                    ...monthYearItems,
+                    { label: "Reason", value: rowData?.reason || "N/A", isRemark: true },
+                ]
+            },
+            {
+                title: "Payment Details",
+                items: paymentItems
+            }
+        ];
+    }
 
     // Purchase requests carry the approver's name and a timestamp per level;
-    // the HR rows only carry the EMP_ID, so the Date row is PR-only.
-    const approvalDateItems = (value: any) =>
-        isPurchaseRequest || isPurchaseQuotation || isPurchaseOrder ? [{ label: "Date", value: formatDate(value) }] : [];
+    // the HR rows only carry the EMP_ID, so the Date row is shown when the
+    // request proc actually returns one.
+    const approvalDateItems = (value: any) => {
+        if (isPurchaseRequest || isPurchaseQuotation || isPurchaseOrder) {
+            return [{ label: "Date", value: formatDate(value) }];
+        }
+        return value ? [{ label: "Date", value: formatDate(value) }] : [];
+    };
+
+    const hasFinalApproval =
+        !isPurchaseRequest &&
+        !isPurchaseQuotation &&
+        !isPurchaseOrder &&
+        Boolean(
+            rowData?.finalResponsePerson ||
+            rowData?.finalResponsePersonName ||
+            rowData?.finalResponseDate ||
+            rowData?.finalResponseRemarks
+        );
 
     const approvalSections = [
         {
@@ -346,7 +554,18 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
                 ...approvalDateItems(rowData?.response2Date),
                 { label: "Remarks", value: rowData?.response2Remarks || "No remarks provided" },
             ]
-        }
+        },
+        ...(hasFinalApproval
+            ? [{
+                title: "Final Approval",
+                items: [
+                    { label: "Authority", value: rowData?.finalResponsePersonName || rowData?.finalResponsePerson || "Not Assigned" },
+                    { label: "Status", value: rowData?.finalResponseStatus || "PENDING", isStatus: true },
+                    ...approvalDateItems(rowData?.finalResponseDate),
+                    { label: "Remarks", value: rowData?.finalResponseRemarks || "No remarks provided" },
+                ]
+            }]
+            : []),
     ];
 
     const productLineItems: any[] = Array.isArray(rowData?.productLineItems)
@@ -435,7 +654,7 @@ const ViewDetailPage = ({ searchParams }: ViewDetailPageProps) => {
                         </div>
                         <div className="p-8 flex-1">
                             <div className="grid grid-cols-1 gap-y-4">
-                                {section.items.map((item, index) => (
+                                {section.items.map((item: any, index: number) => (
                                     <div key={index} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0 group">
                                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-indigo-400 transition-colors">{item.label}</span>
                                         {(item as any).isRemark ? (

@@ -33,6 +33,9 @@ import rackSectionMasterReducer from "./rackSectionMasterSlice";
 import rackMasterReducer from "./rackMasterSlice";
 import vatPercentageSettingReducer from "./vatPercentageSettingSlice";
 import hotelResortMasterReducer from "./hotelResortMasterSlice";
+import guideMasterReducer from "./guideMasterSlice";
+import transportServiceTypeMasterReducer from "./transportServiceTypeMasterSlice";
+import subMenuMappingReducer from "./subMenuMappingSlice";
 import hotelRoomTypeMasterReducer from "./hotelRoomTypeMasterSlice";
 import airlinesReducer from "./airlinesMasterSlice";
 import caliberReducer from "./caliberMasterSlice";
@@ -195,6 +198,9 @@ export const store = configureStore({
     rackMaster: rackMasterReducer,
     vatPercentageSetting: vatPercentageSettingReducer,
     hotelResortMaster: hotelResortMasterReducer,
+    guideMaster: guideMasterReducer,
+    transportServiceTypeMaster: transportServiceTypeMasterReducer,
+    subMenuMapping: subMenuMappingReducer,
     hotelRoomTypeMaster: hotelRoomTypeMasterReducer,
     airlines: airlinesReducer,
     caliber: caliberReducer,

@@ -19,6 +19,7 @@ export interface ProductGridData {
   VAT_PERCENTAGE?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface ProductState {
@@ -52,9 +53,10 @@ export const fetchProducts = createAsyncThunk(
 
 export const fetchProductById = createAsyncThunk(
   "product/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (args: { id: number; linkId?: number | null }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/product-master/${id}`);
+      const linkId = args.linkId ?? 0;
+      const response = await fetch(`${API_URL}/product-master/${args.id}?link_id=${linkId}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch product");
@@ -110,17 +112,9 @@ export const updateProduct = createAsyncThunk(
 
 export const deleteProduct = createAsyncThunk(
   "product/delete",
-  async (id: string | number, { rejectWithValue, getState }) => {
+  async (id: string | number, { rejectWithValue }) => {
     try {
-      const state: any = getState();
-      const authUser = state.auth?.user;
-      const USER = authUser?.loginName || authUser?.LOGIN_NAME || "Admin";
-      const ROLE = authUser?.role || authUser?.ROLE || "Admin";
-
-      const response = await fetch(
-        `${API_URL}/product-master/${id}?USER=${encodeURIComponent(USER)}&ROLE=${encodeURIComponent(ROLE)}&MAC_ADDRESS=WEB`,
-        { method: "DELETE" }
-      );
+      const response = await fetch(`${API_URL}/product-master/${id}`, { method: "DELETE" });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to delete product");

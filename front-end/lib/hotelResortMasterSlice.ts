@@ -17,6 +17,7 @@ export interface HotelResortMasterGridData {
   HOTEL_ADDRESS?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface HotelResortMasterState {
@@ -50,9 +51,10 @@ export const fetchHotelResortMasters = createAsyncThunk(
 
 export const fetchHotelResortMasterById = createAsyncThunk(
   "hotelResortMaster/fetchById",
-  async (id: number, { rejectWithValue }) => {
+  async (args: { id: number; linkId?: number | null }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/hotel-resort-master/${id}`);
+      const linkId = args.linkId ?? 0;
+      const response = await fetch(`${API_URL}/hotel-resort-master/${args.id}?link_id=${linkId}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch hotel");
@@ -110,10 +112,7 @@ export const deleteHotelResortMaster = createAsyncThunk(
   "hotelResortMaster/delete",
   async (id: string | number, { rejectWithValue }) => {
     try {
-      const response = await fetch(
-        `${API_URL}/hotel-resort-master/${id}?USER=Admin&ROLE=Admin&MAC_ADDRESS=WEB`,
-        { method: "DELETE" }
-      );
+      const response = await fetch(`${API_URL}/hotel-resort-master/${id}`, { method: "DELETE" });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to delete hotel");

@@ -1,4 +1,5 @@
-import { Request, Response } from "express";
+import { Request, Response } from "express";
+
 import { identityFrom } from "../utils/identity";
 import {
   getAllProductMasterService,
@@ -6,16 +7,24 @@ import {
   saveProductMasterService,
   updateProductMasterService,
   deleteProductMasterService,
+  PRODUCT_MASTER_LINK_ID,
   ProductMasterData
 } from "../services/productMaster.services";
 
-export const getAllProductMaster = async (_req: Request, res: Response): Promise<void> => {
+const linkIdFrom = (req: Request): number => {
+  const raw = req.body?.LINK_ID ?? req.query.link_id ?? req.query.linkId;
+  const linkId = Number(raw);
+  return Number.isFinite(linkId) && linkId > 0 ? Math.trunc(linkId) : PRODUCT_MASTER_LINK_ID;
+};
+
+export const getAllProductMaster = async (req: Request, res: Response): Promise<void> => {
   try {
-    const products = await getAllProductMasterService();
+    const status = (req.query.status as string) || "ALL";
+    const products = await getAllProductMasterService(status);
     res.json({ success: true, count: products.length, data: products });
   } catch (error: any) {
     console.error("GetAllProductMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -28,7 +37,7 @@ export const getProductMasterById = async (req: Request, res: Response): Promise
   }
 
   try {
-    const product = await getProductMasterByIdService(parseInt(id as string, 10));
+    const product = await getProductMasterByIdService(parseInt(id as string, 10), linkIdFrom(req));
 
     if (!product) {
       res.status(404).json({ success: false, message: "Product not found" });
@@ -38,7 +47,7 @@ export const getProductMasterById = async (req: Request, res: Response): Promise
     res.json({ success: true, data: product });
   } catch (error: any) {
     console.error("GetProductMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -55,12 +64,18 @@ export const saveProductMaster = async (req: Request, res: Response): Promise<vo
     return;
   }
 
+  productData.LINK_ID = linkIdFrom(req);
+
   try {
     const result = await saveProductMasterService(productData);
-    res.json({ success: true, message: result.message || "Product saved successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Product saved successfully",
+      PRODUCT_ID: result.PRODUCT_ID,
+    });
   } catch (error: any) {
     console.error("SaveProductMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -77,12 +92,18 @@ export const updateProductMaster = async (req: Request, res: Response): Promise<
     return;
   }
 
+  productData.LINK_ID = linkIdFrom(req);
+
   try {
     const result = await updateProductMasterService(productData);
-    res.json({ success: true, message: result.message || "Product updated successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Product updated successfully",
+      PRODUCT_ID: result.PRODUCT_ID,
+    });
   } catch (error: any) {
     console.error("UpdateProductMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -105,6 +126,6 @@ export const deleteProductMaster = async (req: Request, res: Response): Promise<
     res.json({ success: true, message: result.message || "Product deleted successfully", PRODUCT_ID: parseInt(id as string, 10) });
   } catch (error: any) {
     console.error("DeleteProductMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

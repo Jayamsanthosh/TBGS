@@ -2,6 +2,12 @@ import sql from "mssql";
 import { getPool } from "../config/db";
 import { parseSprocResult } from "../utils/sprocResult";
 
+/**
+ * TBL_LINKS_AND_PAGES row for /status-master. Used as the default LINK_ID when
+ * the caller does not send one (SAVE/UPDATE_STATUS_MASTER require @link_id).
+ */
+export const STATUS_MASTER_LINK_ID = 259;
+
 export interface StatusMasterData {
   STATUS_ID?: number;
   STATUS_CODE: string;
@@ -14,6 +20,7 @@ export interface StatusMasterData {
   USER?: string;
   MAC_ADDRESS?: string;
   ROLE?: string;
+  LINK_ID?: number | null;
 }
 
 export interface StatusMasterListFilter {
@@ -29,6 +36,24 @@ const toNullablePage = (v: number | null | undefined): number | null =>
 
 const toNullableInt = (v: any): number | null =>
   v === undefined || v === null || v === "" || Number.isNaN(Number(v)) ? null : Number(v);
+
+const errorWithStatus = (message: string, httpStatus: number) => {
+  const error = new Error(message) as Error & { httpStatus?: number };
+  error.httpStatus = httpStatus;
+  return error;
+};
+
+/* TBL_STATUS_MASTER.LINK_ID carries FK_LINK_ID_TBL_STATUS_MASTER. */
+const rethrowWriteError = (error: any): never => {
+  if (error?.number === 547) throw errorWithStatus("Invalid LINK_ID", 400);
+  throw error;
+};
+
+export const toStatusLinkId = (value: unknown): number => {
+  if (value === undefined || value === null || value === "") return STATUS_MASTER_LINK_ID;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : STATUS_MASTER_LINK_ID;
+};
 
 const mapSingleRowToFrontend = (row: any) => {
   if (!row) return null;
@@ -47,6 +72,7 @@ const mapSingleRowToFrontend = (row: any) => {
     modifiedBy: row.MODIFIED_BY,
     modifiedDate: row.MODIFIED_DATE,
     modifiedMacAddress: row.MODIFIED_MAC_ADDRESS,
+    linkId: row.LINK_ID,
   };
 };
 
@@ -66,6 +92,7 @@ export const saveStatusMasterService = async (data: StatusMasterData) => {
       .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || "ACTIVE")
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, toStatusLinkId(data.LINK_ID))
       .execute("VMASTER.SAVE_STATUS_MASTER");
 
     const { status, message, data: id } = parseSprocResult(
@@ -76,7 +103,7 @@ export const saveStatusMasterService = async (data: StatusMasterData) => {
     return { message: message || "Status saved successfully", id: Number(id) || null };
   } catch (error) {
     console.error("SAVE_STATUS_MASTER SP error:", error);
-    throw error;
+    throw rethrowWriteError(error);
   }
 };
 
@@ -94,9 +121,10 @@ export const updateStatusMasterService = async (data: StatusMasterData) => {
       .input("DESCRIPTION", sql.VarChar(500), data.DESCRIPTION || null)
       .input("SORT_ORDER", sql.Int, toNullableInt(data.SORT_ORDER))
       .input("REMARKS", sql.VarChar(100), data.REMARKS || null)
-      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || null)
+      .input("STATUS_MASTER", sql.VarChar(20), data.STATUS_MASTER || "ACTIVE")
       .input("USER", sql.VarChar(50), data.USER || "Admin")
       .input("MAC_ADDRESS", sql.VarChar(50), data.MAC_ADDRESS || "WEB")
+      .input("link_id", sql.Int, toStatusLinkId(data.LINK_ID))
       .execute("VMASTER.UPDATE_STATUS_MASTER");
 
     const { status, message } = parseSprocResult(
@@ -107,7 +135,7 @@ export const updateStatusMasterService = async (data: StatusMasterData) => {
     return { message: message || "Status updated successfully" };
   } catch (error) {
     console.error("UPDATE_STATUS_MASTER SP error:", error);
-    throw error;
+    throw rethrowWriteError(error);
   }
 };
 
@@ -121,6 +149,15 @@ export const deleteStatusMasterService = async (
   if (!pool) throw new Error("Database not connected");
 
   try {
+    const existing = await pool
+      .request()
+      .input("STATUS_ID", sql.Int, id)
+      .query("SELECT STATUS_ID FROM VMASTER.TBL_STATUS_MASTER WHERE STATUS_ID = @STATUS_ID");
+
+    if (!existing.recordset?.length) {
+      throw errorWithStatus("Status Master record not found.", 404);
+    }
+
     const result = await pool
       .request()
       .input("STATUS_ID", sql.Int, id)

@@ -30,7 +30,8 @@ export const getGunSourceTypeMasterById = async (req: Request, res: Response): P
   }
 
   try {
-    const item = await getGunSourceTypeMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || (req.query.linkId as string) || "0", 10) || 0;
+    const item = await getGunSourceTypeMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!item) {
       res.status(404).json({ success: false, message: "Gun source type not found" });
@@ -40,7 +41,7 @@ export const getGunSourceTypeMasterById = async (req: Request, res: Response): P
     res.json({ success: true, data: item });
   } catch (error: any) {
     console.error("GetGunSourceTypeMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -59,12 +60,17 @@ export const saveGunSourceTypeMaster = async (req: Request, res: Response): Prom
     return;
   }
 
+  if (data.LINK_ID === undefined || data.LINK_ID === null) {
+    const linkId = parseInt((req.query.link_id as string) || "0", 10);
+    if (Number.isFinite(linkId) && linkId > 0) data.LINK_ID = linkId;
+  }
+
   try {
     const result = await saveGunSourceTypeMasterService(data);
     res.json({ success: true, message: result.message || "Data saved successfully", GUN_SOURCE_TYPE_ID: result.GUN_SOURCE_TYPE_ID });
   } catch (error: any) {
     console.error("SaveGunSourceTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -82,6 +88,11 @@ export const updateGunSourceTypeMaster = async (req: Request, res: Response): Pr
     return;
   }
 
+  if (data.LINK_ID === undefined || data.LINK_ID === null) {
+    const linkId = parseInt((req.query.link_id as string) || "0", 10);
+    if (Number.isFinite(linkId) && linkId > 0) data.LINK_ID = linkId;
+  }
+
   try {
     if (!data.GUN_SOURCE_TYPE_ID && id) {
       data.GUN_SOURCE_TYPE_ID = parseInt(id as string, 10);
@@ -91,7 +102,7 @@ export const updateGunSourceTypeMaster = async (req: Request, res: Response): Pr
     res.json({ success: true, message: result.message || "Record updated successfully" });
   } catch (error: any) {
     console.error("UpdateGunSourceTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -114,6 +125,6 @@ export const deleteGunSourceTypeMaster = async (req: Request, res: Response): Pr
     res.json({ success: true, message: result.message || "Record deleted successfully" });
   } catch (error: any) {
     console.error("DeleteGunSourceTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

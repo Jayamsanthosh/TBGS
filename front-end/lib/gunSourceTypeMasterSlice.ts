@@ -8,6 +8,7 @@ export interface GunSourceTypeGridData {
   GUN_SOURCE_TYPE_DESCRIPTION?: string;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface GunSourceTypeState {

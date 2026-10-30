@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import {
   fetchStatuses,
   fetchStatusById,
@@ -43,6 +44,7 @@ export default function StatusMasterPage() {
   const dispatch = useAppDispatch();
   const { items, total, loading, error } = useAppSelector((s) => s.statusMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(259);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -63,7 +65,7 @@ export default function StatusMasterPage() {
     }
     return "Manager";
   }, []);
-  const isAdmin = role === "Admin" || role === "Super Admin" || role === "Administrator";
+  const isAdmin = String(role || "").trim().toLowerCase() === "admin";
 
   const data = useMemo(() => Array.isArray(items) ? items : [], [items]);
 
@@ -191,6 +193,7 @@ export default function StatusMasterPage() {
         STATUS_MASTER: form.STATUS_MASTER || "ACTIVE",
         USER: "Admin",
         MAC_ADDRESS: "WEB",
+        LINK_ID: linkPagesId,
       };
 
       if (editing) {
