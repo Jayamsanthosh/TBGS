@@ -17,6 +17,7 @@ export interface StatusMasterGridData {
   modifiedBy?: string;
   modifiedDate?: string;
   modifiedMacAddress?: string;
+  linkId?: number | null;
 }
 
 export interface StatusMasterOption {

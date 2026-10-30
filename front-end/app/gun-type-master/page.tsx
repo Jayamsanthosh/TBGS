@@ -12,12 +12,13 @@ import {
   GunTypeGridData,
 } from "@/lib/gunTypeMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
-  { key: "TYPE_NAME", label: "Type Name", type: "text", required: true, placeholder: "e.g., BOLT ACTION" },
-  { key: "DESCRIPTION", label: "Description", type: "text", placeholder: "e.g., Rifle Gun Type" },
-  { key: "REMARKS", label: "Remarks", type: "textarea", placeholder: "Enter any remarks" },
+  { key: "TYPE_NAME", label: "Type Name", type: "text", required: true, placeholder: "e.g., BOLT ACTION", maxLength: 100 },
+  { key: "DESCRIPTION", label: "Description", type: "text", placeholder: "e.g., Rifle Gun Type", maxLength: 200 },
+  { key: "REMARKS", label: "Remarks", type: "textarea", placeholder: "Enter any remarks", maxLength: 100 },
   {
     key: "STATUS_MASTER",
     label: "Status",
@@ -62,6 +63,7 @@ export default function GunTypeMasterPage() {
   const dispatch = useAppDispatch();
   const { gunTypes, loading, error } = useAppSelector((s) => s.gunType);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(119);
   const [currentStatus, setCurrentStatus] = useState<string>("AC");
 
   useEffect(() => {
@@ -83,12 +85,12 @@ export default function GunTypeMasterPage() {
     data: gunTypes,
     isLoading: loading,
     add: async (item: GunTypeGridData) => {
-      const res = await dispatch(addGunType(item)).unwrap();
+      const res = await dispatch(addGunType({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchGunTypes(currentStatus));
       return res;
     },
     update: async (item: GunTypeGridData) => {
-      const res = await dispatch(updateGunType(item)).unwrap();
+      const res = await dispatch(updateGunType({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchGunTypes(currentStatus));
       return res;
     },
@@ -105,7 +107,7 @@ export default function GunTypeMasterPage() {
       dispatch(fetchGunTypes(currentStatus));
       return res;
     },
-  }), [gunTypes, loading, dispatch, currentStatus]);
+  }), [gunTypes, loading, dispatch, currentStatus, linkPagesId]);
 
   return (
     <MasterCrudPage

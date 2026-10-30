@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { fetchItems, addItem, updateItem, deleteItem, clearError, type GunSourceTypeGridData } from "@/lib/gunSourceTypeMasterSlice";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,6 +64,7 @@ export default function GunSourceTypeMasterPage() {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.gunSourceTypeMaster);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(249);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -161,6 +163,7 @@ export default function GunSourceTypeMasterPage() {
       STATUS_MASTER: editing ? form.STATUS_MASTER : "AC",
       USER: "Admin",
       MAC_ADDRESS: "WEB",
+      LINK_ID: linkPagesId,
     };
 
     try {

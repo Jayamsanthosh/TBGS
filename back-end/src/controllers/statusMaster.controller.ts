@@ -8,8 +8,52 @@ import {
   getStatusMasterListService,
   getStatusMasterByIdService,
   loadStatusMasterOptionsService,
+  toStatusLinkId,
   StatusMasterData
 } from "../services/statusMaster.services";
+
+const optionalText = (value: unknown): string | null => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text === "" ? null : text;
+};
+
+const linkIdFrom = (req: Request, body: any): number =>
+  toStatusLinkId(
+    req.query.link_id ?? req.query.linkId ?? body?.LINK_ID ?? body?.link_id ?? body?.linkId
+  );
+
+const collectStatusPayload = (req: Request): StatusMasterData => {
+  const body: any = req.body || {};
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  return {
+    STATUS_ID: body.STATUS_ID ?? body.statusId,
+    STATUS_CODE: optionalText(body.STATUS_CODE ?? body.statusCode) as string,
+    STATUS_NAME: optionalText(body.STATUS_NAME ?? body.statusName) as string,
+    STATUS_CATEGORY: optionalText(body.STATUS_CATEGORY ?? body.statusCategory),
+    DESCRIPTION: optionalText(body.DESCRIPTION ?? body.description),
+    SORT_ORDER: body.SORT_ORDER ?? body.sortOrder ?? null,
+    REMARKS: optionalText(body.REMARKS ?? body.remarks),
+    STATUS_MASTER: optionalText(body.STATUS_MASTER ?? body.statusMaster) || "ACTIVE",
+    USER,
+    MAC_ADDRESS,
+    LINK_ID: linkIdFrom(req, body),
+  };
+};
+
+const validateStatusPayload = (data: StatusMasterData): string | null => {
+  if (!data.STATUS_CODE) return "Status Code is required";
+  if (!data.STATUS_NAME) return "Status Name is required";
+  if (data.STATUS_CODE.length > 30) return "Status Code cannot exceed 30 characters";
+  if (data.STATUS_NAME.length > 100) return "Status Name cannot exceed 100 characters";
+  if (data.STATUS_CATEGORY && data.STATUS_CATEGORY.length > 50)
+    return "Category cannot exceed 50 characters";
+  if (data.DESCRIPTION && data.DESCRIPTION.length > 500)
+    return "Description cannot exceed 500 characters";
+  if (data.REMARKS && data.REMARKS.length > 100)
+    return "Remarks cannot exceed 100 characters";
+  return null;
+};
 
 export const getAllStatusMaster = async (req: Request, res: Response): Promise<void> => {
   const status = (req.query.status as string) || "ALL";
@@ -66,15 +110,11 @@ export const getStatusMasterLoad = async (req: Request, res: Response): Promise<
 };
 
 export const saveStatusMaster = async (req: Request, res: Response): Promise<void> => {
-  const statusData: StatusMasterData = req.body;
+  const statusData = collectStatusPayload(req);
 
-  if (!statusData.STATUS_CODE) {
-    res.status(400).json({ success: false, message: "Status Code is required" });
-    return;
-  }
-
-  if (!statusData.STATUS_NAME) {
-    res.status(400).json({ success: false, message: "Status Name is required" });
+  const validationError = validateStatusPayload(statusData);
+  if (validationError) {
+    res.status(400).json({ success: false, message: validationError });
     return;
   }
 
@@ -92,7 +132,7 @@ export const saveStatusMaster = async (req: Request, res: Response): Promise<voi
 };
 
 export const updateStatusMaster = async (req: Request, res: Response): Promise<void> => {
-  const statusData: StatusMasterData = req.body;
+  const statusData = collectStatusPayload(req);
   const { id } = req.params;
 
   if (!statusData.STATUS_ID && id) {
@@ -105,13 +145,9 @@ export const updateStatusMaster = async (req: Request, res: Response): Promise<v
     return;
   }
 
-  if (!statusData.STATUS_CODE) {
-    res.status(400).json({ success: false, message: "Status Code is required" });
-    return;
-  }
-
-  if (!statusData.STATUS_NAME) {
-    res.status(400).json({ success: false, message: "Status Name is required" });
+  const validationError = validateStatusPayload(statusData);
+  if (validationError) {
+    res.status(400).json({ success: false, message: validationError });
     return;
   }
 

@@ -1157,10 +1157,12 @@ export const getRequestDetailService = async (
       row.TRANSFER_REQUEST_REF_NO ||
       null,
     requestedBy: row.requestedBy || row.FIRST_NAME || row.EMP_ID || null,
-    requestedDate: row.CREATED_DATE ?? null,
-    createdDate: row.createdDate ?? row.CREATED_DATE ?? null,
+    // Prefer the list proc's camelCase aliases: the HR detail path does not
+    // re-query the header, so the UPPERCASE columns are not in the projection.
+    requestedDate: firstNonEmpty(row.requestedDate, row.CREATED_DATE, row.poDate),
+    createdDate: firstNonEmpty(row.createdDate, row.CREATED_DATE),
     amount: row.amount ?? row.REQUEST_AMOUNT ?? row.NO_OF_DAYS ?? null,
-    currencyType: row.currencyName || "TZS",
+    currencyType: firstNonEmpty(row.currencyName, row.currencyType) || "TZS",
     // Prefer the proc's camelCase alias: the raw UPPERCASE columns may be
     // missing from the projection, which used to reset every badge to PENDING.
     response1Status: normalizeStatus(firstNonEmpty(row.response1Status, row.RESPONSE_1_STATUS)),

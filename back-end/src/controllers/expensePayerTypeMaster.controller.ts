@@ -30,7 +30,8 @@ export const getExpensePayerTypeMasterById = async (req: Request, res: Response)
   }
 
   try {
-    const expensePayerType = await getExpensePayerTypeMasterByIdService(parseInt(id as string, 10));
+    const linkId = parseInt((req.query.link_id as string) || (req.query.linkId as string) || "0", 10) || 0;
+    const expensePayerType = await getExpensePayerTypeMasterByIdService(parseInt(id as string, 10), linkId);
 
     if (!expensePayerType) {
       res.status(404).json({ success: false, message: "Expense Payer Type not found" });
@@ -40,7 +41,7 @@ export const getExpensePayerTypeMasterById = async (req: Request, res: Response)
     res.json({ success: true, data: expensePayerType });
   } catch (error: any) {
     console.error("GetExpensePayerTypeMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -52,12 +53,17 @@ export const saveExpensePayerTypeMaster = async (req: Request, res: Response): P
     return;
   }
 
+  if (expensePayerTypeData.LINK_ID === undefined || expensePayerTypeData.LINK_ID === null) {
+    const linkId = parseInt((req.query.link_id as string) || "0", 10);
+    if (Number.isFinite(linkId) && linkId > 0) expensePayerTypeData.LINK_ID = linkId;
+  }
+
   try {
     const result = await saveExpensePayerTypeMasterService(expensePayerTypeData);
     res.json({ success: true, message: result.message || "Data saved successfully", PAID_BY_ID: result.PAID_BY_ID });
   } catch (error: any) {
     console.error("SaveExpensePayerTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -74,7 +80,7 @@ export const updateExpensePayerTypeMaster = async (req: Request, res: Response):
     res.json({ success: true, message: result.message || "Record updated successfully" });
   } catch (error: any) {
     console.error("UpdateExpensePayerTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -97,6 +103,6 @@ export const deleteExpensePayerTypeMaster = async (req: Request, res: Response):
     res.json({ success: true, message: result.message || "Record deleted successfully" });
   } catch (error: any) {
     console.error("DeleteExpensePayerTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
