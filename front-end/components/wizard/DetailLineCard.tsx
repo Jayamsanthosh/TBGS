@@ -22,22 +22,24 @@ const resolveOptions = (
 const labelCls = "text-[10px] leading-tight";
 const boxCls = "!h-8 gap-1 text-xs";
 
-const Field = ({
+export const Field = ({
   field,
   row,
   onChange,
   invalid,
+  hideLabel = false,
 }: {
   field: FieldDescriptor;
   row: any;
   onChange: (key: string, value: any) => void;
   invalid?: boolean;
+  hideLabel?: boolean;
 }) => {
   const border = invalid ? "border-destructive ring-1 ring-destructive/30" : "";
   /* Per-line lock, resolved once here so every editable kind below honours it. */
   const locked = typeof field.disabled === "function" ? !!field.disabled(row) : !!field.disabled;
 
-  const label = (
+  const label = hideLabel ? null : (
     <Label className={labelCls}>
       {field.label}
       {field.required ? <span className="text-destructive ml-0.5">*</span> : null}

@@ -5,7 +5,8 @@ import { Plus, Search, Pencil, Trash2, Loader2, Send } from "lucide-react";
 import RequestReview from "./request-review";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
-import DetailLineCard from "@/components/wizard/DetailLineCard";
+import DetailGrid from "@/components/wizard/DetailGrid";
+import PurchaseRequestPdfActions from "@/components/PurchaseRequestPdfActions";
 import {
   HDR_STEP,
   DTL_STEP,
@@ -137,6 +138,7 @@ export default function PurchaseRequestPage() {
   const [focusRequest, setFocusRequest] = useState<{ key: string; nonce: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [submitTarget, setSubmitTarget] = useState<any | null>(null);
   const [submittingRef, setSubmittingRef] = useState<string | null>(null);
 
   const role = useMemo(() => {
@@ -310,6 +312,25 @@ export default function PurchaseRequestPage() {
     (Array.isArray(products) ? products : [])
       .filter((p: any) => (!companyId || String(p.COMPANY_ID) === String(companyId)) && (!mainId || String(p.MAIN_CATEGORY_ID) === String(mainId)))
       .map((p: any) => ({ value: String(p.PRODUCT_ID), label: p.PRODUCT_NAME }));
+
+  const productNameFor = (productId: any) => {
+    const product = (Array.isArray(products) ? products : []).find(
+      (p: any) => String(p.PRODUCT_ID) === String(productId)
+    );
+    return String(product?.PRODUCT_NAME ?? "").trim();
+  };
+
+  const normalizeProductName = (value: any) =>
+    String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+  const productKeyForId = (productId: any) => {
+    const name = normalizeProductName(productNameFor(productId));
+    return name ? `name:${name}` : `id:${String(productId ?? "").trim()}`;
+  };
+
+  const productKeyForRow = (row: any) => productKeyForId(row?.PRODUCT_ID);
+
+  const productLabel = (productId: any) => productNameFor(productId) || `Product #${productId}`;
 
   const uniqueFinalStatuses = useMemo(() => {
     if (!Array.isArray(items)) return [];
@@ -501,6 +522,21 @@ export default function PurchaseRequestPage() {
   };
 
   const updateDtl = (key: string, field: string, value: any) => {
+    if (field === "PRODUCT_ID" && value !== "" && value !== null && value !== undefined) {
+      const productKey = productKeyForId(value);
+      const duplicateCount = dtls.filter(
+        (r) => r.key !== key && productKeyForRow(r) === productKey
+      ).length;
+      if (duplicateCount >= 2) {
+        toast({
+          title: `${productLabel(value)} is already added twice.`,
+          description: "The same product can be added at most twice. Remove a duplicate line or choose another product.",
+          variant: "destructive",
+          duration: DEFAULT_TOAST_DURATION,
+        });
+        return;
+      }
+    }
     setDtls((prev) =>
       prev.map((r) => {
         if (r.key !== key) return r;
@@ -686,6 +722,27 @@ export default function PurchaseRequestPage() {
       if (new Set(lineNos).size !== lineNos.length) {
         push(REVIEW_STEP, "Line No must be unique within the same Purchase Request");
       }
+
+      const byProduct = new Map<string, any[]>();
+      validRows.forEach((r: any) => {
+        if (r.PRODUCT_ID === null || r.PRODUCT_ID === undefined || r.PRODUCT_ID === "") return;
+        const productKey = productKeyForRow(r);
+        byProduct.set(productKey, [...(byProduct.get(productKey) ?? []), r]);
+      });
+      byProduct.forEach((linesForProduct) => {
+        if (linesForProduct.length < 3) return;
+        const name = productLabel(linesForProduct[0]?.PRODUCT_ID);
+        linesForProduct.slice(2).forEach((r: any) => {
+          pushLine(
+            r.key,
+            `Line ${r.LINE_NO ?? "?"}: ${name} is already added twice. The same product can appear at most twice.`
+          );
+        });
+        push(
+          REVIEW_STEP,
+          `${name} is added more than twice. Remove the extra line${linesForProduct.length > 3 ? "s" : ""}.`
+        );
+      });
     }
 
     validRows.forEach((r: any) => {
@@ -1110,7 +1167,7 @@ export default function PurchaseRequestPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs w-20">Actions</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs w-48">Actions</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Ref No</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">PR Date</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Requested By</th>
@@ -1139,7 +1196,8 @@ export default function PurchaseRequestPage() {
                       <button onClick={() => openEdit(item)} className="p-1.5 rounded hover:bg-muted transition-colors"><Pencil className="w-4 h-4 text-muted-foreground" /></button>
                       {isAdmin && <button onClick={() => setDeleteId(item.purchaseRequestNo ?? item.PURCHASE_REQUEST_NO)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4 text-destructive" /></button>}
                       <button
-                        onClick={() => handleSubmitRow(item)}
+                        data-skip-submit-confirm
+                        onClick={() => setSubmitTarget(item)}
                         disabled={isSubmitting || isSubmitted}
                         title={
                           missingStatusMaster
@@ -1156,6 +1214,13 @@ export default function PurchaseRequestPage() {
                           <Send className="w-4 h-4 text-info" />
                         )}
                       </button>
+                      {isSubmitted && refNo ? (
+                        <PurchaseRequestPdfActions
+                          refNo={refNo}
+                          record={item}
+                          locationOptions={locationOptions}
+                        />
+                      ) : null}
                     </td>
                     <td className="p-3 font-medium">{item.purchaseRequestNo || "-"}</td>
                     <td className="p-3">{formatDate(item.purchaseRequestDate)}</td>
@@ -1310,7 +1375,7 @@ export default function PurchaseRequestPage() {
         <WizardSection
           stepKey={DTL_STEP}
           title="Detail Lines"
-          subtitle="Line numbers are assigned automatically and renumber when a line is removed"
+          subtitle="All product details are shown together in one grid; line numbers renumber when a line is removed"
           errors={stepErrors[DTL_STEP]}
           actions={
             <Button variant="outline" size="sm" onClick={addDtl} className="h-8 text-xs">
@@ -1323,26 +1388,15 @@ export default function PurchaseRequestPage() {
               No detail lines yet. Use Add Line to start one.
             </p>
           ) : (
-            <div className="space-y-3">
-              {dtls.map((row: any) => (
-                <DetailLineCard
-                  key={row.key}
-                  anchor={lineStepKey(row.key)}
-                  title={`Line ${row.LINE_NO ?? "?"}`}
-                  subtitle={
-                    (row.PRODUCT_NAME && String(row.PRODUCT_NAME)) ||
-                    (row.DESCRIPTION && String(row.DESCRIPTION).slice(0, 80)) ||
-                    "Not filled in yet"
-                  }
-                  groups={lineGroups()}
-                  row={row}
-                  primaryField={productField}
-                  errors={lineErrors[row.key]}
-                  onChange={(field, value) => updateDtl(row.key, field, value)}
-                  onRemove={() => removeDtl(row.key)}
-                />
-              ))}
-            </div>
+            <DetailGrid
+              groups={lineGroups()}
+              rows={dtls}
+              primaryField={productField}
+              errorsFor={(row: any) => lineErrors[row.key]}
+              onChange={(rowKey: string, field: string, value: any) => updateDtl(rowKey, field, value)}
+              onRemove={removeDtl}
+              anchorFor={(row: any) => lineStepKey(row.key)}
+            />
           )}
           <p className="text-[11px] text-muted-foreground">
             Blank lines stay while you work and are dropped on save.
@@ -1374,6 +1428,43 @@ export default function PurchaseRequestPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!submitTarget}
+        onOpenChange={(open) => {
+          if (!open && !submittingRef) setSubmitTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit this purchase request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {String(submitTarget?.purchaseRequestNo ?? submitTarget?.PURCHASE_REQUEST_NO ?? "")} will be sent for approval.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!submittingRef}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!!submittingRef}
+              onClick={async (event) => {
+                event.preventDefault();
+                if (!submitTarget) return;
+                await handleSubmitRow(submitTarget);
+                setSubmitTarget(null);
+              }}
+            >
+              {submittingRef ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...
+                </>
+              ) : (
+                "Submit"
+              )}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

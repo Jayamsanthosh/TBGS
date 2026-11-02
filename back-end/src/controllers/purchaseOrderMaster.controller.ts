@@ -93,7 +93,8 @@ export const getPurchaseOrderSourceQuotations = async (req: Request, res: Respon
 };
 
 export const getPurchaseOrderHdr = async (req: Request, res: Response): Promise<void> => {
-  const { refNo } = req.params;
+  const raw = req.query.refNo ?? req.params.refNo;
+  const refNo = typeof raw === "string" ? raw.trim() : "";
 
   if (!refNo) {
     res.status(400).json({ success: false, message: "Purchase Order no is required" });
@@ -101,7 +102,7 @@ export const getPurchaseOrderHdr = async (req: Request, res: Response): Promise<
   }
 
   try {
-    const data = await getPurchaseOrderHdrService(refNo as string);
+    const data = await getPurchaseOrderHdrService(refNo);
     res.json({ success: true, data });
   } catch (error: any) {
     console.error("GetPurchaseOrderHdr error:", error);
@@ -110,7 +111,8 @@ export const getPurchaseOrderHdr = async (req: Request, res: Response): Promise<
 };
 
 export const getPurchaseOrderDtls = async (req: Request, res: Response): Promise<void> => {
-  const { refNo } = req.params;
+  const raw = req.query.refNo ?? req.params.refNo;
+  const refNo = typeof raw === "string" ? raw.trim() : "";
 
   if (!refNo) {
     res.status(400).json({ success: false, message: "Purchase Order no is required" });
@@ -118,7 +120,7 @@ export const getPurchaseOrderDtls = async (req: Request, res: Response): Promise
   }
 
   try {
-    const data = await getPurchaseOrderDtlsService(refNo as string);
+    const data = await getPurchaseOrderDtlsService(refNo);
     res.json({ success: true, count: data.length, data });
   } catch (error: any) {
     console.error("GetPurchaseOrderDtls error:", error);

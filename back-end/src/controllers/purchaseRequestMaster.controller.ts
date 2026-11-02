@@ -7,6 +7,7 @@ import {
   getPurchaseRequestDtlsService,
   getPurchaseRequestDtlService,
   getPurchaseRequestRefNumbersService,
+  getProductNameMapService,
   savePurchaseRequestCombinedService,
   updatePurchaseRequestCombinedService,
   deletePurchaseRequestDtlService,
@@ -19,6 +20,43 @@ import {
 const toPositiveInt = (v: any): number | null => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+};
+
+const refNoFrom = (req: Request): string => {
+  const raw = req.query.refNo ?? req.query.ref_no ?? req.params.refNo;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return typeof value === "string" ? value.trim() : "";
+};
+
+const normalizeProductName = (value: any) =>
+  String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+const duplicateProductMessage = async (dtls: any[]): Promise<string | null> => {
+  const productIds = dtls
+    .map((line) => Number(line?.PRODUCT_ID))
+    .filter((id) => Number.isFinite(id) && id > 0);
+  let productNames = new Map<number, string>();
+  if (productIds.length) {
+    try {
+      productNames = await getProductNameMapService(productIds);
+    } catch (error) {
+      console.error("Duplicate product name lookup error:", error);
+    }
+  }
+
+  const counts = new Map<string, number>();
+  for (const line of dtls) {
+    const productId = Number(line?.PRODUCT_ID);
+    if (!Number.isFinite(productId) || productId <= 0) continue;
+    const name = normalizeProductName(productNames.get(productId));
+    const key = name ? `name:${name}` : `id:${productId}`;
+    const count = (counts.get(key) ?? 0) + 1;
+    if (count > 2) {
+      return "The same product can be added at most twice to a purchase request.";
+    }
+    counts.set(key, count);
+  }
+  return null;
 };
 
 /**
@@ -77,7 +115,7 @@ export const getAllPurchaseRequest = async (req: Request, res: Response): Promis
 };
 
 export const getPurchaseRequestHdr = async (req: Request, res: Response): Promise<void> => {
-  const { refNo } = req.params;
+  const refNo = refNoFrom(req);
 
   if (!refNo) {
     res.status(400).json({ success: false, message: "Purchase Request no is required" });
@@ -94,7 +132,7 @@ export const getPurchaseRequestHdr = async (req: Request, res: Response): Promis
 };
 
 export const getPurchaseRequestDtls = async (req: Request, res: Response): Promise<void> => {
-  const { refNo } = req.params;
+  const refNo = refNoFrom(req);
 
   if (!refNo) {
     res.status(400).json({ success: false, message: "Purchase Request no is required" });
@@ -185,6 +223,11 @@ export const savePurchaseRequest = async (req: Request, res: Response): Promise<
     });
     return;
   }
+  const duplicateMessage = await duplicateProductMessage(dtls);
+  if (duplicateMessage) {
+    res.status(400).json({ success: false, message: duplicateMessage });
+    return;
+  }
 
   try {
     const result = await savePurchaseRequestCombinedService(data);
@@ -218,6 +261,13 @@ export const updatePurchaseRequest = async (req: Request, res: Response): Promis
   const idAuth = identityFrom(req);
   (data as any).USER = idAuth.USER || (data as any).USER || "Admin";
   (data as any).MAC_ADDRESS = idAuth.MAC_ADDRESS || (data as any).MAC_ADDRESS || "WEB";
+
+  const dtls = Array.isArray(data.dtls) ? data.dtls : [];
+  const duplicateMessage = await duplicateProductMessage(dtls);
+  if (duplicateMessage) {
+    res.status(400).json({ success: false, message: duplicateMessage });
+    return;
+  }
 
   try {
     if (!data.PURCHASE_REQUEST_NO && refNo) {

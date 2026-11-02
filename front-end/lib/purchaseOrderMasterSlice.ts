@@ -196,7 +196,7 @@ export const fetchPurchaseOrderHdr = createAsyncThunk(
   "purchaseOrderMaster/fetchHdr",
   async (refNo: string, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/purchase-order/hdr/${encodeURIComponent(refNo)}`);
+      const response = await fetch(`${API_URL}/purchase-order/hdr?refNo=${encodeURIComponent(refNo)}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch purchase order header");
@@ -213,7 +213,7 @@ export const fetchPurchaseOrderDtls = createAsyncThunk(
   "purchaseOrderMaster/fetchDtls",
   async (refNo: string, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/purchase-order/dtls/${encodeURIComponent(refNo)}`);
+      const response = await fetch(`${API_URL}/purchase-order/dtls?refNo=${encodeURIComponent(refNo)}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         return rejectWithValue(errorData.message || "Failed to fetch purchase order details");

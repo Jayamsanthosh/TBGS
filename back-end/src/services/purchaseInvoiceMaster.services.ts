@@ -205,6 +205,8 @@ export const getPurchaseInvoiceListService = async () => {
     return (result.recordset || []).map((r: any) => ({
       ...r,
       id: r.ID ?? r.PURCHASE_INVOICE_REF_NO,
+      sno: r.ID,
+      draftRefNo: r.DRAFT_REF_NO,
       purchaseInvoiceRefNo: r.PURCHASE_INVOICE_REF_NO,
       purchaseInvoiceDate: r.PURCHASE_INVOICE_DATE,
       purchaseOrderNo: r.PURCHASE_ORDER_NO,
@@ -241,7 +243,11 @@ export const getPurchaseInvoiceListService = async () => {
       totalTaxHdrAmountLc: r.TOTAL_TAX_HDR_AMOUNT_LC,
       finalProductHdrAmountLc: r.FINAL_PRODUCT_HDR_AMOUNT_LC,
       statusId: r.STATUS_ID,
-      statusName: r.STATUS_NAME,
+      statusName:
+        r.STATUS_NAME ||
+        (["CL", "SUBMITTED"].includes(String(r.STATUS_ENTRY ?? "").trim().toUpperCase())
+          ? "Pending for Approval"
+          : "Draft"),
       responseByEmpId: r.RESPONSE_BY_EMP_ID,
       responseDate: r.RESPONSE_DATE,
       responseRemarks: r.RESPONSE_REMARKS,
@@ -611,7 +617,7 @@ export const deletePurchaseInvoiceDtlService = async (id: number) => {
     result.recordset?.[0],
     "Failed to delete purchase invoice detail"
   );
-  return { message: message || "Purchase Invoice detail deleted successfully" };
+  return { message };
 };
 
 const recalcInvoice = async (refNo: string) => {
@@ -738,7 +744,96 @@ export const deletePurchaseInvoiceHdrService = async (refNo: string) => {
      pointing at a document that no longer exists. */
   await deletePurchaseInvoiceConversationsByRefService(refNo, PURCHASE_INVOICE_LINK_PAGES_ID);
 
-  return { message: message || "Purchase Invoice deleted successfully" };
+  return { message };
+};
+
+/* ---------------------------------------------------------------- submit */
+export const submitPurchaseInvoiceService = async (
+  refNo: string,
+  user = "Admin",
+  macAddress = "WEB"
+) => {
+  const pool = getPool();
+  if (!pool) throw new Error("Database not connected");
+
+  const badRequest = (message: string, httpStatus = 400) => {
+    const err = new Error(message) as Error & { httpStatus?: number };
+    err.httpStatus = httpStatus;
+    return err;
+  };
+
+  try {
+    const invoice = await pool
+      .request()
+      .input("PURCHASE_INVOICE_REF_NO", sql.VarChar(50), refNo)
+      .query(
+        `SELECT
+            H.SNO,
+            H.STATUS_ID,
+            H.STATUS_ENTRY,
+            (SELECT COUNT(1)
+             FROM [VPurchase].[TBL_PURCHASE_INVOICE_DTL] D
+             WHERE D.PURCHASE_INVOICE_REF_NO = H.PURCHASE_INVOICE_REF_NO) AS LINE_COUNT
+         FROM [VPurchase].[TBL_PURCHASE_INVOICE_HDR] H
+         WHERE H.PURCHASE_INVOICE_REF_NO = @PURCHASE_INVOICE_REF_NO`
+      );
+
+    const row = invoice.recordset?.[0];
+    if (!row) {
+      throw badRequest(`Purchase Invoice ${refNo} does not exist.`, 404);
+    }
+    if (Number(row.LINE_COUNT ?? 0) < 1) {
+      throw badRequest(
+        `Purchase Invoice ${refNo} cannot be submitted until it has at least one invoice line.`
+      );
+    }
+
+    const status = await pool
+      .request()
+      .query(
+        `SELECT TOP 1 STATUS_ID
+         FROM [VMaster].[TBL_STATUS_MASTER]
+         WHERE UPPER(LTRIM(RTRIM(STATUS_CODE))) = 'PENDING_APPROVAL'`
+      );
+    const statusId = status.recordset?.[0]?.STATUS_ID;
+    if (!statusId) {
+      throw new Error("Pending for Approval status is not configured");
+    }
+
+    const result = await pool
+      .request()
+      .input("PURCHASE_INVOICE_REF_NO", sql.VarChar(50), refNo)
+      .input("STATUS_ID", sql.Int, Number(statusId))
+      .input("USER", sql.VarChar(50), user)
+      .input("MAC_ADDRESS", sql.VarChar(50), macAddress)
+      .output("OUT_ROWCOUNT", sql.Int)
+      .execute("VPurchase.SUBMIT_PURCHASE_INVOICE_HDR");
+
+    const submitted = result.recordset?.[0] || null;
+    const changed = Number(result.output?.OUT_ROWCOUNT ?? 0);
+
+    return {
+      message:
+        changed > 0
+          ? `Purchase Invoice ${refNo} submitted successfully`
+          : `Purchase Invoice ${refNo} was already submitted`,
+      changed,
+      invoice: submitted
+        ? {
+            sno: submitted.SNO,
+            purchaseInvoiceRefNo: submitted.PURCHASE_INVOICE_REF_NO,
+            statusId: submitted.STATUS_ID,
+            statusName: submitted.STATUS_NAME,
+            statusEntry: submitted.STATUS_ENTRY,
+          }
+        : null,
+    };
+  } catch (error) {
+    if (!(error as Error & { httpStatus?: number })?.httpStatus) {
+      console.error("SUBMIT_PURCHASE_INVOICE_HDR error:", error);
+    }
+    throw error;
+  }
 };
 
 /* ------------------------------------------------- additional charges */
@@ -932,5 +1027,5 @@ export const deletePurchaseInvoiceAdditionalChargeService = async (id: number) =
     result.recordset?.[0],
     "Failed to delete additional charge"
   );
-  return { message: message || "Additional Charge deleted successfully" };
+  return { message };
 };

@@ -65,7 +65,9 @@ export interface PurchaseInvoiceGridData {
   currencyName?: string;
   exchangeRate?: any;
   paymentTermId?: number;
+  paymentTermName?: string;
   paymentModeId?: number;
+  paymentModeName?: string;
   dueDate?: string;
   totalSubTotalHdrAmountFc?: any;
   totalDiscountHdrAmountFc?: any;
@@ -80,8 +82,13 @@ export interface PurchaseInvoiceGridData {
   totalTaxHdrAmountLc?: any;
   finalProductHdrAmountLc?: any;
   statusId?: number;
+  STATUS_ID?: number | null;
   statusName?: string;
+  responseByEmpId?: number;
+  responseDate?: string;
+  responseRemarks?: string;
   remarks?: string;
+  linkPagesId?: number;
   statusEntry?: string;
   hasDocument?: boolean;
   USER?: string;
@@ -246,6 +253,27 @@ export const updatePurchaseInvoice = createAsyncThunk(
       return await response.json();
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to update purchase invoice");
+    }
+  }
+);
+
+export const submitPurchaseInvoice = createAsyncThunk(
+  "purchaseInvoiceMaster/submit",
+  async (arg: { refNo: string | number }, { rejectWithValue, getState }) => {
+    try {
+      const { USER, MAC_ADDRESS } = identity(getState);
+      const response = await fetch(
+        `${API_URL}/purchase-invoice/${encodeURIComponent(String(arg.refNo))}/submit`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ USER, MAC_ADDRESS }),
+        }
+      );
+      if (!response.ok) return rejectWithValue(await readError(response, "Failed to submit purchase invoice"));
+      return await response.json();
+    } catch (error: any) {
+      return rejectWithValue(error.message || "Failed to submit purchase invoice");
     }
   }
 );

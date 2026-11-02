@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Plus, Search, Pencil, Trash2, Loader2, FileText, Send } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Loader2, FileText, Send, Eye, Download } from "lucide-react";
 import PurchaseOrderReview from "./purchase-order-review";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
 import DetailLineCard from "@/components/wizard/DetailLineCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import AttachmentsPanel from "@/components/AttachmentsPanel";
+import AttachmentsPanel, { type PendingAttachment } from "@/components/AttachmentsPanel";
+import { DMS_LINK_ID } from "@/lib/dmsSlice";
 import AdditionalChargesPanel from "./additional-charges-panel";
 import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import {
@@ -47,7 +48,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { createPurchaseOrderPdf, purchaseOrderPdfFileName } from "@/lib/purchaseOrderPdf";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -231,6 +234,11 @@ export default function PurchaseOrderPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [submittingRef, setSubmittingRef] = useState<string | null>(null);
+  const [pdfLoadingRef, setPdfLoadingRef] = useState<string | null>(null);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfName, setPdfName] = useState("purchase-order.pdf");
+  const pdfDocRef = useRef<any>(null);
   const [dtls, setDtls] = useState<any[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [quoteNo, setQuoteNo] = useState<string>("");
@@ -246,6 +254,7 @@ export default function PurchaseOrderPage() {
   /* Charges are only staged while an Add dialog is open; once the header exists
      the tab reads them straight from the API instead. */
   const [stagedCharges, setStagedCharges] = useState<any[]>([]);
+  const [pendingDocs, setPendingDocs] = useState<PendingAttachment[]>([]);
 
   const linkPagesId = useLinkPagesId(268);
   const currentPoNo =
@@ -784,6 +793,7 @@ export default function PurchaseOrderPage() {
     setDtls([]);
     setDeletedIds([]);
     setStagedCharges([]);
+    setPendingDocs([]);
     clearQuoteSelection();
     setStepErrors({});
     setLineErrors({});
@@ -793,6 +803,7 @@ export default function PurchaseOrderPage() {
 
   const openEdit = async (item: any) => {
     setEditing(item);
+    setPendingDocs([]);
     clearQuoteSelection();
     try {
       const refNo = item.purchaseOrderNo ?? item.PURCHASE_ORDER_NO;
@@ -1016,6 +1027,42 @@ export default function PurchaseOrderPage() {
           }
           setStagedCharges([]);
         }
+        if (pendingDocs.length && newRefNo) {
+          const failed: string[] = [];
+          for (const doc of pendingDocs) {
+            try {
+              const response = await fetch(`${API_URL}/dms`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  LINK_PAGES_ID: linkPagesId,
+                  PAGE_REF_NO: newRefNo,
+                  DOCUMENT_TYPE: doc.DOCUMENT_TYPE || "",
+                  DESCRIPTIONS: doc.DESCRIPTIONS || "",
+                  FILE_NAME: doc.FILE_NAME,
+                  CONTENT_TYPE: doc.CONTENT_TYPE,
+                  CONTENT_DATA: doc.CONTENT_DATA,
+                  REMARKS: doc.REMARKS || "",
+                  STATUS_MASTER: doc.STATUS_MASTER || "AC",
+                  LINK_ID: DMS_LINK_ID,
+                }),
+              });
+              const json = await response.json().catch(() => ({}));
+              if (!response.ok) failed.push(`${doc.FILE_NAME || "file"}: ${json?.message || "failed"}`);
+            } catch (err: any) {
+              failed.push(`${doc.FILE_NAME || "file"}: ${err?.message || "failed"}`);
+            }
+          }
+          if (failed.length) {
+            toast({
+              variant: "destructive",
+              title: `${failed.length} document${failed.length === 1 ? "" : "s"} could not be saved.`,
+              description: failed.join(" · "),
+              duration: DEFAULT_TOAST_DURATION,
+            });
+          }
+          setPendingDocs([]);
+        }
       }
       setDialogOpen(false);
       setStepErrors({});
@@ -1072,6 +1119,69 @@ export default function PurchaseOrderPage() {
       });
     } finally {
       setSubmittingRef(null);
+    }
+  };
+
+  const buildPdfForRow = async (row: any) => {
+    const refNo = row?.purchaseOrderNo ?? row?.PURCHASE_ORDER_NO;
+    if (!refNo) throw new Error("Purchase Order No is required");
+    const [hdr, lines] = await Promise.all([
+      dispatch(fetchPurchaseOrderHdr(refNo)).unwrap(),
+      dispatch(fetchPurchaseOrderDtls(refNo)).unwrap(),
+    ]);
+    const doc = await createPurchaseOrderPdf(hdr, Array.isArray(lines) ? lines : []);
+    return { doc, fileName: purchaseOrderPdfFileName(hdr) };
+  };
+
+  const closePdf = () => {
+    setPdfOpen(false);
+    setPdfUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+    pdfDocRef.current = null;
+  };
+
+  const handleViewPdf = async (row: any) => {
+    const refNo = row?.purchaseOrderNo ?? row?.PURCHASE_ORDER_NO;
+    if (!refNo || pdfLoadingRef) return;
+    setPdfLoadingRef(refNo);
+    try {
+      const { doc, fileName } = await buildPdfForRow(row);
+      const url = URL.createObjectURL(doc.output("blob") as Blob);
+      setPdfUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return url;
+      });
+      pdfDocRef.current = doc;
+      setPdfName(fileName);
+      setPdfOpen(true);
+    } catch (e: any) {
+      toast({
+        title: typeof e === "string" ? e : e?.message || "Failed to generate purchase order PDF",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+    } finally {
+      setPdfLoadingRef(null);
+    }
+  };
+
+  const handleDownloadPdf = async (row: any) => {
+    const refNo = row?.purchaseOrderNo ?? row?.PURCHASE_ORDER_NO;
+    if (!refNo || pdfLoadingRef) return;
+    setPdfLoadingRef(refNo);
+    try {
+      const { doc, fileName } = await buildPdfForRow(row);
+      doc.save(fileName);
+    } catch (e: any) {
+      toast({
+        title: typeof e === "string" ? e : e?.message || "Failed to generate purchase order PDF",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+    } finally {
+      setPdfLoadingRef(null);
     }
   };
 
@@ -1390,7 +1500,7 @@ export default function PurchaseOrderPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs w-20">Actions</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs w-44">Actions</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Order No</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Order Date</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Quote No</th>
@@ -1415,9 +1525,33 @@ export default function PurchaseOrderPage() {
                   const lacksDocument = !item.hasDocument;
                   return (
                   <tr key={item.id || idx} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="p-3 flex gap-2">
+                    <td className="p-3 flex gap-1">
                       <button onClick={() => openEdit(item)} className="p-1.5 rounded hover:bg-muted transition-colors"><Pencil className="w-4 h-4 text-muted-foreground" /></button>
                       {isAdmin && <button onClick={() => setDeleteId(refNo)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4 text-destructive" /></button>}
+                      {isSubmitted && (
+                        <>
+                          <button
+                            onClick={() => handleViewPdf(item)}
+                            disabled={pdfLoadingRef === refNo}
+                            title="View purchase order PDF"
+                            className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {pdfLoadingRef === refNo ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-info" />
+                            ) : (
+                              <Eye className="w-4 h-4 text-info" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleDownloadPdf(item)}
+                            disabled={pdfLoadingRef === refNo}
+                            title="Download purchase order PDF"
+                            className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Download className="w-4 h-4 text-info" />
+                          </button>
+                        </>
+                      )}
                       <button
                         onClick={() => handleSubmitRow(item)}
                         disabled={isSubmitting || isSubmitted}
@@ -1499,6 +1633,7 @@ export default function PurchaseOrderPage() {
             /* A cancelled/closed dialog must not leak staged charges into the
                next open; a successful save already flushed and cleared them. */
             setStagedCharges([]);
+            setPendingDocs([]);
           }
           if (v) {
             setActiveTab(PURCHASE_ORDER_TAB);
@@ -1770,17 +1905,22 @@ export default function PurchaseOrderPage() {
         <TabsContent value={DOCUMENTS_TAB} className="space-y-6 mt-0">
           <div className="rounded-lg border p-4 bg-card">
             <p className="text-xs text-muted-foreground mb-3">
-              A document is required before this order can be submitted for approval.
+              {currentPoNo
+                ? "A document is required before this order can be submitted for approval."
+                : "Add documents now. They will be saved against the purchase order when you create it."}
             </p>
             <AttachmentsPanel
               linkPagesId={linkPagesId}
               entityRefNo={currentPoNo}
               entityLabel="Purchase Order"
               title="Documents / Attachments"
+              addLabel="Add Document"
               emptyMessage="No documents attached to this Purchase Order"
-              allowUpload={!!currentPoNo}
+              allowUpload={!!currentPoNo || !editing}
               allowEdit={!!currentPoNo}
               allowDelete={!!currentPoNo && isAdmin}
+              pendingFiles={editing ? undefined : pendingDocs}
+              onPendingFilesChange={editing ? undefined : setPendingDocs}
               /* Refresh the grid so the row's hasDocument reflects the upload and
                  Submit stops refusing with "upload the document first". */
               onChange={() => dispatch(fetchPurchaseOrders())}
@@ -1821,6 +1961,37 @@ export default function PurchaseOrderPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={pdfOpen} onOpenChange={(open) => { if (!open) closePdf(); }}>
+        <DialogContent className="max-w-5xl h-[92vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-muted-foreground" />
+              Purchase Order PDF
+              <span className="text-xs font-normal text-muted-foreground">{pdfName}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 rounded-lg border bg-muted/20 overflow-hidden">
+            {pdfUrl ? (
+              <iframe src={pdfUrl} title={pdfName} className="w-full h-full" />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                Generating PDF...
+              </div>
+            )}
+          </div>
+          <DialogFooter className="shrink-0 pt-2 border-t">
+            <Button variant="outline" onClick={closePdf}>Close</Button>
+            <Button
+              className="bg-primary text-primary-foreground"
+              onClick={() => pdfDocRef.current?.save(pdfName)}
+              disabled={!pdfUrl}
+            >
+              <Download className="w-4 h-4 mr-2" /> Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

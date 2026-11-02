@@ -256,6 +256,35 @@ export const getPurchaseRequestRefNumbersService = async (referenceTypeId?: numb
   }
 };
 
+export const getProductNameMapService = async (productIds: number[]) => {
+  const ids = [...new Set(productIds.filter((id) => Number.isFinite(id)))];
+  const names = new Map<number, string>();
+  if (!ids.length) return names;
+
+  const pool = getPool();
+  if (!pool) throw new Error("Database not connected");
+
+  try {
+    const result = await pool
+      .request()
+      .input("IDS", sql.VarChar(sql.MAX), ids.join(","))
+      .query(
+        `SELECT PRODUCT_ID, PRODUCT_NAME
+         FROM [VMaster].[TBL_PRODUCT_MASTER]
+         WHERE PRODUCT_ID IN (SELECT TRY_CAST(value AS INT) FROM STRING_SPLIT(@IDS, ','))`
+      );
+
+    for (const row of result.recordset || []) {
+      const id = Number(row.PRODUCT_ID);
+      if (Number.isFinite(id)) names.set(id, String(row.PRODUCT_NAME ?? "").trim());
+    }
+    return names;
+  } catch (error) {
+    console.error("GET_PRODUCT_NAME_MAP error:", error);
+    throw error;
+  }
+};
+
 const savePurchaseRequestDtlService = async (
   refNo: string,
   dtl: PurchaseRequestDtl,

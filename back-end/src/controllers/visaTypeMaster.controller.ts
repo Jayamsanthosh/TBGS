@@ -1,4 +1,5 @@
-import { Request, Response } from "express";
+import { Request, Response } from "express";
+
 import { identityFrom } from "../utils/identity";
 import {
   getAllVisaTypeMasterService,
@@ -6,8 +7,18 @@ import {
   saveVisaTypeMasterService,
   updateVisaTypeMasterService,
   deleteVisaTypeMasterService,
+  toVisaTypeLinkId,
   VisaTypeMasterData
 } from "../services/visaTypeMaster.services";
+
+const linkIdFrom = (req: Request, body?: VisaTypeMasterData): number =>
+  toVisaTypeLinkId(
+    body?.LINK_ID ??
+      (req.query.link_id as string) ??
+      (req.query.linkId as string)
+  );
+
+const VALID_STATUSES = ["AC", "IN"];
 
 export const getAllVisaTypeMaster = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -16,7 +27,7 @@ export const getAllVisaTypeMaster = async (req: Request, res: Response): Promise
     res.json({ success: true, count: visaTypes.length, data: visaTypes });
   } catch (error: any) {
     console.error("GetAllVisaTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -27,7 +38,10 @@ export const getVisaTypeMasterById = async (req: Request, res: Response): Promis
     return;
   }
   try {
-    const visaType = await getVisaTypeMasterByIdService(parseInt(id as string, 10));
+    const visaType = await getVisaTypeMasterByIdService(
+      parseInt(id as string, 10),
+      linkIdFrom(req)
+    );
     if (!visaType) {
       res.status(404).json({ success: false, message: "Visa type not found" });
       return;
@@ -35,28 +49,54 @@ export const getVisaTypeMasterById = async (req: Request, res: Response): Promis
     res.json({ success: true, data: visaType });
   } catch (error: any) {
     console.error("GetVisaTypeMasterById error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
 export const saveVisaTypeMaster = async (req: Request, res: Response): Promise<void> => {
   const visaTypeData: VisaTypeMasterData = req.body;
-  if (!visaTypeData.VISA_TYPE_NAME) {
+
+  if (!visaTypeData.VISA_TYPE_NAME?.trim()) {
     res.status(400).json({ success: false, message: "Visa Type Name is required" });
     return;
   }
+
+  if (visaTypeData.STATUS_MASTER && !VALID_STATUSES.includes(visaTypeData.STATUS_MASTER)) {
+    res.status(400).json({ success: false, message: "Status must be AC or IN" });
+    return;
+  }
+
+  visaTypeData.LINK_ID = linkIdFrom(req, visaTypeData);
+
   try {
     const result = await saveVisaTypeMasterService(visaTypeData);
-    res.json({ success: true, message: result.message || "Visa type saved successfully" });
+    res.json({
+      success: true,
+      message: result.message || "Visa type saved successfully",
+      VISA_TYPE_ID: result.VISA_TYPE_ID,
+    });
   } catch (error: any) {
     console.error("SaveVisaTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
 export const updateVisaTypeMaster = async (req: Request, res: Response): Promise<void> => {
   const visaTypeData: VisaTypeMasterData = req.body;
   const { id } = req.params;
+
+  if (!visaTypeData.VISA_TYPE_NAME?.trim()) {
+    res.status(400).json({ success: false, message: "Visa Type Name is required" });
+    return;
+  }
+
+  if (visaTypeData.STATUS_MASTER && !VALID_STATUSES.includes(visaTypeData.STATUS_MASTER)) {
+    res.status(400).json({ success: false, message: "Status must be AC or IN" });
+    return;
+  }
+
+  visaTypeData.LINK_ID = linkIdFrom(req, visaTypeData);
+
   try {
     if (!visaTypeData.VISA_TYPE_ID && id) {
       visaTypeData.VISA_TYPE_ID = parseInt(id as string, 10);
@@ -65,7 +105,7 @@ export const updateVisaTypeMaster = async (req: Request, res: Response): Promise
     res.json({ success: true, message: result.message || "Visa type updated successfully" });
   } catch (error: any) {
     console.error("UpdateVisaTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
 
@@ -86,6 +126,6 @@ export const deleteVisaTypeMaster = async (req: Request, res: Response): Promise
     res.json({ success: true, message: result.message || "Visa type deleted successfully" });
   } catch (error: any) {
     console.error("DeleteVisaTypeMaster error:", error);
-    res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

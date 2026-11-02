@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Plus, Search, Pencil, Trash2, Loader2, FileText, MessageSquare } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Loader2, FileText, MessageSquare, Send, Eye, Download } from "lucide-react";
 import PurchaseInvoiceReview from "./purchase-invoice-review";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
 import DetailLineCard from "@/components/wizard/DetailLineCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import AttachmentsPanel, { type PendingAttachment } from "@/components/AttachmentsPanel";
+import PurchaseOrderPdfActions from "@/components/PurchaseOrderPdfActions";
 import { DMS_LINK_ID } from "@/lib/dmsSlice";
 import AdditionalChargesPanel from "./additional-charges-panel";
 import InvoiceConversationPanel from "./conversation-panel";
@@ -27,6 +28,7 @@ import {
   fetchPurchaseInvoices,
   addPurchaseInvoice,
   updatePurchaseInvoice,
+  submitPurchaseInvoice,
   deletePurchaseInvoiceHdr,
   fetchPurchaseInvoiceHdr,
   fetchPurchaseInvoiceDtls,
@@ -37,6 +39,7 @@ import {
 import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { formatDate, clampNonNegative } from "@/lib/validation";
+import { createPurchaseInvoicePdf, purchaseInvoicePdfFileName } from "@/lib/purchaseInvoicePdf";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -45,6 +48,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
@@ -76,9 +80,12 @@ const fmtDate = (d: any) => {
 
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
-/* Status Entry has no submission flow here - every record is created with CF,
-   so a new invoice reads as Pending for Submitted rather than leaking a raw
-   Draft / Inactive code. Mirrors the Purchase GRN / Opening Stock screens. */
+const TH = "text-left p-3 font-semibold text-muted-foreground uppercase text-xs whitespace-nowrap";
+const TD = "p-3 whitespace-nowrap";
+
+/* Status Entry is written by the stored procedure (DP for a new invoice header,
+   AC for its lines) - the page only displays it. A new invoice therefore reads
+   as Pending for Submitted rather than leaking a raw Draft / Inactive code. */
 const entryLabel = (s: any) => {
   const v = String(s).toUpperCase();
   return v === "CL" || v === "SUBMITTED" ? "Submitted" : "Pending for Submitted";
@@ -89,6 +96,16 @@ const entryBadgeClass = (s: any) => {
   return v === "CL" || v === "SUBMITTED"
     ? "bg-green-500/10 text-green-600 border-green-200"
     : "bg-orange-500/10 text-orange-600 border-orange-200";
+};
+
+/* Legacy invoices were saved with STATUS_ID null, so the stored status name is
+   empty. Fall back to STATUS_ENTRY: CL means it reached the approval queue,
+   everything else is still a draft. */
+const statusLabel = (row: any) => {
+  const name = row?.statusName ?? row?.STATUS_NAME;
+  if (name) return String(name);
+  const entry = String(row?.statusEntry ?? row?.STATUS_ENTRY ?? "").trim().toUpperCase();
+  return entry === "CL" || entry === "SUBMITTED" ? "Pending for Approval" : "Draft";
 };
 
 const toNum = (v: any): number => {
@@ -198,6 +215,12 @@ export default function PurchaseInvoicePage() {
   const [lineErrors, setLineErrors] = useState<StepErrors>({});
   const [lineFieldErrors, setLineFieldErrors] = useState<Record<string, string[]>>({});
   const [saving, setSaving] = useState(false);
+  const [submittingRef, setSubmittingRef] = useState<string | null>(null);
+  const [pdfLoadingRef, setPdfLoadingRef] = useState<string | null>(null);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfName, setPdfName] = useState("purchase-invoice.pdf");
+  const pdfDocRef = useRef<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [dtls, setDtls] = useState<any[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
@@ -343,13 +366,23 @@ export default function PurchaseInvoicePage() {
     return items.filter((d: any) => {
       const searchable = [
         d.purchaseInvoiceRefNo,
+        d.purchaseInvoiceDate,
         d.purchaseOrderNo,
         d.supplierInvoiceNo,
+        d.supplierInvoiceDate,
         d.supplierName,
         d.companyName,
         d.branchName,
-        d.storeName,
         d.campName,
+        d.storeName,
+        d.currencyName,
+        d.exchangeRate,
+        d.paymentTermName,
+        d.paymentModeName,
+        d.dueDate,
+        d.statusName,
+        d.statusEntry,
+        d.remarks,
       ].join(" ").toLowerCase();
       return searchable.includes(search.toLowerCase());
     }).sort((a: any, b: any) => ((b.sno || 0) - (a.sno || 0)));
@@ -383,7 +416,9 @@ export default function PurchaseInvoicePage() {
     PAYMENT_MODE_ID: "",
     DUE_DATE: "",
     REMARKS: "",
-    STATUS_ENTRY: "CF",
+    STATUS_ID: "",
+    STATUS_ENTRY: "",
+    STATUS_NAME: "Draft",
   });
 
   const updateForm = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -423,30 +458,51 @@ export default function PurchaseInvoicePage() {
   };
 
   const loadSourceOrder = async (value: string) => {
-    if (!value) {
+    const poNumber = String(value || "").trim();
+    if (!poNumber) {
       setPoNo("");
       setPreviewHdr(null);
       setPreviewLines([]);
-      return;
+      return null;
     }
-    setPoNo(value);
-    setForm((prev) => ({ ...prev, PURCHASE_ORDER_NO: value }));
+    setPoNo(poNumber);
+    setForm((prev) => ({ ...prev, PURCHASE_ORDER_NO: poNumber }));
     setLoadingPo(true);
     try {
-      const response = await fetch(`${API_URL}/purchase-invoice/source-order/${encodeURIComponent(value)}`);
-      const json = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(json?.message || "Failed to load purchase order");
+      const readSourceOrder = async () => {
+        const response = await fetch(
+          `${API_URL}/purchase-invoice/source-order?poNo=${encodeURIComponent(poNumber)}`
+        );
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw Object.assign(
+            new Error(payload?.message || "Failed to load purchase order"),
+            { status: response.status }
+          );
+        }
+        return payload;
+      };
+      let json: any;
+      try {
+        json = await readSourceOrder();
+      } catch (e: any) {
+        if (typeof e?.status === "number" && e.status < 500) throw e;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        json = await readSourceOrder();
+      }
       const src = json.data || {};
-      setPreviewHdr(src.header || null);
-      setPreviewLines(Array.isArray(src.dtls) ? src.dtls : []);
+      const header = src.header || null;
+      const lines = Array.isArray(src.dtls) ? src.dtls : [];
+      setPreviewHdr(header);
+      setPreviewLines(lines);
 
-      if (!editing && src.header) {
-        const h = src.header;
-        const first = (src.dtls || [])[0] || {};
+      if (!editing && header) {
+        const h = header;
+        const first = lines[0] || {};
         const toStr = (x: any) => (x == null || x === "" ? "" : String(x));
         setForm((prev) => ({
           ...prev,
-          PURCHASE_ORDER_NO: value,
+          PURCHASE_ORDER_NO: poNumber,
           STORE_ID: prev.STORE_ID || toStr(h.STORE_ID),
           CAMP_ID: prev.CAMP_ID || toStr(first.CAMP_ID),
           SUPPLIER_BP_ID: prev.SUPPLIER_BP_ID || toStr(h.SUPPLIER_BP_ID),
@@ -456,6 +512,7 @@ export default function PurchaseInvoicePage() {
           PAYMENT_MODE_ID: prev.PAYMENT_MODE_ID || toStr(h.PAYMENT_MODE_ID),
         }));
       }
+      return { header, lines };
     } catch (e: any) {
       toast({
         title: typeof e === "string" ? e : e?.message || "Failed to load purchase order",
@@ -464,18 +521,27 @@ export default function PurchaseInvoicePage() {
       });
       setPreviewHdr(null);
       setPreviewLines([]);
+      return null;
     } finally {
       setLoadingPo(false);
     }
   };
 
-  const addLinesFromPo = () => {
+  const addLinesFromPo = async () => {
     if (!poNo) {
       toast({ title: "Please select a Purchase Order", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
       return;
     }
-    if (!previewHdr) {
-      toast({ title: "Load the Purchase Order first", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+
+    let header = previewHdr;
+    let lines = previewLines;
+    if (!header) {
+      const loaded = await loadSourceOrder(poNo);
+      header = loaded?.header ?? null;
+      lines = loaded?.lines ?? [];
+    }
+    if (!header) {
+      toast({ title: "Could not load the Purchase Order. Please try again.", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
       return;
     }
 
@@ -486,7 +552,7 @@ export default function PurchaseInvoicePage() {
     const defTax = (Array.isArray(taxes) ? taxes : [])[0];
     const hasDefTax = !!(defTax && defTax.TAX_ID != null);
 
-    for (const p of previewLines) {
+    for (const p of lines) {
       const remaining = toNum(p.REMAINING_QUANTITY);
       if (remaining <= 0) continue;
       if (p.PURCHASE_ORDER_DTL_ID != null && importedIds.has(String(p.PURCHASE_ORDER_DTL_ID))) {
@@ -519,7 +585,6 @@ export default function PurchaseInvoicePage() {
         TAX_NAME: p.TAX_NAME || (hasDefTax ? defTax.TAX_NAME || "" : ""),
         TAX_PERCENTAGE: p.TAX_PERCENTAGE ?? (hasDefTax ? taxPct(defTax) : ""),
         REMARKS: p.REMARKS || "",
-        STATUS_ENTRY: "AC",
       });
       added += 1;
     }
@@ -561,6 +626,7 @@ export default function PurchaseInvoicePage() {
     setLineFieldErrors({});
     setFocusRequest(null);
     setActiveTab(INVOICE_TAB);
+    dispatch(loadPurchaseInvoiceSourceOrders({}));
     setDialogOpen(true);
   };
 
@@ -593,7 +659,14 @@ export default function PurchaseInvoicePage() {
         PAYMENT_MODE_ID: toStr(hdr.PAYMENT_MODE_ID),
         DUE_DATE: fmtDate(hdr.DUE_DATE),
         REMARKS: hdr.REMARKS || "",
-        STATUS_ENTRY: hdr.STATUS_ENTRY || "CF",
+        STATUS_ID:
+          hdr.STATUS_ID != null
+            ? toStr(hdr.STATUS_ID)
+            : String(hdr.STATUS_ENTRY ?? "").trim().toUpperCase() === "CL"
+              ? "3"
+              : "",
+        STATUS_ENTRY: hdr.STATUS_ENTRY || "",
+        STATUS_NAME: hdr.STATUS_NAME || statusLabel(hdr),
       });
       const poVal = hdr.PURCHASE_ORDER_NO || "";
       setPoNo(poVal);
@@ -631,7 +704,6 @@ export default function PurchaseInvoicePage() {
         TAX_NAME: d.TAX_NAME || "",
         TAX_PERCENTAGE: d.TAX_PERCENTAGE ?? "",
         REMARKS: d.REMARKS || "",
-        STATUS_ENTRY: d.STATUS_ENTRY || "AC",
       }))));
       setDeletedIds([]);
 
@@ -751,9 +823,10 @@ export default function PurchaseInvoicePage() {
         DUE_DATE: form.DUE_DATE || null,
         ...sums,
         REMARKS: form.REMARKS?.trim() || null,
-        /* The raw code goes to the server. The label is for display only, so
-           sending it here stored "Pending for Submitted" in a code column. */
-        STATUS_ENTRY: form.STATUS_ENTRY || "CF",
+        /* STATUS_ENTRY is not a parameter of the invoice write procs; the proc
+           sets DP on insert and leaves it alone on update. Only the loaded
+           STATUS_ID is sent back so an update does not clear it. */
+        STATUS_ID: nOrNull(form.STATUS_ID),
         LINK_PAGES_ID: linkPagesId || null,
         dtls: dtls.map((r: any) => {
           const c = calcLine(r, form.EXCHANGE_RATE);
@@ -786,7 +859,6 @@ export default function PurchaseInvoicePage() {
             TAX_AMOUNT_LC: c.TAX_AMOUNT_LC,
             FINAL_AMOUNT_LC: c.FINAL_AMOUNT_LC,
             REMARKS: r.REMARKS?.trim() || null,
-            STATUS_ENTRY: r.STATUS_ENTRY || "AC",
           };
         }),
         deletedIds,
@@ -809,7 +881,7 @@ export default function PurchaseInvoicePage() {
               const response = await fetch(`${API_URL}/purchase-invoice/charge`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...c, PURCHASE_INVOICE_REF_NO: newRefNo, STATUS_ENTRY: "AC" }),
+                body: JSON.stringify({ ...c, PURCHASE_INVOICE_REF_NO: newRefNo }),
               });
               const json = await response.json().catch(() => ({}));
               if (!response.ok) failed.push(`Line ${c?.LINE_NO ?? "-"}: ${json?.message || "failed"}`);
@@ -873,6 +945,102 @@ export default function PurchaseInvoicePage() {
       toast({ title: typeof e === "string" ? e : e?.message || "Error saving purchase invoice", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSubmitRow = async (row: any) => {
+    const refNo = row?.purchaseInvoiceRefNo ?? row?.PURCHASE_INVOICE_REF_NO;
+    if (!refNo || submittingRef === refNo) return;
+    setSubmittingRef(refNo);
+    try {
+      const res = await dispatch(submitPurchaseInvoice({ refNo })).unwrap();
+      toast({
+        title: res?.message ?? "Purchase Invoice submitted",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+      dispatch(fetchPurchaseInvoices());
+    } catch (e: any) {
+      toast({
+        title: typeof e === "string" ? e : e?.message || "Error submitting purchase invoice",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+    } finally {
+      setSubmittingRef(null);
+    }
+  };
+
+  const buildInvoicePdfForRow = async (row: any) => {
+    const refNo = row?.purchaseInvoiceRefNo ?? row?.PURCHASE_INVOICE_REF_NO;
+    if (!refNo) throw new Error("Purchase Invoice Ref No is required");
+    const chargesResponse = await fetch(
+      `${API_URL}/purchase-invoice/charges/${encodeURIComponent(refNo)}`
+    );
+    const chargesJson = await chargesResponse.json().catch(() => ({}));
+    if (!chargesResponse.ok) {
+      throw new Error(chargesJson?.message || "Failed to load additional charges");
+    }
+    const [hdr, lines] = await Promise.all([
+      dispatch(fetchPurchaseInvoiceHdr(refNo)).unwrap(),
+      dispatch(fetchPurchaseInvoiceDtls(refNo)).unwrap(),
+    ]);
+    const doc = await createPurchaseInvoicePdf(
+      hdr,
+      Array.isArray(lines) ? lines : [],
+      Array.isArray(chargesJson?.data) ? chargesJson.data : []
+    );
+    return { doc, fileName: purchaseInvoicePdfFileName(hdr) };
+  };
+
+  const closePdf = () => {
+    setPdfOpen(false);
+    setPdfUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+    pdfDocRef.current = null;
+  };
+
+  const handleViewPdf = async (row: any) => {
+    const refNo = row?.purchaseInvoiceRefNo ?? row?.PURCHASE_INVOICE_REF_NO;
+    if (!refNo || pdfLoadingRef) return;
+    setPdfLoadingRef(refNo);
+    try {
+      const { doc, fileName } = await buildInvoicePdfForRow(row);
+      const url = URL.createObjectURL(doc.output("blob") as Blob);
+      setPdfUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return url;
+      });
+      pdfDocRef.current = doc;
+      setPdfName(fileName);
+      setPdfOpen(true);
+    } catch (e: any) {
+      toast({
+        title: typeof e === "string" ? e : e?.message || "Failed to generate purchase invoice PDF",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+    } finally {
+      setPdfLoadingRef(null);
+    }
+  };
+
+  const handleDownloadPdf = async (row: any) => {
+    const refNo = row?.purchaseInvoiceRefNo ?? row?.PURCHASE_INVOICE_REF_NO;
+    if (!refNo || pdfLoadingRef) return;
+    setPdfLoadingRef(refNo);
+    try {
+      const { doc, fileName } = await buildInvoicePdfForRow(row);
+      doc.save(fileName);
+    } catch (e: any) {
+      toast({
+        title: typeof e === "string" ? e : e?.message || "Failed to generate purchase invoice PDF",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+    } finally {
+      setPdfLoadingRef(null);
     }
   };
 
@@ -1009,7 +1177,8 @@ export default function PurchaseInvoicePage() {
       PAYMENT_TERM_ID: pick(paymentTermOptions, form.PAYMENT_TERM_ID),
       PAYMENT_MODE_ID: pick(paymentModeOptions, form.PAYMENT_MODE_ID),
       CURRENCY_ID: pick(currencyOptions, form.CURRENCY_ID),
-      STATUS_ENTRY: entryLabel(form.STATUS_ENTRY),
+      STATUS: statusLabel(form),
+      STATUS_ENTRY: form.STATUS_ENTRY ? entryLabel(form.STATUS_ENTRY) : "Set by system",
     };
   }, [form, supplierOptions, companyOptions, branchOptions, campOptions, storeOptions, paymentTermOptions, paymentModeOptions, currencyOptions]);
 
@@ -1064,25 +1233,48 @@ export default function PurchaseInvoicePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs w-24">Actions</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Invoice No</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Invoice Date</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">PO No</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Supplier Invoice No</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Supplier</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Company</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Branch</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Store</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Final Amount (LC)</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground uppercase text-xs">Status Entry</th>
+                  <th className={`${TH} w-24`}>Actions</th>
+                  <th className={TH}>Invoice No</th>
+                  <th className={TH}>Invoice Date</th>
+                  <th className={TH}>PO No</th>
+                  <th className={TH}>Supplier Invoice No</th>
+                  <th className={TH}>Supplier Invoice Date</th>
+                  <th className={TH}>Supplier</th>
+                  <th className={TH}>Company</th>
+                  <th className={TH}>Branch</th>
+                  <th className={TH}>Camp</th>
+                  <th className={TH}>Store</th>
+                  <th className={TH}>Currency</th>
+                  <th className={TH}>Ex. Rate</th>
+                  <th className={TH}>Payment Term</th>
+                  <th className={TH}>Payment Mode</th>
+                  <th className={TH}>Due Date</th>
+                  <th className={TH}>Sub Total (FC)</th>
+                  <th className={TH}>Discount (FC)</th>
+                  <th className={TH}>Additional Cost (FC)</th>
+                  <th className={TH}>Product Amount (FC)</th>
+                  <th className={TH}>Tax (FC)</th>
+                  <th className={TH}>Final Amount (FC)</th>
+                  <th className={TH}>Sub Total (LC)</th>
+                  <th className={TH}>Discount (LC)</th>
+                  <th className={TH}>Additional Cost (LC)</th>
+                  <th className={TH}>Product Amount (LC)</th>
+                  <th className={TH}>Tax (LC)</th>
+                  <th className={TH}>Final Amount (LC)</th>
+                  <th className={TH}>Status</th>
+                  <th className={TH}>Status Entry</th>
+                  <th className={TH}>Remarks</th>
+                  <th className={TH}>Document</th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.map((item: any, idx: number) => {
                   const refNo = item.purchaseInvoiceRefNo ?? item.PURCHASE_INVOICE_REF_NO;
+                  const isSubmitting = submittingRef === refNo;
+                  const isSubmitted = String(item.statusEntry ?? item.STATUS_ENTRY ?? "").trim().toUpperCase() === "CL";
                   return (
                     <tr key={item.id || idx} className="border-b hover:bg-muted/30 transition-colors">
-                      <td className="p-3 flex gap-2">
+                      <td className={`${TD} flex gap-1`}>
                         <button onClick={() => openEdit(item)} className="p-1.5 rounded hover:bg-muted transition-colors"><Pencil className="w-4 h-4 text-muted-foreground" /></button>
                         {refNo && (
                           <button
@@ -1095,26 +1287,83 @@ export default function PurchaseInvoicePage() {
                           </button>
                         )}
                         {isAdmin && <button onClick={() => setDeleteId(refNo)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4 text-destructive" /></button>}
+                        {isSubmitted && (
+                          <>
+                            <button
+                              onClick={() => handleViewPdf(item)}
+                              disabled={pdfLoadingRef === refNo}
+                              title="View purchase invoice PDF"
+                              className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {pdfLoadingRef === refNo ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-info" />
+                              ) : (
+                                <Eye className="w-4 h-4 text-info" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleDownloadPdf(item)}
+                              disabled={pdfLoadingRef === refNo}
+                              title="Download purchase invoice PDF"
+                              className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <Download className="w-4 h-4 text-info" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => handleSubmitRow(item)}
+                          disabled={isSubmitting || isSubmitted}
+                          title={isSubmitted ? "Already submitted" : "Submit purchase invoice"}
+                          className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-info" />
+                          ) : (
+                            <Send className="w-4 h-4 text-info" />
+                          )}
+                        </button>
                       </td>
-                      <td className="p-3 font-medium">{item.purchaseInvoiceRefNo || "-"}</td>
-                      <td className="p-3">{formatDate(item.purchaseInvoiceDate)}</td>
-                      <td className="p-3">{item.purchaseOrderNo || "-"}</td>
-                      <td className="p-3">{item.supplierInvoiceNo || "-"}</td>
-                      <td className="p-3">{item.supplierName || "-"}</td>
-                      <td className="p-3">{item.companyName || "-"}</td>
-                      <td className="p-3">{item.branchName || "-"}</td>
-                      <td className="p-3">{item.storeName || "-"}</td>
-                      <td className="p-3 font-medium">{money(item.finalProductHdrAmountLc)}</td>
-                      <td className="p-3">
+                      <td className={`${TD} font-medium`}>{item.purchaseInvoiceRefNo || "-"}</td>
+                      <td className={TD}>{formatDate(item.purchaseInvoiceDate) || "-"}</td>
+                      <td className={TD}>{item.purchaseOrderNo || "-"}</td>
+                      <td className={TD}>{item.supplierInvoiceNo || "-"}</td>
+                      <td className={TD}>{formatDate(item.supplierInvoiceDate) || "-"}</td>
+                      <td className={TD}>{item.supplierName || "-"}</td>
+                      <td className={TD}>{item.companyName || "-"}</td>
+                      <td className={TD}>{item.branchName || "-"}</td>
+                      <td className={TD}>{item.campName || "-"}</td>
+                      <td className={TD}>{item.storeName || "-"}</td>
+                      <td className={TD}>{item.currencyName || "-"}</td>
+                      <td className={TD}>{rate6(item.exchangeRate)}</td>
+                      <td className={TD}>{item.paymentTermName || "-"}</td>
+                      <td className={TD}>{item.paymentModeName || "-"}</td>
+                      <td className={TD}>{formatDate(item.dueDate) || "-"}</td>
+                      <td className={TD}>{money(item.totalSubTotalHdrAmountFc)}</td>
+                      <td className={TD}>{money(item.totalDiscountHdrAmountFc)}</td>
+                      <td className={TD}>{money(item.totalAdditionalCostAmountFc)}</td>
+                      <td className={TD}>{money(item.totalProductHdrAmountFc)}</td>
+                      <td className={TD}>{money(item.totalTaxHdrAmountFc)}</td>
+                      <td className={TD}>{money(item.finalProductHdrAmountFc)}</td>
+                      <td className={TD}>{money(item.totalSubTotalHdrAmountLc)}</td>
+                      <td className={TD}>{money(item.totalDiscountHdrAmountLc)}</td>
+                      <td className={TD}>{money(item.totalAdditionalCostAmountLc)}</td>
+                      <td className={TD}>{money(item.totalProductHdrAmountLc)}</td>
+                      <td className={TD}>{money(item.totalTaxHdrAmountLc)}</td>
+                      <td className={`${TD} font-medium`}>{money(item.finalProductHdrAmountLc)}</td>
+                      <td className={TD}>{statusLabel(item)}</td>
+                      <td className={TD}>
                         <Badge variant="outline" className={`${entryBadgeClass(item.statusEntry ?? item.STATUS_ENTRY)} px-2 py-0.5 text-xs font-semibold whitespace-nowrap`}>
                           {entryLabel(item.statusEntry ?? item.STATUS_ENTRY)}
                         </Badge>
                       </td>
+                      <td className={TD}>{item.remarks || "-"}</td>
+                      <td className={TD}>{item.hasDocument ? "Yes" : "-"}</td>
                     </tr>
                   );
                 })}
                 {paginated.length === 0 && (
-                  <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">No purchase invoices found</td></tr>
+                  <tr><td colSpan={33} className="p-8 text-center text-muted-foreground">No purchase invoices found</td></tr>
                 )}
               </tbody>
             </table>
@@ -1225,14 +1474,20 @@ export default function PurchaseInvoicePage() {
                 {renderField("EXCHANGE_RATE", "Exchange Rate", "number", undefined, true, "1.000000", false, "applies to all lines")}
                 {renderField("DUE_DATE", "Due Date", "date")}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs">Status</Label>
+                  <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-xs font-medium">
+                    {statusLabel(form)}
+                  </div>
+                </div>
                 <div className="flex flex-col gap-1.5">
                   <Label className="text-xs">
                     Status Entry
                     <span className="text-muted-foreground font-normal ml-1">(set by the workflow)</span>
                   </Label>
                   <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-xs font-medium">
-                    {entryLabel(form.STATUS_ENTRY)}
+                    {form.STATUS_ENTRY ? entryLabel(form.STATUS_ENTRY) : "Set by system"}
                   </div>
                 </div>
                 {renderField("REMARKS", "Remarks", "text", undefined, false, "Additional notes")}
@@ -1303,9 +1558,12 @@ export default function PurchaseInvoicePage() {
                       <div className="rounded-lg border bg-card shadow-sm">
                         <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
                           <h5 className="text-xs font-semibold text-foreground">Review Purchase Order</h5>
-                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                            {previewLines.length} line{previewLines.length === 1 ? "" : "s"}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <PurchaseOrderPdfActions refNo={poNo} />
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                              {previewLines.length} line{previewLines.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
                         </div>
                         <div className="border-b px-3 py-1.5 text-[11px] text-muted-foreground">
                           Supplier: <span className="font-medium text-foreground">{previewHdr.SUPPLIER_BP_ID ?? "-"}</span>
@@ -1481,6 +1739,37 @@ export default function PurchaseInvoicePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={pdfOpen} onOpenChange={(value) => { if (!value) closePdf(); }}>
+        <DialogContent className="max-w-5xl h-[92vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-muted-foreground" />
+              Purchase Invoice PDF
+              <span className="text-xs font-normal text-muted-foreground">{pdfName}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 rounded-lg border bg-muted/20 overflow-hidden">
+            {pdfUrl ? (
+              <iframe src={pdfUrl} title={pdfName} className="w-full h-full" />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                Generating PDF...
+              </div>
+            )}
+          </div>
+          <DialogFooter className="shrink-0 pt-2 border-t">
+            <Button variant="outline" onClick={closePdf}>Close</Button>
+            <Button
+              className="bg-primary text-primary-foreground"
+              onClick={() => pdfDocRef.current?.save(pdfName)}
+              disabled={!pdfUrl}
+            >
+              <Download className="w-4 h-4 mr-2" /> Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

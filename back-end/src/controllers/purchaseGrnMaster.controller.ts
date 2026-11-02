@@ -210,7 +210,7 @@ export const deletePurchaseGrnDtl = async (req: Request, res: Response): Promise
       ROLE || "",
       MAC_ADDRESS || "WEB"
     );
-    res.json({ success: true, message: result.message || "Purchase GRN detail deleted successfully" });
+    res.json({ success: true, message: result.message });
   } catch (error: any) {
     console.error("DeletePurchaseGrnDtl error:", error);
     res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
@@ -233,7 +233,7 @@ export const deletePurchaseGrnHdr = async (req: Request, res: Response): Promise
       ROLE || "",
       MAC_ADDRESS || "WEB"
     );
-    res.json({ success: true, message: result.message || "Purchase GRN deleted successfully" });
+    res.json({ success: true, message: result.message });
   } catch (error: any) {
     console.error("DeletePurchaseGrnHdr error:", error);
     res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
