@@ -10,6 +10,7 @@ import {
   getPurchaseInvoiceSourceOrderService,
   savePurchaseInvoiceCombinedService,
   updatePurchaseInvoiceCombinedService,
+  submitPurchaseInvoiceService,
   deletePurchaseInvoiceDtlService,
   deletePurchaseInvoiceHdrService,
   getPurchaseInvoiceAdditionalChargesService,
@@ -91,13 +92,14 @@ export const getPurchaseInvoiceSourceOrders = async (req: Request, res: Response
 };
 
 export const getPurchaseInvoiceSourceOrder = async (req: Request, res: Response): Promise<void> => {
-  const { poNo } = req.params;
+  const raw = req.query.poNo ?? req.params.poNo;
+  const poNo = typeof raw === "string" ? raw.trim() : "";
   if (!poNo) {
     res.status(400).json({ success: false, message: "Purchase Order No is required" });
     return;
   }
   try {
-    const data = await getPurchaseInvoiceSourceOrderService(poNo as string);
+    const data = await getPurchaseInvoiceSourceOrderService(poNo);
     res.json({ success: true, data });
   } catch (error: any) {
     console.error("GetPurchaseInvoiceSourceOrder error:", error);
@@ -189,6 +191,26 @@ export const updatePurchaseInvoice = async (req: Request, res: Response): Promis
     res.json({ success: true, message: result.message || "Purchase Invoice updated successfully" });
   } catch (error: any) {
     console.error("UpdatePurchaseInvoice error:", error);
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};
+
+export const submitPurchaseInvoice = async (req: Request, res: Response): Promise<void> => {
+  const { refNo } = req.params;
+  if (!refNo) {
+    res.status(400).json({ success: false, message: "Purchase Invoice Ref No is required" });
+    return;
+  }
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  try {
+    const result = await submitPurchaseInvoiceService(
+      refNo as string,
+      USER || "Admin",
+      MAC_ADDRESS || "WEB"
+    );
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("SubmitPurchaseInvoice error:", error);
     res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

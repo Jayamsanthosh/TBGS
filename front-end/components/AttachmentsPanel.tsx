@@ -109,6 +109,7 @@ interface AttachmentsPanelProps {
   entityRefNo?: string;
   entityLabel?: string;
   title?: string;
+  addLabel?: string;
   readOnly?: boolean;
   allowUpload?: boolean;
   allowEdit?: boolean;
@@ -129,6 +130,7 @@ export default function AttachmentsPanel({
   entityRefNo,
   entityLabel = "Record",
   title = "Documents / Attachments",
+  addLabel = "Add Attachment",
   readOnly = false,
   allowUpload = true,
   allowEdit = true,
@@ -184,7 +186,7 @@ export default function AttachmentsPanel({
   );
 
   const loadFiles = () => {
-    if (!scopeReady) {
+    if (!scopeReady || (stagingMode && !entityRefNo)) {
       dispatch(clearDMSFiles());
       return;
     }
@@ -210,9 +212,10 @@ export default function AttachmentsPanel({
   }, [error, dispatch, toast]);
 
   const filtered = useMemo(() => {
+    if (stagingMode && !entityRefNo) return [];
     if (!entityRefNo) return files;
     return files.filter((d: DMSFileGridData) => String(d.PAGE_REF_NO) === String(entityRefNo));
-  }, [files, entityRefNo]);
+  }, [files, entityRefNo, stagingMode]);
 
   const openAdd = () => {
     if (!allowUpload || readOnly || !scopeReady) return;
@@ -389,7 +392,7 @@ export default function AttachmentsPanel({
         {canManage && allowUpload && (
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={openAdd} disabled={!scopeReady}>
             <Plus className="w-3.5 h-3.5 mr-1" />
-            Add Attachment
+            {addLabel}
           </Button>
         )}
       </div>

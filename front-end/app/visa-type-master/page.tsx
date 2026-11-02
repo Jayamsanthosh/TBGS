@@ -12,6 +12,7 @@ import {
   VisaTypeGridData,
 } from "@/lib/visaTypeMasterSlice";
 import { useToast } from "@/hooks/use-toast";
+import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Badge } from "@/components/ui/badge";
 
 const fields: MasterField[] = [
@@ -62,6 +63,7 @@ export default function VisaTypeMasterPage() {
   const dispatch = useAppDispatch();
   const { visaTypes, loading, error } = useAppSelector((s) => s.visaType);
   const { toast } = useToast();
+  const linkPagesId = useLinkPagesId(89);
   const [currentStatus, setCurrentStatus] = useState<string>("AC");
 
   useEffect(() => {
@@ -83,12 +85,12 @@ export default function VisaTypeMasterPage() {
     data: visaTypes,
     isLoading: loading,
     add: async (item: VisaTypeGridData) => {
-      const res = await dispatch(addVisaType(item)).unwrap();
+      const res = await dispatch(addVisaType({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchVisaTypes(currentStatus));
       return res;
     },
     update: async (item: VisaTypeGridData) => {
-      const res = await dispatch(updateVisaType(item)).unwrap();
+      const res = await dispatch(updateVisaType({ ...item, LINK_ID: linkPagesId })).unwrap();
       dispatch(fetchVisaTypes(currentStatus));
       return res;
     },
@@ -105,7 +107,7 @@ export default function VisaTypeMasterPage() {
       dispatch(fetchVisaTypes(currentStatus));
       return res;
     },
-  }), [visaTypes, loading, dispatch, currentStatus]);
+  }), [visaTypes, loading, dispatch, currentStatus, linkPagesId]);
 
   return (
     <MasterCrudPage

@@ -346,9 +346,10 @@ export default function ConversationDialog({
     setErrors(next);
     if (Object.keys(next).length) return;
 
+    const responseEmpId = form.RESPONSE_EMP_ID || currentEmpId;
     const payload: any = {
       PURCHASE_QUOTATION_NO: purchaseQuotationNo,
-      RESPONSE_EMP_ID: form.RESPONSE_EMP_ID === "" ? null : Number(form.RESPONSE_EMP_ID),
+      RESPONSE_EMP_ID: responseEmpId === "" ? null : Number(responseEmpId),
       DISCUSSION_DETAILS: details,
       RESPONSE_STATUS: status,
       STATUS_ENTRY: form.STATUS_ENTRY || "CF",
@@ -635,10 +636,16 @@ export default function ConversationDialog({
               <div className="space-y-1.5">
                 <Label className="text-xs" htmlFor="pqConvEmp">Response Employee</Label>
                 <EmployeeCombobox
-                  value={form.RESPONSE_EMP_ID}
+                  value={form.RESPONSE_EMP_ID || currentEmpId}
                   onChange={(v) => setField("RESPONSE_EMP_ID", v)}
                   options={employees}
+                  disabled={!!currentEmpId}
                 />
+                {currentEmpId && (
+                  <p className="text-xs text-muted-foreground">
+                    Automatically set to the signed-in employee.
+                  </p>
+                )}
                 {employeesFailed && (
                   <p className="text-xs text-destructive">
                     The employee list could not be loaded. Leave blank to record this against nobody.

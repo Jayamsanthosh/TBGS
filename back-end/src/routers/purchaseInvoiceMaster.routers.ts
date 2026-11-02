@@ -8,6 +8,7 @@ import {
   getPurchaseInvoiceSourceOrder,
   savePurchaseInvoice,
   updatePurchaseInvoice,
+  submitPurchaseInvoice,
   deletePurchaseInvoiceDtl,
   deletePurchaseInvoiceHdr,
   getPurchaseInvoiceAdditionalCharges,
@@ -42,11 +43,13 @@ PurchaseInvoiceMasterRouter.delete("/charge/:id", deletePurchaseInvoiceAdditiona
 
 PurchaseInvoiceMasterRouter.get("/", getAllPurchaseInvoice);
 PurchaseInvoiceMasterRouter.get("/source-orders", getPurchaseInvoiceSourceOrders);
+PurchaseInvoiceMasterRouter.get("/source-order", getPurchaseInvoiceSourceOrder);
 PurchaseInvoiceMasterRouter.get("/source-order/:poNo", getPurchaseInvoiceSourceOrder);
 PurchaseInvoiceMasterRouter.get("/hdr/:refNo", getPurchaseInvoiceHdr);
 PurchaseInvoiceMasterRouter.get("/dtls/:refNo", getPurchaseInvoiceDtls);
 PurchaseInvoiceMasterRouter.get("/dtl/:id", getPurchaseInvoiceDtl);
 PurchaseInvoiceMasterRouter.post("/", savePurchaseInvoice);
+PurchaseInvoiceMasterRouter.put("/:refNo/submit", submitPurchaseInvoice);
 PurchaseInvoiceMasterRouter.put("/:refNo", updatePurchaseInvoice);
 PurchaseInvoiceMasterRouter.delete("/dtl/:id", deletePurchaseInvoiceDtl);
 PurchaseInvoiceMasterRouter.delete("/hdr/:refNo", deletePurchaseInvoiceHdr);

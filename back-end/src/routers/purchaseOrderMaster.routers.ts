@@ -33,6 +33,8 @@ PurchaseOrderMasterRouter.get("/", getAllPurchaseOrder);
 /* Query param source list must sit ahead of the ":refNo" wildcards, and the
    literal "source-quotations" segment is never read as a reference number. */
 PurchaseOrderMasterRouter.get("/source-quotations", getPurchaseOrderSourceQuotations);
+PurchaseOrderMasterRouter.get("/hdr", getPurchaseOrderHdr);
+PurchaseOrderMasterRouter.get("/dtls", getPurchaseOrderDtls);
 PurchaseOrderMasterRouter.get("/hdr/:refNo", getPurchaseOrderHdr);
 PurchaseOrderMasterRouter.get("/dtls/:refNo", getPurchaseOrderDtls);
 PurchaseOrderMasterRouter.get("/dtl/:id", getPurchaseOrderDtl);

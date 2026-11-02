@@ -8,6 +8,7 @@ export interface VisaTypeGridData {
   VISA_VALIDITY_DAYS?: number;
   REMARKS?: string;
   STATUS_MASTER?: string;
+  LINK_ID?: number | null;
 }
 
 interface VisaTypeState {

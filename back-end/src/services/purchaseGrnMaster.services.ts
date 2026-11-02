@@ -464,7 +464,7 @@ export const deletePurchaseGrnDtlService = async (
       .execute("VInventory.DELETE_PURCHASE_GRN_DTL");
 
     const { message } = parseSprocResult(pickResultRow(result), "Failed to delete purchase GRN detail");
-    return { message: message || "Purchase GRN detail deleted successfully" };
+    return { message };
   } catch (error) {
     console.error("DELETE_PURCHASE_GRN_DTL SP error:", error);
     throw error;
@@ -867,7 +867,7 @@ export const deletePurchaseGrnHdrService = async (
         `DELETE FROM [VInventory].[TBL_BATCH_MASTER] WHERE BATCH_SOURCE_REF_NO = @BATCH_SOURCE_REF_NO`
       );
 
-    return { message: msg.message || "Purchase GRN deleted successfully" };
+    return { message: msg.message };
   } catch (error) {
     console.error("DELETE_PURCHASE_GRN_HDR SP error:", error);
     throw error;

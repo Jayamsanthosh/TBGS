@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
 
-export function EmployeeCombobox({ value, onChange, options }: { value?: any; onChange: (v: string) => void; options: any[] }) {
+export function EmployeeCombobox({ value, onChange, options, disabled }: { value?: any; onChange: (v: string) => void; options: any[]; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
 
   const selectedEmp = options.find((e: any) => String(e.EMP_ID) === String(value));
@@ -17,8 +17,7 @@ export function EmployeeCombobox({ value, onChange, options }: { value?: any; on
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
+        <Button disabled={disabled} variant="outline"
           role="combobox"
           aria-expanded={open}
           className={cn("w-full justify-between h-9 text-left font-normal", !value && "text-muted-foreground")}

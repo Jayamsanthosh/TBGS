@@ -14,10 +14,43 @@ import {
   submitPurchaseQuotationService,
   PurchaseQuotationData
 } from "../services/purchaseQuotationMaster.services";
+import { getProductNameMapService } from "../services/purchaseRequestMaster.services";
 
 const toPositiveInt = (v: any): number | null => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+};
+
+const normalizeProductName = (value: any) =>
+  String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+const duplicateProductMessage = async (dtls: any[]): Promise<string | null> => {
+  const productIds = dtls
+    .map((line) => Number(line?.PRODUCT_ID))
+    .filter((id) => Number.isFinite(id) && id > 0);
+  let productNames = new Map<number, string>();
+  if (productIds.length) {
+    try {
+      productNames = await getProductNameMapService(productIds);
+    } catch (error) {
+      console.error("Duplicate purchase quotation product name lookup error:", error);
+    }
+  }
+
+  const counts = new Map<string, number>();
+  for (const line of dtls) {
+    const productId = Number(line?.PRODUCT_ID);
+    if (!Number.isFinite(productId) || productId <= 0) continue;
+    const name = normalizeProductName(productNames.get(productId));
+    const key = name ? `name:${name}` : `id:${productId}`;
+    const count = (counts.get(key) ?? 0) + 1;
+    if (count > 2) {
+      const label = productNames.get(productId) || `Product #${productId}`;
+      return `${label} is already added twice. The same product can be added at most twice to a purchase quotation.`;
+    }
+    counts.set(key, count);
+  }
+  return null;
 };
 
 export const getAllPurchaseQuotation = async (req: Request, res: Response): Promise<void> => {
@@ -147,6 +180,12 @@ export const savePurchaseQuotation = async (req: Request, res: Response): Promis
   }
 
   try {
+    const duplicateMessage = await duplicateProductMessage(dtls);
+    if (duplicateMessage) {
+      res.status(400).json({ success: false, message: duplicateMessage });
+      return;
+    }
+
     const result = await savePurchaseQuotationCombinedService(data);
     res.json({
       success: true,
@@ -194,6 +233,14 @@ export const updatePurchaseQuotation = async (req: Request, res: Response): Prom
 
     if (!data.PURCHASE_QUOTATION_NO) {
       res.status(400).json({ success: false, message: "Purchase Quotation no is required" });
+      return;
+    }
+
+    const duplicateMessage = await duplicateProductMessage(
+      Array.isArray(data.dtls) ? data.dtls : []
+    );
+    if (duplicateMessage) {
+      res.status(400).json({ success: false, message: duplicateMessage });
       return;
     }
 

@@ -127,6 +127,31 @@ const toNum = (v: any): number => {
   return isNaN(n) ? 0 : n;
 };
 
+const normalizeProductName = (value: any) =>
+  String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+const productKeyForRow = (row: any) => {
+  const name = normalizeProductName(row?.PRODUCT_NAME);
+  return name ? `name:${name}` : `id:${String(row?.PRODUCT_ID ?? "").trim()}`;
+};
+
+const productLabelForRow = (row: any) =>
+  String(row?.PRODUCT_NAME ?? "").trim() || `Product #${row?.PRODUCT_ID ?? "?"}`;
+
+const duplicateProductMessage = (rows: any[]): string | null => {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (row?.PRODUCT_ID === null || row?.PRODUCT_ID === undefined || row?.PRODUCT_ID === "") continue;
+    const key = productKeyForRow(row);
+    const count = (counts.get(key) ?? 0) + 1;
+    if (count > 2) {
+      return `${productLabelForRow(row)} is already added twice. The same product can be added at most twice to a purchase quotation.`;
+    }
+    counts.set(key, count);
+  }
+  return null;
+};
+
 /* ------------------------------------------------------- submitted state ---
    The per-row Submit button is one-way: once the quotation has gone through
    SUBMIT_PURCHASE_QUOTATION it must never be submitted again. The old check
@@ -776,6 +801,16 @@ export default function PurchaseQuotationPage() {
           REMARKS: "",
           STATUS_ENTRY: "AC",
         });
+      }
+
+      const duplicateMessage = duplicateProductMessage([...dtls, ...newRows]);
+      if (duplicateMessage) {
+        toast({
+          title: duplicateMessage,
+          variant: "destructive",
+          duration: DEFAULT_TOAST_DURATION,
+        });
+        return;
       }
 
       /* append, then renumber the whole detail list from 1 */
@@ -1434,6 +1469,27 @@ export default function PurchaseQuotationPage() {
     if (dup) {
       push(REVIEW_STEP, `Purchase Request line already quoted on Line ${dup.LINE_NO}`);
     }
+
+    const byProduct = new Map<string, any[]>();
+    dtls.forEach((r: any) => {
+      if (r.PRODUCT_ID === null || r.PRODUCT_ID === undefined || r.PRODUCT_ID === "") return;
+      const productKey = productKeyForRow(r);
+      byProduct.set(productKey, [...(byProduct.get(productKey) ?? []), r]);
+    });
+    byProduct.forEach((linesForProduct) => {
+      if (linesForProduct.length < 3) return;
+      const name = productLabelForRow(linesForProduct[0]);
+      linesForProduct.slice(2).forEach((r: any) => {
+        pushLine(
+          r.key,
+          `Line ${r.LINE_NO ?? "?"}: ${name} is already added twice. The same product can appear at most twice.`
+        );
+      });
+      push(
+        REVIEW_STEP,
+        `${name} is added more than twice. Remove the extra line${linesForProduct.length > 3 ? "s" : ""}.`
+      );
+    });
 
     dtls.forEach((r: any) => {
       /* Name only the fields that actually failed. A fixed "Product, Quantity

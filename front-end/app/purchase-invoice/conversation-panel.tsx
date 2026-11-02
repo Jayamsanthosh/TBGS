@@ -310,7 +310,7 @@ export default function InvoiceConversationPanel({
 
   const cancelEdit = () => {
     setEditing(null);
-    setForm({ ...emptyForm(), RESPONSE_EMP_ID: currentEmpId });
+    setForm((prev) => ({ ...emptyForm(), RESPONSE_EMP_ID: currentEmpId }));
     setErrors({});
   };
 
@@ -612,10 +612,9 @@ export default function InvoiceConversationPanel({
             <div className="space-y-1.5">
               <Label className="text-xs" htmlFor="piConvEmp">Response Employee</Label>
               <EmployeeCombobox
-                value={form.RESPONSE_EMP_ID}
+                value={form.RESPONSE_EMP_ID || currentEmpId}
                 onChange={(v) => setField("RESPONSE_EMP_ID", v)}
-                options={employees}
-              />
+                options={employees}         disabled={!!currentEmpId}             />
               {employeesFailed && (
                 <p className="text-xs text-destructive">
                   The employee list could not be loaded. Leave blank to record this against nobody.

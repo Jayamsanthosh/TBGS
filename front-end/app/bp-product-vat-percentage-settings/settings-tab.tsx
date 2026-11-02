@@ -587,6 +587,7 @@ export default function SettingsTab({ onViewFiles }: { onViewFiles?: (settingId:
                         </button>
                         {submittable && (
                           <button
+                            data-skip-submit-confirm
                             onClick={() => setSubmittingId(item.id)}
                             className="p-1.5 rounded hover:bg-info/10 transition-colors"
                             title="Submit"

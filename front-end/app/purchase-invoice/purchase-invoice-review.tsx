@@ -33,6 +33,7 @@ export default function PurchaseInvoiceReview({
     { label: "Due Date", value: form.DUE_DATE },
     { label: "Currency", value: headerLabels.CURRENCY_ID },
     { label: "Exchange Rate", value: form.EXCHANGE_RATE },
+    { label: "Status", value: form.STATUS_NAME || headerLabels.STATUS },
     { label: "Status Entry", value: headerLabels.STATUS_ENTRY },
     { label: "Remarks", value: form.REMARKS },
   ].filter((f) => shown(f.value) !== "");

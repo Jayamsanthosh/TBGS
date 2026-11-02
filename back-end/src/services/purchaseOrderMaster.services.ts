@@ -517,10 +517,10 @@ const orderDtlRequest = (
   dtl: PurchaseOrderDtl,
   user: string,
   mac: string,
-  statusEntry: string | null
+  statusEntry: string | null,
+  poNoAlreadyPrimed = false
 ) =>
-  req
-    .input("PURCHASE_ORDER_NO", sql.VarChar(50), poNo)
+  (poNoAlreadyPrimed ? req : req.input("PURCHASE_ORDER_NO", sql.VarChar(50), poNo))
     .input("PURCHASE_QUOTATION_NO", sql.VarChar(50), dtl.PURCHASE_QUOTATION_NO || null)
     .input("PURCHASE_QUOTATION_DTL_ID", sql.Int, numOrNull(dtl.PURCHASE_QUOTATION_DTL_ID))
     .input("PURCHASE_REQUEST_NO", sql.VarChar(50), dtl.PURCHASE_REQUEST_NO || null)
@@ -639,7 +639,10 @@ const updatePurchaseOrderDtlService = async (
     dtl,
     user,
     macAddress,
-    dtl.STATUS_ENTRY || null
+    dtl.STATUS_ENTRY || null,
+    /* UPDATE already primed @PURCHASE_ORDER_DTL_ID then @PURCHASE_ORDER_NO above;
+       adding it again here would declare the same parameter twice. */
+    true
   );
   const result = await request.execute("VPurchase.UPDATE_PURCHASE_ORDER_DTL");
 
