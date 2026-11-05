@@ -646,6 +646,7 @@ export default function OvertimeEntriesPage() {
       columns={columns}
       initialData={[]}
       customStoreOverrides={storeOverrides}
+      submitBeforeAdd
       statusOptions={[
         { label: "Active", value: "AC" },
         { label: "Inactive", value: "IN" },

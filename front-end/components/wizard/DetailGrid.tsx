@@ -23,6 +23,7 @@ export default function DetailGrid({
   rows,
   primaryField,
   errorsFor,
+  invalidFieldsFor,
   onChange,
   onRemove,
   anchorFor,
@@ -31,6 +32,9 @@ export default function DetailGrid({
   rows: any[];
   primaryField?: FieldDescriptor;
   errorsFor?: (row: any) => string[] | undefined;
+  /* Field keys the page's validator flagged on this row, so the matching cell
+     gets the same red ring it had on the old per-line cards. */
+  invalidFieldsFor?: (row: any) => string[] | undefined;
   onChange: (rowKey: string, field: string, value: any) => void;
   onRemove: (rowKey: string) => void;
   anchorFor?: (row: any) => string;
@@ -73,6 +77,7 @@ export default function DetailGrid({
         <tbody>
           {rows.map((row) => {
             const rowErrors = errorsFor?.(row) ?? [];
+            const invalidKeys = new Set(invalidFieldsFor?.(row) ?? []);
             return (
               <Fragment key={row.key}>
                 <tr
@@ -87,7 +92,10 @@ export default function DetailGrid({
                       <Field
                         field={field}
                         row={row}
-                        invalid={rowErrors.length > 0 && isInvalid(field, row)}
+                        invalid={
+                          invalidKeys.has(field.key) ||
+                          (rowErrors.length > 0 && isInvalid(field, row))
+                        }
                         onChange={(key, value) => onChange(row.key, key, value)}
                         hideLabel
                       />

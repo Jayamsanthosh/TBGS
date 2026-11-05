@@ -5,7 +5,8 @@ import { Plus, Search, Pencil, Trash2, Loader2, FileText, Send, Eye, Download } 
 import PurchaseOrderReview from "./purchase-order-review";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
-import DetailLineCard from "@/components/wizard/DetailLineCard";
+import DetailGrid from "@/components/wizard/DetailGrid";
+import UnitConversionPanel from "@/components/UnitConversionPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import AttachmentsPanel, { type PendingAttachment } from "@/components/AttachmentsPanel";
 import { DMS_LINK_ID } from "@/lib/dmsSlice";
@@ -18,6 +19,7 @@ import {
   lineStepKey,
   SECTION_ORDER,
   type FieldGroup,
+  type FieldDescriptor,
   type StepErrors,
 } from "@/components/wizard/types";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
@@ -50,6 +52,8 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import SubmitGateBanner from "@/components/SubmitGateBanner";
+import { findPendingEntry, isEntrySubmitted, SUBMIT_BEFORE_ADD_MESSAGE } from "@/lib/entrySubmit";
 import { createPurchaseOrderPdf, purchaseOrderPdfFileName } from "@/lib/purchaseOrderPdf";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
@@ -234,6 +238,10 @@ export default function PurchaseOrderPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [submittingRef, setSubmittingRef] = useState<string | null>(null);
+
+  /* Block creating a new order until the current one has been submitted. */
+  const pendingEntry = useMemo(() => findPendingEntry(Array.isArray(items) ? items : []), [items]);
+  const isAddBlocked = pendingEntry !== null;
   const [pdfLoadingRef, setPdfLoadingRef] = useState<string | null>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -293,6 +301,9 @@ export default function PurchaseOrderPage() {
   const { data: taxes } = useApiQuery("po-master-taxes", () => fetchList(`${API_URL}/tax-master`));
   const { data: currencies } = useApiQuery("po-master-currencies", () => fetchList(`${API_URL}/currency-master`));
   const { data: uoms } = useApiQuery("po-master-uoms", () => fetchList(`${API_URL}/uom-master`));
+  /* Used by the unit conversion panel as the fallback for quotations whose
+     lines predate the packing / alternate-unit columns. */
+  const { data: products } = useApiQuery("po-master-products", () => fetchList(`${API_URL}/product-master`));
   const { data: poStatuses } = useApiQuery("po-master-statuses", () => fetchList(`${API_URL}/status-master/load?includeInactive=false`));
 
   /* A Purchase Order is always raised against a submitted quotation, so the
@@ -788,6 +799,10 @@ export default function PurchaseOrderPage() {
   };
 
   const openAdd = () => {
+    if (isAddBlocked) {
+      toast({ title: SUBMIT_BEFORE_ADD_MESSAGE, variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
     setEditing(null);
     setForm(emptyForm());
     setDtls([]);
@@ -1238,6 +1253,15 @@ export default function PurchaseOrderPage() {
   };
 
   /* ------------------------------------------------- wizard line groups --- */
+  /* Shown first in the grid so the item each line is for stays obvious even
+     though the product itself is locked once the line comes from a quotation. */
+  const productField: FieldDescriptor = {
+    key: "PRODUCT_ID",
+    label: "Product",
+    kind: "readOnly",
+    display: (r: any) => r.PRODUCT_NAME || (r.PRODUCT_ID ?? "-"),
+  };
+
   const lineGroups = (): FieldGroup[] => [
     {
       title: "Quantity & Pricing",
@@ -1437,10 +1461,17 @@ export default function PurchaseOrderPage() {
           <h1 className="text-2xl font-bold text-foreground">Purchase Order</h1>
           <p className="text-sm text-muted-foreground">Manage purchase order header and detail data</p>
         </div>
-        <Button onClick={openAdd} className="bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button
+          onClick={openAdd}
+          disabled={isAddBlocked}
+          title={isAddBlocked ? SUBMIT_BEFORE_ADD_MESSAGE : undefined}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="w-4 h-4 mr-2" /> Add Purchase Order
         </Button>
       </div>
+
+      <SubmitGateBanner pendingEntry={pendingEntry} />
 
       <div className="bg-card rounded-xl border p-4 sm:p-6 shadow-sm overflow-hidden w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
@@ -1519,7 +1550,7 @@ export default function PurchaseOrderPage() {
                 {paginated.map((item: any, idx: number) => {
                   const refNo = item.purchaseOrderNo ?? item.PURCHASE_ORDER_NO;
                   const isSubmitting = submittingRef === refNo;
-                  const isSubmitted = String(item.statusEntry ?? "").trim().toUpperCase() === "CL";
+                  const isSubmitted = isEntrySubmitted(item);
                   /* A missing document does NOT disable the button - the click is
                      refused with a message instead, so the user knows why. */
                   const lacksDocument = !item.hasDocument;
@@ -1838,6 +1869,15 @@ export default function PurchaseOrderPage() {
                     )}
                   </div>
                 ) : null}
+                {previewOpen && !previewLoading ? (
+                  <UnitConversionPanel
+                    rows={previewLines}
+                    uoms={uoms}
+                    products={products}
+                    subtitle="Unit conversions carried by the selected Purchase Quotation lines."
+                    className="mt-3"
+                  />
+                ) : null}
               </div>
             </div>
 
@@ -1854,7 +1894,7 @@ export default function PurchaseOrderPage() {
         <WizardSection
           stepKey={DTL_STEP}
           title="Purchase Order Lines"
-          subtitle="Pulled from the Purchase Quotation selected above. Line numbers are automatic."
+          subtitle="Pulled from the Purchase Quotation selected above. All lines are shown together in one grid; line numbers are automatic."
           errors={stepErrors[DTL_STEP]}
         >
           {dtls.length === 0 ? (
@@ -1863,27 +1903,24 @@ export default function PurchaseOrderPage() {
               above, then use Add Lines from Quotation.
             </p>
           ) : (
-            <div className="space-y-3">
-              {computed.map((row: any) => (
-                <DetailLineCard
-                  key={row.key}
-                  anchor={lineStepKey(row.key)}
-                  title={`Line ${row.LINE_NO ?? "?"}${row.PRODUCT_NAME ? ` - ${row.PRODUCT_NAME}` : ""}`}
-                  subtitle={
-                    row.PURCHASE_QUOTATION_NO
-                      ? `From ${row.PURCHASE_QUOTATION_NO}${row.SOURCE_LINE_NO != null ? ` quote line ${row.SOURCE_LINE_NO}` : ""}`
-                      : "No linked quotation line"
-                  }
-                  groups={lineGroups()}
-                  row={row}
-                  errors={lineErrors[row.key]}
-                  invalidFieldKeys={lineFieldErrors[row.key]}
-                  onChange={(field, value) => updateDtl(row.key, field, value)}
-                  onRemove={() => removeDtl(row.key)}
-                />
-              ))}
-            </div>
+            <DetailGrid
+              groups={lineGroups()}
+              rows={computed}
+              primaryField={productField}
+              errorsFor={(row: any) => lineErrors[row.key]}
+              invalidFieldsFor={(row: any) => lineFieldErrors[row.key]}
+              onChange={(rowKey: string, field: string, value: any) => updateDtl(rowKey, field, value)}
+              onRemove={removeDtl}
+              anchorFor={(row: any) => lineStepKey(row.key)}
+            />
           )}
+          <UnitConversionPanel
+            rows={computed}
+            uoms={uoms}
+            products={products}
+            subtitle="Packing and alternate unit conversion for the order lines above."
+            className="mt-3"
+          />
         </WizardSection>
 
         <WizardSection

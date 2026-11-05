@@ -231,6 +231,31 @@ export const updatePurchaseGrn = createAsyncThunk(
   }
 );
 
+export const submitPurchaseGrn = createAsyncThunk(
+  "purchaseGrnMaster/submit",
+  async (item: PurchaseGrnGridData, { rejectWithValue }) => {
+    try {
+      const refNo = item.grnNo || item.PURCHASE_GRN_REF_NO || item.refNo || "";
+      if (!refNo) return rejectWithValue("Missing purchase GRN reference number");
+      const response = await fetch(
+        `${API_URL}/purchase-grn/${encodeURIComponent(String(refNo))}/submit`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item),
+        }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return rejectWithValue(errorData.message || "Failed to submit purchase GRN");
+      }
+      return await response.json();
+    } catch (error: any) {
+      return rejectWithValue(error.message || "Failed to submit purchase GRN");
+    }
+  }
+);
+
 export const deletePurchaseGrnDtl = createAsyncThunk(
   "purchaseGrnMaster/deleteDtl",
   async (id: string | number, { rejectWithValue }) => {
@@ -308,6 +333,13 @@ const purchaseGrnMasterSlice = createSlice({
       .addCase(updatePurchaseGrn.rejected, (state, action) => {
         state.error =
           (action.payload as string) || action.error.message || "Failed to update purchase GRN";
+      })
+      .addCase(submitPurchaseGrn.pending, (state) => {
+        state.error = null;
+      })
+      .addCase(submitPurchaseGrn.rejected, (state, action) => {
+        state.error =
+          (action.payload as string) || action.error.message || "Failed to submit purchase GRN";
       })
       .addCase(deletePurchaseGrnDtl.pending, (state) => {
         state.error = null;

@@ -207,6 +207,31 @@ export const updateOpeningStock = createAsyncThunk(
   }
 );
 
+export const submitOpeningStock = createAsyncThunk(
+  "openingStockMaster/submit",
+  async (item: OpeningStockGridData, { rejectWithValue }) => {
+    try {
+      const refNo = item.openingStockNo || item.OPENING_STOCK_REF_NO || item.refNo || "";
+      if (!refNo) return rejectWithValue("Missing opening stock reference number");
+      const response = await fetch(
+        `${API_URL}/opening-stock/${encodeURIComponent(String(refNo))}/submit`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item),
+        }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return rejectWithValue(errorData.message || "Failed to submit opening stock");
+      }
+      return await response.json();
+    } catch (error: any) {
+      return rejectWithValue(error.message || "Failed to submit opening stock");
+    }
+  }
+);
+
 export const deleteOpeningStockDtl = createAsyncThunk(
   "openingStockMaster/deleteDtl",
   async (id: string | number, { rejectWithValue }) => {
@@ -284,6 +309,13 @@ const openingStockMasterSlice = createSlice({
       .addCase(updateOpeningStock.rejected, (state, action) => {
         state.error =
           (action.payload as string) || action.error.message || "Failed to update opening stock";
+      })
+      .addCase(submitOpeningStock.pending, (state) => {
+        state.error = null;
+      })
+      .addCase(submitOpeningStock.rejected, (state, action) => {
+        state.error =
+          (action.payload as string) || action.error.message || "Failed to submit opening stock";
       })
       .addCase(deleteOpeningStockDtl.pending, (state) => {
         state.error = null;

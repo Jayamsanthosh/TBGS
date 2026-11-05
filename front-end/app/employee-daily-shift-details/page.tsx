@@ -21,6 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EmployeeCombobox } from "@/components/EmployeeCombobox";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
+import SubmitGateBanner from "@/components/SubmitGateBanner";
 
 const normalizeStatus = (val: any): string => {
   const u = String(val || "").trim().toUpperCase();
@@ -248,6 +249,18 @@ export default function EmployeeDailyShiftDetailsPage() {
     return sv === "CL" || sv === "CA";
   };
 
+  /* Saved-but-not-submitted rows for the employee/month being edited. Those
+     have to be submitted before new dates can be added to the same month. */
+  const pendingMonthRows = useMemo(() => {
+    return (Array.isArray(items) ? items : []).filter((item: any) =>
+      String(item.SHIFT_MONTH).toUpperCase() === String(month).toUpperCase() &&
+      String(item.SHIFT_YEAR) === String(year) &&
+      !isLockedRecord(item)
+    );
+  }, [items, month, year]);
+  const hasPendingMonthRows = pendingMonthRows.length > 0;
+  const pendingMonthEntry = hasPendingMonthRows ? pendingMonthRows[0] : null;
+
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       const selectable = daysInMonth.filter((d) => {
@@ -294,6 +307,19 @@ export default function EmployeeDailyShiftDetailsPage() {
     }
     if (!shiftSystemId && !Object.values(rowShiftId).some(v => v)) {
       toast({ title: "Please select a shift system", variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
+
+    const addsNewDate = Array.from(selectedDates).some((dayNumber) => {
+      const rowData = tableData.find((d) => d.dayNumber === dayNumber);
+      return !rowData?.existingRecord;
+    });
+    if (hasPendingMonthRows && addsNewDate) {
+      toast({
+        title: "Submit the pending shift details before adding new dates for this month",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
       return;
     }
 
@@ -610,6 +636,10 @@ export default function EmployeeDailyShiftDetailsPage() {
         {/* Days Table Section */}
         {showTable && (
           <div className="p-2 bg-background pt-3 pb-6">
+            <SubmitGateBanner
+              pendingEntry={pendingMonthEntry}
+              message="Submit the pending shift details before adding new dates for this month."
+            />
             <p className="text-[#a81c3c] text-sm font-semibold mb-2">- {tableData.length} records found "</p>
           
           <div className="inline-block border border-border shadow-sm rounded-sm overflow-hidden">

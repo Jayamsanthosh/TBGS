@@ -3,10 +3,12 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Plus, Search, Pencil, Trash2, Loader2, FileText, MessageSquare, Send } from "lucide-react";
 import ConversationDialog from "./conversation-dialog";
+import QuotationConversationPanel from "./conversation-panel";
 import QuotationReview from "./quotation-review";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
-import DetailLineCard from "@/components/wizard/DetailLineCard";
+import DetailGrid from "@/components/wizard/DetailGrid";
+import UnitConversionPanel from "@/components/UnitConversionPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import AttachmentsPanel from "@/components/AttachmentsPanel";
 import AdditionalChargesPanel from "./additional-charges-panel";
@@ -18,6 +20,7 @@ import {
   lineStepKey,
   SECTION_ORDER,
   type FieldGroup,
+  type FieldDescriptor,
   type StepErrors,
 } from "@/components/wizard/types";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
@@ -49,6 +52,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import SubmitGateBanner from "@/components/SubmitGateBanner";
+import { findPendingEntry, SUBMIT_BEFORE_ADD_MESSAGE } from "@/lib/entrySubmit";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -57,6 +62,7 @@ const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 const QUOTATION_TAB = "quotation";
 const DOCUMENTS_TAB = "documents";
 const CHARGES_TAB = "charges";
+const CONVERSATION_TAB = "conversation";
 
 /* Status Entry is owned by the workflow, not the user: CF (Pending for
    Submitted) until the row is submitted, then CL (Submitted). It is displayed
@@ -301,6 +307,10 @@ export default function PurchaseQuotationPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [submittingRef, setSubmittingRef] = useState<string | null>(null);
+
+  /* Block creating a new quotation until the current one has been submitted. */
+  const pendingEntry = useMemo(() => findPendingEntry(Array.isArray(items) ? items : []), [items]);
+  const isAddBlocked = pendingEntry !== null;
   /* The quotation's status travels with it: the server refuses to delete a
      conversation entry once the quotation is submitted, so the dialog needs to
      know rather than discover it after the click. */
@@ -363,6 +373,9 @@ export default function PurchaseQuotationPage() {
   const { data: taxes } = useApiQuery("pq-master-taxes", () => fetchList(`${API_URL}/tax-master`));
   const { data: currencies } = useApiQuery("pq-master-currencies", () => fetchList(`${API_URL}/currency-master`));
   const { data: uoms } = useApiQuery("pq-master-uoms", () => fetchList(`${API_URL}/uom-master`));
+  /* Used by the unit conversion panel as the fallback for documents whose
+     lines predate the packing / alternate-unit columns. */
+  const { data: products } = useApiQuery("pq-master-products", () => fetchList(`${API_URL}/product-master`));
   const { data: quoteStatuses } = useApiQuery("pq-master-quote-statuses", () => fetchList(`${API_URL}/status-master/load?includeInactive=false`));
   /* Only submitted requests may be quoted, so a draft cannot be priced by accident.
 
@@ -910,6 +923,10 @@ export default function PurchaseQuotationPage() {
   };
 
   const openAdd = () => {
+    if (isAddBlocked) {
+      toast({ title: SUBMIT_BEFORE_ADD_MESSAGE, variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
     setEditing(null);
     setForm(emptyForm());
     setDtls([]);
@@ -1304,6 +1321,15 @@ export default function PurchaseQuotationPage() {
   };
 
   /* ------------------------------------------------- wizard line groups --- */
+  /* Shown first in the grid so the item each line is for stays obvious even
+     though the product itself is locked once the line comes from a request. */
+  const productField: FieldDescriptor = {
+    key: "PRODUCT_ID",
+    label: "Product",
+    kind: "readOnly",
+    display: (r: any) => r.PRODUCT_NAME || (r.PRODUCT_ID ?? "-"),
+  };
+
   const lineGroups = (): FieldGroup[] => [
     {
       title: "Quantity & Pricing",
@@ -1558,10 +1584,17 @@ export default function PurchaseQuotationPage() {
           <h1 className="text-2xl font-bold text-foreground">Purchase Quotation</h1>
           <p className="text-sm text-muted-foreground">Manage purchase quotation header and detail data</p>
         </div>
-        <Button onClick={openAdd} className="bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button
+          onClick={openAdd}
+          disabled={isAddBlocked}
+          title={isAddBlocked ? SUBMIT_BEFORE_ADD_MESSAGE : undefined}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="w-4 h-4 mr-2" /> Add Purchase Quotation
         </Button>
       </div>
+
+      <SubmitGateBanner pendingEntry={pendingEntry} />
 
       <div className="bg-card rounded-xl border p-4 sm:p-6 shadow-sm overflow-hidden w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
@@ -1791,6 +1824,7 @@ export default function PurchaseQuotationPage() {
                   </span>
                 )}
               </TabsTrigger>
+              <TabsTrigger value={CONVERSATION_TAB}>Conversation</TabsTrigger>
             </TabsList>
           </div>
 
@@ -1971,6 +2005,15 @@ export default function PurchaseQuotationPage() {
                         )}
                       </div>
                     ) : null}
+                    {previewOpen && !previewLoading ? (
+                      <UnitConversionPanel
+                        rows={previewLines}
+                        uoms={uoms}
+                        products={products}
+                        subtitle="Unit conversions carried by the selected Purchase Request lines."
+                        className="mt-3"
+                      />
+                    ) : null}
                   </div>
                 </div>
 
@@ -1987,7 +2030,7 @@ export default function PurchaseQuotationPage() {
             <WizardSection
               stepKey={DTL_STEP}
               title="Quotation Lines"
-              subtitle="Pulled from the Purchase Request selected above. Line numbers are automatic."
+              subtitle="Pulled from the Purchase Request selected above. All lines are shown together in one grid; line numbers are automatic."
               errors={stepErrors[DTL_STEP]}
             >
               {dtls.length === 0 ? (
@@ -1996,27 +2039,24 @@ export default function PurchaseQuotationPage() {
                   above, then use Add Lines from Request.
                 </p>
               ) : (
-                <div className="space-y-3">
-                  {computed.map((row: any) => (
-                    <DetailLineCard
-                      key={row.key}
-                      anchor={lineStepKey(row.key)}
-                      title={`Line ${row.LINE_NO ?? "?"}${row.PRODUCT_NAME ? ` - ${row.PRODUCT_NAME}` : ""}`}
-                      subtitle={
-                        row.PURCHASE_REQUEST_NO
-                          ? `From ${row.PURCHASE_REQUEST_NO}${row.SOURCE_LINE_NO != null ? ` line ${row.SOURCE_LINE_NO}` : ""}`
-                          : "No linked request line"
-                      }
-                      groups={lineGroups()}
-                      row={row}
-                      errors={lineErrors[row.key]}
-                      invalidFieldKeys={lineFieldErrors[row.key]}
-                      onChange={(field, value) => updateDtl(row.key, field, value)}
-                      onRemove={() => removeDtl(row.key)}
-                    />
-                  ))}
-                </div>
+                <DetailGrid
+                  groups={lineGroups()}
+                  rows={computed}
+                  primaryField={productField}
+                  errorsFor={(row: any) => lineErrors[row.key]}
+                  invalidFieldsFor={(row: any) => lineFieldErrors[row.key]}
+                  onChange={(rowKey: string, field: string, value: any) => updateDtl(rowKey, field, value)}
+                  onRemove={removeDtl}
+                  anchorFor={(row: any) => lineStepKey(row.key)}
+                />
               )}
+              <UnitConversionPanel
+                rows={computed}
+                uoms={uoms}
+                products={products}
+                subtitle="Packing and alternate unit conversion for the quotation lines above."
+                className="mt-3"
+              />
             </WizardSection>
 
             <WizardSection
@@ -2066,6 +2106,20 @@ export default function PurchaseQuotationPage() {
                 isAdmin={isAdmin}
                 charges={stagedCharges}
                 onChargesChange={setStagedCharges}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value={CONVERSATION_TAB} className="mt-0">
+            <div className="flex h-[60vh] flex-col rounded-lg border p-4 bg-card">
+              <p className="mb-3 text-xs text-muted-foreground">
+                Queries and responses recorded against this purchase quotation.
+              </p>
+              <QuotationConversationPanel
+                key={currentQuotationNo || "new"}
+                refNo={currentQuotationNo}
+                statusEntry={form.STATUS_ENTRY}
+                className="min-h-0 flex-1"
               />
             </div>
           </TabsContent>

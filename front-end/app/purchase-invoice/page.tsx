@@ -5,7 +5,8 @@ import { Plus, Search, Pencil, Trash2, Loader2, FileText, MessageSquare, Send, E
 import PurchaseInvoiceReview from "./purchase-invoice-review";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
-import DetailLineCard from "@/components/wizard/DetailLineCard";
+import DetailGrid from "@/components/wizard/DetailGrid";
+import UnitConversionPanel from "@/components/UnitConversionPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import AttachmentsPanel, { type PendingAttachment } from "@/components/AttachmentsPanel";
 import PurchaseOrderPdfActions from "@/components/PurchaseOrderPdfActions";
@@ -21,6 +22,7 @@ import {
   lineStepKey,
   SECTION_ORDER,
   type FieldGroup,
+  type FieldDescriptor,
   type StepErrors,
 } from "@/components/wizard/types";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
@@ -50,6 +52,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import SubmitGateBanner from "@/components/SubmitGateBanner";
+import { findPendingEntry, isEntrySubmitted, SUBMIT_BEFORE_ADD_MESSAGE } from "@/lib/entrySubmit";
 import { Badge } from "@/components/ui/badge";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
@@ -216,6 +220,10 @@ export default function PurchaseInvoicePage() {
   const [lineFieldErrors, setLineFieldErrors] = useState<Record<string, string[]>>({});
   const [saving, setSaving] = useState(false);
   const [submittingRef, setSubmittingRef] = useState<string | null>(null);
+
+  /* Block creating a new invoice until the current one has been submitted. */
+  const pendingEntry = useMemo(() => findPendingEntry(Array.isArray(items) ? items : []), [items]);
+  const isAddBlocked = pendingEntry !== null;
   const [pdfLoadingRef, setPdfLoadingRef] = useState<string | null>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -270,6 +278,9 @@ export default function PurchaseInvoicePage() {
   const { data: taxes } = useApiQuery("invoice-master-taxes", () => fetchList(`${API_URL}/tax-master`));
   const { data: currencies } = useApiQuery("invoice-master-currencies", () => fetchList(`${API_URL}/currency-master`));
   const { data: uoms } = useApiQuery("invoice-master-uoms", () => fetchList(`${API_URL}/uom-master`));
+  /* Used by the unit conversion panel as the fallback for purchase orders
+     whose lines predate the packing / alternate-unit columns. */
+  const { data: products } = useApiQuery("invoice-master-products", () => fetchList(`${API_URL}/product-master`));
 
   useEffect(() => {
     dispatch(loadPurchaseInvoiceSourceOrders({}));
@@ -611,6 +622,10 @@ export default function PurchaseInvoicePage() {
   };
 
   const openAdd = () => {
+    if (isAddBlocked) {
+      toast({ title: SUBMIT_BEFORE_ADD_MESSAGE, variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
     setEditing(null);
     setForm(emptyForm());
     setDtls([]);
@@ -1107,6 +1122,14 @@ export default function PurchaseInvoicePage() {
     );
   };
 
+  /* Shown first in the grid so the invoiced item is readable at a glance. */
+  const productField: FieldDescriptor = {
+    key: "PRODUCT_ID",
+    label: "Product",
+    kind: "readOnly",
+    display: (r: any) => r.PRODUCT_NAME || (r.PRODUCT_ID ?? "-"),
+  };
+
   const lineGroups = (): FieldGroup[] => [
     {
       title: "Invoice Line",
@@ -1194,10 +1217,17 @@ export default function PurchaseInvoicePage() {
           <h1 className="text-2xl font-bold text-foreground">Purchase Invoice</h1>
           <p className="text-sm text-muted-foreground">Record supplier invoices against submitted purchase orders</p>
         </div>
-        <Button onClick={openAdd} className="bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button
+          onClick={openAdd}
+          disabled={isAddBlocked}
+          title={isAddBlocked ? SUBMIT_BEFORE_ADD_MESSAGE : undefined}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="w-4 h-4 mr-2" /> Add Purchase Invoice
         </Button>
       </div>
+
+      <SubmitGateBanner pendingEntry={pendingEntry} />
 
       <div className="bg-card rounded-xl border p-4 sm:p-6 shadow-sm overflow-hidden w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
@@ -1271,7 +1301,7 @@ export default function PurchaseInvoicePage() {
                 {paginated.map((item: any, idx: number) => {
                   const refNo = item.purchaseInvoiceRefNo ?? item.PURCHASE_INVOICE_REF_NO;
                   const isSubmitting = submittingRef === refNo;
-                  const isSubmitted = String(item.statusEntry ?? item.STATUS_ENTRY ?? "").trim().toUpperCase() === "CL";
+                  const isSubmitted = isEntrySubmitted(item);
                   return (
                     <tr key={item.id || idx} className="border-b hover:bg-muted/30 transition-colors">
                       <td className={`${TD} flex gap-1`}>
@@ -1606,6 +1636,15 @@ export default function PurchaseInvoicePage() {
                         )}
                       </div>
                     ) : null}
+                    {previewHdr && !loadingPo ? (
+                      <UnitConversionPanel
+                        rows={previewLines}
+                        uoms={uoms}
+                        products={products}
+                        subtitle="Unit conversions carried by the selected Purchase Order lines."
+                        className="mt-3"
+                      />
+                    ) : null}
                   </div>
                 </div>
 
@@ -1619,7 +1658,7 @@ export default function PurchaseInvoicePage() {
             <WizardSection
               stepKey={DTL_STEP}
               title="Purchase Invoice Lines"
-              subtitle="Imported from the purchase order. Line numbers are automatic."
+              subtitle="Imported from the purchase order. All lines are shown together in one grid; line numbers are automatic."
               errors={stepErrors[DTL_STEP]}
             >
               {dtls.length === 0 ? (
@@ -1628,23 +1667,24 @@ export default function PurchaseInvoicePage() {
                   then use Add Lines from Purchase Order.
                 </p>
               ) : (
-                <div className="space-y-3">
-                  {computed.map((row: any) => (
-                    <DetailLineCard
-                      key={row.key}
-                      anchor={lineStepKey(row.key)}
-                      title={`Line ${row.LINE_NO ?? "?"}${row.PRODUCT_NAME ? ` - ${row.PRODUCT_NAME}` : ""}`}
-                      subtitle={row.PURCHASE_ORDER_NO ? `From ${row.PURCHASE_ORDER_NO}` : "No linked purchase order"}
-                      groups={lineGroups()}
-                      row={row}
-                      errors={lineErrors[row.key]}
-                      invalidFieldKeys={lineFieldErrors[row.key]}
-                      onChange={(field, value) => updateDtl(row.key, field, value)}
-                      onRemove={() => removeDtl(row.key)}
-                    />
-                  ))}
-                </div>
+                <DetailGrid
+                  groups={lineGroups()}
+                  rows={computed}
+                  primaryField={productField}
+                  errorsFor={(row: any) => lineErrors[row.key]}
+                  invalidFieldsFor={(row: any) => lineFieldErrors[row.key]}
+                  onChange={(rowKey: string, field: string, value: any) => updateDtl(rowKey, field, value)}
+                  onRemove={removeDtl}
+                  anchorFor={(row: any) => lineStepKey(row.key)}
+                />
               )}
+              <UnitConversionPanel
+                rows={computed}
+                uoms={uoms}
+                products={products}
+                subtitle="Packing and alternate unit conversion for the invoice lines above."
+                className="mt-3"
+              />
             </WizardSection>
 
             <WizardSection

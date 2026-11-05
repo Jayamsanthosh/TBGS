@@ -7,6 +7,7 @@ import {
   fetchMonthlyAutoDeductions,
   addMonthlyAutoDeduction,
   updateMonthlyAutoDeduction,
+  submitMonthlyAutoDeduction,
   deleteMonthlyAutoDeduction,
   clearMonthlyAutoDeductionError,
   MonthlyAutoDeductionGridData,
@@ -18,22 +19,26 @@ import { Badge } from "@/components/ui/badge";
 import { MONTHS, YEARS, SALARY_DEDUCTION_TYPE } from "@/lib/utils";
 import { EmployeeCombobox } from "@/components/EmployeeCombobox";
 import { validatePositiveNumber } from "@/lib/validation";
+import { Send } from "lucide-react";
 
 const statusBadge = (val: any) => {
   const sv = String(val || "").toLowerCase();
+  const isSubmitted = sv === "cl" || sv === "closed" || sv === "submitted";
+  const isCancelled = sv === "ca" || sv === "cancelled" || sv === "canceled";
   const isApproved = sv === "approved" || sv === "approve";
   const isRejected = sv === "rejected" || sv === "reject";
-  const isPending = sv === "pending";
-  const colorClass = isApproved
+  const isPending = sv === "pending" || sv === "cf";
+  const colorClass = isSubmitted || isApproved
     ? "bg-green-500/10 text-green-600 border-green-200"
-    : isRejected
+    : isRejected || isCancelled
       ? "bg-red-500/10 text-red-600 border-red-200"
       : isPending
         ? "bg-blue-500/10 text-blue-600 border-blue-200"
         : "bg-gray-500/10 text-gray-600 border-gray-200";
+  const label = isSubmitted ? "Submitted" : isCancelled ? "Cancelled" : val ?? "-";
   return (
     <Badge variant="outline" className={`${colorClass} px-2 py-0.5 text-[10px] uppercase font-bold`}>
-      {val ?? "-"}
+      {label}
     </Badge>
   );
 };
@@ -46,6 +51,7 @@ export default function MonthlyAutoDeductionPage() {
   const [currentStatus, setCurrentStatus] = useState<string>("");
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
+  const [submittingId, setSubmittingId] = useState<string | number | null>(null);
 
   const handleStatusFilterChange = useCallback((value: string) => {
     setCurrentStatus(value || "");
@@ -55,6 +61,25 @@ export default function MonthlyAutoDeductionPage() {
     setFromDate(from || "");
     setToDate(to || "");
   }, []);
+
+  const handleSubmitEntry = useCallback(async (item: MonthlyAutoDeductionGridData) => {
+    const refNo = Number(item.M_AUTO_REF_NO ?? item.id);
+    if (!refNo) {
+      toast({ variant: "destructive", title: "Error", description: "Missing reference number" });
+      return;
+    }
+    setSubmittingId(refNo);
+    try {
+      const res = await dispatch(submitMonthlyAutoDeduction({ ...item, M_AUTO_REF_NO: refNo, id: refNo })).unwrap();
+      toast({ title: res?.message ?? "Monthly auto deduction submitted successfully!" });
+      dispatch(fetchMonthlyAutoDeductions({ status: currentStatus, fromDate, toDate }));
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : (e?.message || "Failed to submit monthly auto deduction");
+      toast({ variant: "destructive", title: "Error", description: msg });
+    } finally {
+      setSubmittingId(null);
+    }
+  }, [dispatch, currentStatus, fromDate, toDate, toast]);
 
   const { data: companies } = useApiQuery("mad-companies", async () => {
     const res = await fetch(`${API_URL}/company-master`);
@@ -448,6 +473,22 @@ export default function MonthlyAutoDeductionPage() {
       columns={columns}
       initialData={[]}
       customStoreOverrides={storeOverrides}
+      submitBeforeAdd
+      rowActions={(item) => {
+        const sv = String(item.STATUS_ENTRY ?? item.STATUS_MASTER ?? "").toUpperCase();
+        if (sv === "CL" || sv === "CA") return null;
+        const submitting = submittingId != null && String(submittingId) === String(item.id ?? item.M_AUTO_REF_NO);
+        return (
+          <button
+            onClick={() => handleSubmitEntry(item as MonthlyAutoDeductionGridData)}
+            disabled={submitting}
+            title="Submit monthly auto deduction"
+            className="p-1.5 rounded hover:bg-primary/10 transition-colors disabled:opacity-50"
+          >
+            <Send className={`w-4 h-4 text-primary ${submitting ? "animate-pulse" : ""}`} />
+          </button>
+        );
+      }}
       statusOptions={[
         { label: "All Status", value: "" },
         { label: "Pending", value: "Pending" },

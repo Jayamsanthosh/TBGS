@@ -6,6 +6,7 @@ import RequestReview from "./request-review";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
 import DetailGrid from "@/components/wizard/DetailGrid";
+import UnitConversionPanel from "@/components/UnitConversionPanel";
 import PurchaseRequestPdfActions from "@/components/PurchaseRequestPdfActions";
 import {
   HDR_STEP,
@@ -45,6 +46,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import SubmitGateBanner from "@/components/SubmitGateBanner";
+import { findPendingEntry, SUBMIT_BEFORE_ADD_MESSAGE } from "@/lib/entrySubmit";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -140,6 +143,10 @@ export default function PurchaseRequestPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [submitTarget, setSubmitTarget] = useState<any | null>(null);
   const [submittingRef, setSubmittingRef] = useState<string | null>(null);
+
+  /* Block creating a new request until the current one has been submitted. */
+  const pendingEntry = useMemo(() => findPendingEntry(Array.isArray(items) ? items : []), [items]);
+  const isAddBlocked = pendingEntry !== null;
 
   const role = useMemo(() => {
     if (typeof window !== "undefined") {
@@ -598,6 +605,10 @@ export default function PurchaseRequestPage() {
   };
 
   const openAdd = () => {
+    if (isAddBlocked) {
+      toast({ title: SUBMIT_BEFORE_ADD_MESSAGE, variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
     setEditing(null);
     setForm(emptyForm());
     setDtls([emptyDtl(1)]);
@@ -1104,10 +1115,17 @@ export default function PurchaseRequestPage() {
           <h1 className="text-2xl font-bold text-foreground">Purchase Request</h1>
           <p className="text-sm text-muted-foreground">Manage purchase request header and detail data</p>
         </div>
-        <Button onClick={openAdd} className="bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button
+          onClick={openAdd}
+          disabled={isAddBlocked}
+          title={isAddBlocked ? SUBMIT_BEFORE_ADD_MESSAGE : undefined}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="w-4 h-4 mr-2" /> Add Purchase Request
         </Button>
       </div>
+
+      <SubmitGateBanner pendingEntry={pendingEntry} />
 
       <div className="bg-card rounded-xl border p-4 sm:p-6 shadow-sm overflow-hidden w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
@@ -1398,6 +1416,12 @@ export default function PurchaseRequestPage() {
               anchorFor={(row: any) => lineStepKey(row.key)}
             />
           )}
+          <UnitConversionPanel
+            rows={dtls}
+            uoms={uoms}
+            products={products}
+            subtitle="Packing and alternate unit conversion carried by the lines above."
+          />
           <p className="text-[11px] text-muted-foreground">
             Blank lines stay while you work and are dropped on save.
           </p>

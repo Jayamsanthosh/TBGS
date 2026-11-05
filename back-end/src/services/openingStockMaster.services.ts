@@ -522,3 +522,74 @@ export const deleteOpeningStockHdrService = async (
     throw error;
   }
 };
+
+/* -------------------------------------------------------------- submit */
+/* Locks a saved opening stock document: STATUS_ENTRY moves CF -> CL, the value
+   the entry screens read as submitted. Only the status column is written, so
+   the rest of the header survives. Re-submitting reports 0 changes. */
+export const submitOpeningStockService = async (
+  refNo: string,
+  _user = "Admin",
+  _macAddress = "WEB"
+) => {
+  const pool = getPool();
+  if (!pool) throw new Error("Database not connected");
+
+  const badRequest = (message: string, httpStatus = 400) => {
+    const err = new Error(message) as Error & { httpStatus?: number };
+    err.httpStatus = httpStatus;
+    return err;
+  };
+
+  try {
+    const existing = await pool
+      .request()
+      .input("OPENING_STOCK_REF_NO", sql.VarChar(50), refNo)
+      .query(
+        `SELECT
+            H.STATUS_ENTRY,
+            (SELECT COUNT(1)
+             FROM [VInventory].[TBL_OPENING_STOCK_DTL] D
+             WHERE D.OPENING_STOCK_REF_NO = H.OPENING_STOCK_REF_NO) AS LINE_COUNT
+         FROM [VInventory].[TBL_OPENING_STOCK_HDR] H
+         WHERE H.OPENING_STOCK_REF_NO = @OPENING_STOCK_REF_NO`
+      );
+
+    const row = existing.recordset?.[0];
+    if (!row) {
+      throw badRequest(`Opening Stock ${refNo} does not exist.`, 404);
+    }
+
+    if (String(row.STATUS_ENTRY || "").trim().toUpperCase() === "CL") {
+      return { message: `Opening Stock ${refNo} was already submitted`, changed: 0 };
+    }
+
+    if (Number(row.LINE_COUNT ?? 0) < 1) {
+      throw badRequest(
+        `Opening Stock ${refNo} cannot be submitted until it has at least one line.`
+      );
+    }
+
+    const result = await pool
+      .request()
+      .input("OPENING_STOCK_REF_NO", sql.VarChar(50), refNo)
+      .query(
+        `UPDATE [VInventory].[TBL_OPENING_STOCK_HDR]
+         SET STATUS_ENTRY = 'CL'
+         WHERE OPENING_STOCK_REF_NO = @OPENING_STOCK_REF_NO
+           AND UPPER(ISNULL(LTRIM(RTRIM(STATUS_ENTRY)), '')) <> 'CL'`
+      );
+
+    const changed = Number(result.rowsAffected?.[0] ?? 0);
+    return {
+      message:
+        changed > 0
+          ? `Opening Stock ${refNo} submitted successfully`
+          : `Opening Stock ${refNo} was already submitted`,
+      changed,
+    };
+  } catch (error) {
+    console.error("SUBMIT_OPENING_STOCK error:", error);
+    throw error;
+  }
+};

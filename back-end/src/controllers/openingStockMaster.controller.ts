@@ -8,6 +8,7 @@ import {
   getOpeningStockDtlService,
   saveOpeningStockCombinedService,
   updateOpeningStockCombinedService,
+  submitOpeningStockService,
   deleteOpeningStockDtlService,
   deleteOpeningStockHdrService,
   OpeningStockData
@@ -233,6 +234,27 @@ export const deleteOpeningStockHdr = async (req: Request, res: Response): Promis
     res.json({ success: true, message: result.message || "Opening Stock deleted successfully" });
   } catch (error: any) {
     console.error("DeleteOpeningStockHdr error:", error);
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};
+
+export const submitOpeningStock = async (req: Request, res: Response): Promise<void> => {
+  const { refNo } = req.params;
+  if (!refNo) {
+    res.status(400).json({ success: false, message: "Opening Stock Reference No is required" });
+    return;
+  }
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  try {
+    const result = await submitOpeningStockService(
+      refNo as string,
+      USER || "Admin",
+      MAC_ADDRESS || "WEB"
+    );
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("SubmitOpeningStock error:", error);
     res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };
