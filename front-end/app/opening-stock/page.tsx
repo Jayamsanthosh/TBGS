@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Send, Loader2 } from "lucide-react";
 import OpeningStockReview from "./opening-stock-review";
 import BatchTab from "@/components/BatchTab";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
-import DetailLineCard from "@/components/wizard/DetailLineCard";
+import DetailGrid from "@/components/wizard/DetailGrid";
+import UnitConversionPanel from "@/components/UnitConversionPanel";
 import {
   HDR_STEP,
   DTL_STEP,
@@ -26,6 +27,7 @@ import {
   fetchOpeningStockHdr,
   fetchOpeningStockDtls,
   clearOpeningStockMasterError,
+  submitOpeningStock,
   OpeningStockGridData,
 } from "@/lib/openingStockMasterSlice";
 import { fetchBatchesBySource, addBatch, type BatchMasterData } from "@/lib/batchMasterSlice";
@@ -43,12 +45,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import SubmitGateBanner from "@/components/SubmitGateBanner";
+import { findPendingEntry, isEntrySubmitted, SUBMIT_BEFORE_ADD_MESSAGE } from "@/lib/entrySubmit";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
-/* Status Entry has no submission flow here - every record is created with CF,
-   so a new opening stock reads as Pending for Submitted rather than leaking a
-   raw Draft / Inactive code. Mirrors the Purchase Request presentation. */
+/* Status Entry moves CF -> CL when the document is submitted, so a saved but
+   unsubmitted opening stock reads as Pending for Submitted instead of leaking
+   a raw Draft / Inactive code. */
 const entryLabel = (s: any) => {
   const v = String(s).toUpperCase();
   return v === "CL" || v === "SUBMITTED" ? "Submitted" : "Pending for Submitted";
@@ -109,6 +113,12 @@ export default function OpeningStockPage() {
   const [focusRequest, setFocusRequest] = useState<{ key: string; nonce: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [submittingRef, setSubmittingRef] = useState<string | null>(null);
+
+  /* Block creating a new opening stock document until the current one has been
+     submitted. */
+  const pendingEntry = useMemo(() => findPendingEntry(Array.isArray(items) ? items : []), [items]);
+  const isAddBlocked = pendingEntry !== null;
 
   /* The current page's link id (VMaster.TBL_LINKS_AND_PAGES); stored on each
      record so DMS/reporting can scope by page. Fallback is the Opening Stock
@@ -416,6 +426,10 @@ export default function OpeningStockPage() {
   };
 
   const openAdd = () => {
+    if (isAddBlocked) {
+      toast({ title: SUBMIT_BEFORE_ADD_MESSAGE, variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
     setEditing(null);
     setForm(emptyForm());
     setDtls([emptyDtl(1)]);
@@ -682,6 +696,21 @@ export default function OpeningStockPage() {
     }
   };
 
+  const handleSubmit = async (item: any) => {
+    const refNo = item?.openingStockNo ?? item?.OPENING_STOCK_REF_NO;
+    if (!refNo) return;
+    setSubmittingRef(String(refNo));
+    try {
+      const res = await dispatch(submitOpeningStock(item as OpeningStockGridData)).unwrap();
+      toast({ title: res?.message ?? "Opening Stock submitted successfully", duration: DEFAULT_TOAST_DURATION });
+      dispatch(fetchOpeningStocks({ linkId: linkPagesId }));
+    } catch (e: any) {
+      toast({ title: typeof e === "string" ? e : (e?.message || "Error submitting opening stock"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+    } finally {
+      setSubmittingRef(null);
+    }
+  };
+
   const renderField = (key: string, label: string, type: "text" | "number" | "date" | "select" | "textarea", options?: { value: string; label: string }[], required?: boolean, placeholder?: string, disabled?: boolean, helper?: string, onChange?: (value: string) => void) => {
     const baseClass = "flex flex-col gap-1.5";
     const isEmpty = required && !form[key];
@@ -918,10 +947,17 @@ export default function OpeningStockPage() {
           <h1 className="text-2xl font-bold text-foreground">Opening Stock</h1>
           <p className="text-sm text-muted-foreground">Manage opening stock header and detail data</p>
         </div>
-        <Button onClick={openAdd} className="bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button
+          onClick={openAdd}
+          disabled={isAddBlocked}
+          title={isAddBlocked ? SUBMIT_BEFORE_ADD_MESSAGE : undefined}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="w-4 h-4 mr-2" /> Add Opening Stock
         </Button>
       </div>
+
+      <SubmitGateBanner pendingEntry={pendingEntry} />
 
       <div className="bg-card rounded-xl border p-4 sm:p-6 shadow-sm overflow-hidden w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
@@ -982,6 +1018,20 @@ export default function OpeningStockPage() {
                     <td className="p-3 flex gap-2">
                       <button onClick={() => openEdit(item)} className="p-1.5 rounded hover:bg-muted transition-colors"><Pencil className="w-4 h-4 text-muted-foreground" /></button>
                       {isAdmin && <button onClick={() => setDeleteId(refNo)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4 text-destructive" /></button>}
+                      {!isEntrySubmitted(item) && (
+                        <button
+                          onClick={() => handleSubmit(item)}
+                          disabled={submittingRef === refNo}
+                          title="Submit opening stock"
+                          className="p-1.5 rounded hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {submittingRef === refNo ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                          ) : (
+                            <Send className="w-4 h-4 text-primary" />
+                          )}
+                        </button>
+                      )}
                     </td>
                     <td className="p-3 font-medium">{refNo || "-"}</td>
                     <td className="p-3">{formatDate(item.openingStockDate)}</td>
@@ -1125,7 +1175,7 @@ export default function OpeningStockPage() {
         <WizardSection
           stepKey={DTL_STEP}
           title="Detail Lines"
-          subtitle="Line numbers are assigned automatically and renumber when a line is removed"
+          subtitle="Line numbers are assigned automatically and renumber when a line is removed. All lines are shown together in one grid."
           errors={stepErrors[DTL_STEP]}
           actions={
             <Button variant="outline" size="sm" onClick={addDtl} className="h-8 text-xs">
@@ -1138,27 +1188,22 @@ export default function OpeningStockPage() {
               No detail lines yet. Use Add Line to start one.
             </p>
           ) : (
-            <div className="space-y-3">
-              {dtls.map((row: any) => (
-                <DetailLineCard
-                  key={row.key}
-                  anchor={lineStepKey(row.key)}
-                  title={`Line ${row.LINE_NO ?? "?"}`}
-                  subtitle={
-                    (row.PRODUCT_NAME && String(row.PRODUCT_NAME)) ||
-                    labelOf(productOptionsFor(form.COMPANY_ID, row.MAIN_CATEGORY_ID), row.PRODUCT_ID) ||
-                    "Not filled in yet"
-                  }
-                  groups={lineGroups()}
-                  row={row}
-                  primaryField={productField}
-                  errors={lineErrors[row.key]}
-                  onChange={(field, value) => updateDtl(row.key, field, value)}
-                  onRemove={() => removeDtl(row.key)}
-                />
-              ))}
-            </div>
+            <DetailGrid
+              groups={lineGroups()}
+              rows={dtls}
+              primaryField={productField}
+              errorsFor={(row: any) => lineErrors[row.key]}
+              onChange={(rowKey: string, field: string, value: any) => updateDtl(rowKey, field, value)}
+              onRemove={removeDtl}
+              anchorFor={(row: any) => lineStepKey(row.key)}
+            />
           )}
+          <UnitConversionPanel
+            rows={dtls}
+            uoms={uoms}
+            products={products}
+            subtitle="Packing and alternate unit conversion carried by the opening stock lines above."
+          />
           <p className="text-[11px] text-muted-foreground">
             Blank lines stay while you work and are dropped on save.
           </p>

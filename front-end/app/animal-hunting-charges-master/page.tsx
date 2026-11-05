@@ -20,6 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import SubmitGateBanner from "@/components/SubmitGateBanner";
+import { findPendingEntry, SUBMIT_BEFORE_ADD_MESSAGE } from "@/lib/entrySubmit";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -79,6 +81,13 @@ export default function AnimalHuntingChargesMasterPage() {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  /* Block creating a new header until the last saved header is submitted. */
+  const pendingEntry = useMemo(
+    () => findPendingEntry(Array.isArray(items) ? items : [], ["STATUS_HDR"]),
+    [items]
+  );
+  const isAddBlocked = pendingEntry !== null;
 
   const role = useMemo(() => {
     if (typeof window !== 'undefined') {
@@ -210,6 +219,10 @@ export default function AnimalHuntingChargesMasterPage() {
   };
 
   const openAdd = () => {
+    if (isAddBlocked) {
+      toast({ title: SUBMIT_BEFORE_ADD_MESSAGE, variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
     setEditing(null);
     setForm(emptyForm());
     setDtls([]);
@@ -402,10 +415,17 @@ export default function AnimalHuntingChargesMasterPage() {
           <h1 className="text-2xl font-bold text-foreground">Animal Hunting Charges Master</h1>
           <p className="text-sm text-muted-foreground">Manage hunting charges header and animal detail data</p>
         </div>
-        <Button onClick={openAdd} className="bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button
+          onClick={openAdd}
+          disabled={isAddBlocked}
+          title={isAddBlocked ? SUBMIT_BEFORE_ADD_MESSAGE : undefined}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="w-4 h-4 mr-2" /> Add Charges
         </Button>
       </div>
+
+      <SubmitGateBanner pendingEntry={pendingEntry} />
 
       <div className="bg-card rounded-xl border p-4 sm:p-6 shadow-sm overflow-hidden w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">

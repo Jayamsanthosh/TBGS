@@ -24,19 +24,22 @@ const REQUEST_TYPES = ["Cash Advance", "Warning Form"];
 
 const statusBadge = (val: any) => {
   const sv = String(val || "").toLowerCase();
+  const isSubmitted = sv === "cl" || sv === "closed" || sv === "submitted";
+  const isCancelled = sv === "ca" || sv === "cancelled" || sv === "canceled";
   const isApproved = sv === "approved" || sv === "approve";
   const isRejected = sv === "rejected" || sv === "reject";
-  const isPending = sv === "pending";
-  const colorClass = isApproved
+  const isPending = sv === "pending" || sv === "cf";
+  const colorClass = isSubmitted || isApproved
     ? "bg-green-500/10 text-green-600 border-green-200"
-    : isRejected
+    : isRejected || isCancelled
       ? "bg-red-500/10 text-red-600 border-red-200"
       : isPending
         ? "bg-blue-500/10 text-blue-600 border-blue-200"
         : "bg-gray-500/10 text-gray-600 border-gray-200";
+  const label = isSubmitted ? "Submitted" : isCancelled ? "Cancelled" : val ?? "-";
   return (
     <Badge variant="outline" className={`${colorClass} px-2 py-0.5 text-[10px] uppercase font-bold`}>
-      {val ?? "-"}
+      {label}
     </Badge>
   );
 };
@@ -486,6 +489,7 @@ export default function DeductionEntriesPage() {
       columns={columns}
       initialData={[]}
       customStoreOverrides={storeOverrides}
+      submitBeforeAdd
       statusOptions={[
         { label: "Pending", value: "Pending" },
         { label: "Approved", value: "Approved" },
@@ -496,7 +500,7 @@ export default function DeductionEntriesPage() {
       enableDateRangeFilter
       onDateRangeFilterChange={handleDateRangeChange}
       rowActions={(item) => {
-        const sv = String(item.STATUS_MASTER || "").toUpperCase();
+        const sv = String(item.STATUS_ENTRY ?? item.STATUS_MASTER ?? "").toUpperCase();
         if (sv === "CL" || sv === "CA") return null;
         const submitting = submittingId != null && String(submittingId) === String(item.id ?? item.DED_REF_ID);
         return (

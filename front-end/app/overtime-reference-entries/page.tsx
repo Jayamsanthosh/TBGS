@@ -19,6 +19,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MONTHS, YEARS } from "@/lib/utils";
 import { clampNonNegative } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
+import SubmitGateBanner from "@/components/SubmitGateBanner";
+import { findPendingEntry, SUBMIT_BEFORE_ADD_MESSAGE } from "@/lib/entrySubmit";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
@@ -49,6 +51,10 @@ export default function OverTimeReferenceEntriesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewItem, setViewItem] = useState<any>(null);
+
+  /* Block creating a new entry until the last one has been submitted. */
+  const pendingEntry = useMemo(() => findPendingEntry(Array.isArray(items) ? items : []), [items]);
+  const isAddBlocked = pendingEntry !== null;
 
   const { data: companies } = useApiQuery("ot-ref-companies", async () => {
     const res = await fetch(`${API_URL}/company-master`);
@@ -138,6 +144,10 @@ export default function OverTimeReferenceEntriesPage() {
   });
 
   const openAdd = () => {
+    if (isAddBlocked) {
+      toast({ title: SUBMIT_BEFORE_ADD_MESSAGE, variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
     setEditing(null);
     setForm(emptyForm());
     setDialogOpen(true);
@@ -229,10 +239,17 @@ export default function OverTimeReferenceEntriesPage() {
           <h1 className="text-2xl font-bold text-foreground">Over Time Reference Entries</h1>
           <p className="text-sm text-muted-foreground">Manage over time reference entries master data</p>
         </div>
-        <Button onClick={openAdd} className="bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button
+          onClick={openAdd}
+          disabled={isAddBlocked}
+          title={isAddBlocked ? SUBMIT_BEFORE_ADD_MESSAGE : undefined}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="w-4 h-4 mr-2" /> Add Reference Entry
         </Button>
       </div>
+
+      <SubmitGateBanner pendingEntry={pendingEntry} />
 
       <div className="bg-card rounded-xl border p-4 sm:p-6 shadow-sm overflow-hidden w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">

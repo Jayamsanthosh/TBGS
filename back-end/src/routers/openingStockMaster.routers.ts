@@ -6,6 +6,7 @@ import {
   getOpeningStockDtl,
   saveOpeningStock,
   updateOpeningStock,
+  submitOpeningStock,
   deleteOpeningStockDtl,
   deleteOpeningStockHdr
 } from "../controllers/openingStockMaster.controller";
@@ -18,6 +19,7 @@ OpeningStockMasterRouter.get("/dtls/:refNo", getOpeningStockDtls);
 OpeningStockMasterRouter.get("/dtl/:id", getOpeningStockDtl);
 OpeningStockMasterRouter.post("/", saveOpeningStock);
 OpeningStockMasterRouter.put("/:refNo", updateOpeningStock);
+OpeningStockMasterRouter.put("/:refNo/submit", submitOpeningStock);
 OpeningStockMasterRouter.delete("/dtl/:id", deleteOpeningStockDtl);
 OpeningStockMasterRouter.delete("/:refNo", deleteOpeningStockHdr);
 

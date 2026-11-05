@@ -156,6 +156,9 @@ const conversationSlice = createSlice({
       .addCase(fetchConversations.pending, (state) => {
         state.loading = true;
         state.error = null;
+        /* The thread being replaced belongs to another quotation, so it is
+           cleared here rather than left on screen until the new rows land. */
+        state.items = [];
       })
       .addCase(fetchConversations.fulfilled, (state, action) => {
         state.loading = false;

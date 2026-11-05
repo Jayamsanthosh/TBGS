@@ -577,6 +577,7 @@ export default function ArrearEntriesPage() {
       columns={columns}
       initialData={[]}
       customStoreOverrides={storeOverrides}
+      submitBeforeAdd
       statusOptions={[
         { label: "Active", value: "AC" },
         { label: "Inactive", value: "IN" },

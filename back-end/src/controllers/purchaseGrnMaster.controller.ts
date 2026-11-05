@@ -8,6 +8,7 @@ import {
   getPurchaseGrnDtlService,
   savePurchaseGrnCombinedService,
   updatePurchaseGrnCombinedService,
+  submitPurchaseGrnService,
   deletePurchaseGrnDtlService,
   deletePurchaseGrnHdrService,
   PurchaseGrnData
@@ -236,6 +237,27 @@ export const deletePurchaseGrnHdr = async (req: Request, res: Response): Promise
     res.json({ success: true, message: result.message });
   } catch (error: any) {
     console.error("DeletePurchaseGrnHdr error:", error);
+    res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
+  }
+};
+
+export const submitPurchaseGrn = async (req: Request, res: Response): Promise<void> => {
+  const { refNo } = req.params;
+  if (!refNo) {
+    res.status(400).json({ success: false, message: "Purchase GRN Reference No is required" });
+    return;
+  }
+
+  const { USER, MAC_ADDRESS } = identityFrom(req);
+  try {
+    const result = await submitPurchaseGrnService(
+      refNo as string,
+      USER || "Admin",
+      MAC_ADDRESS || "WEB"
+    );
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("SubmitPurchaseGrn error:", error);
     res.status(error?.httpStatus || 500).json({ success: false, message: error?.message || "Internal server error" });
   }
 };

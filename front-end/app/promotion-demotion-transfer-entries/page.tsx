@@ -942,6 +942,7 @@ export default function PromotionDemotionTransferEntriesPage() {
         columns={columns}
         initialData={[]}
         customStoreOverrides={storeOverrides}
+        submitBeforeAdd
         statusOptions={[
           { label: "Active", value: "AC" },
           { label: "Inactive", value: "IN" },

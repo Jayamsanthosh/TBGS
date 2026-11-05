@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { Plus, Search, Pencil, Trash2, Download } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { Plus, Search, Pencil, Trash2, Download, Eye, Loader2, FileText, Send } from "lucide-react";
 import PurchaseGrnReview from "./purchase-grn-review";
 import BatchTab from "@/components/BatchTab";
 import WizardShell from "@/components/wizard/WizardShell";
 import WizardSection from "@/components/wizard/WizardSection";
-import DetailLineCard from "@/components/wizard/DetailLineCard";
+import DetailGrid from "@/components/wizard/DetailGrid";
+import UnitConversionPanel from "@/components/UnitConversionPanel";
 import {
   HDR_STEP,
   DTL_STEP,
@@ -26,6 +27,7 @@ import {
   fetchPurchaseGrnHdr,
   fetchPurchaseGrnDtls,
   clearPurchaseGrnMasterError,
+  submitPurchaseGrn,
   PurchaseGrnGridData,
 } from "@/lib/purchaseGrnMasterSlice";
 import { fetchPurchaseOrderHdr, fetchPurchaseOrderDtls } from "@/lib/purchaseOrderMasterSlice";
@@ -35,6 +37,8 @@ import { useApiQuery } from "@/lib/reduxQuery";
 import { API_URL } from "@/lib/config";
 import { formatDate, clampNonNegative, validatePositiveNumber, validateNonNegativeNumber, validateDateRange, validateTanzaniaPhone, formatTanzaniaPhone } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { createPurchaseGrnPdf, purchaseGrnPdfFileName } from "@/lib/purchaseGrnPdf";
 import { useToast, DEFAULT_TOAST_DURATION } from "@/hooks/use-toast";
 import { useLinkPagesId } from "@/hooks/useLinkPagesId";
 import { Button } from "@/components/ui/button";
@@ -45,12 +49,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import SubmitGateBanner from "@/components/SubmitGateBanner";
+import { findPendingEntry, isEntrySubmitted, SUBMIT_BEFORE_ADD_MESSAGE } from "@/lib/entrySubmit";
 
 const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
-/* Status Entry has no submission flow here - every record is created with CF,
-   so a new GRN reads as Pending for Submitted rather than leaking a raw
-   Draft / Inactive code. Mirrors the Opening Stock / Purchase Order screens. */
+/* Status Entry moves CF -> CL when the GRN is submitted, so a saved but
+   unsubmitted GRN reads as Pending for Submitted instead of leaking a raw
+   Draft / Inactive code. */
 const entryLabel = (s: any) => {
   const v = String(s).toUpperCase();
   return v === "CL" || v === "SUBMITTED" ? "Submitted" : "Pending for Submitted";
@@ -114,6 +120,17 @@ export default function PurchaseGrnPage() {
   const [pendingBatches, setPendingBatches] = useState<BatchMasterData[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  /* PDF preview state - shared by the View/Download actions on every saved row. */
+  const [pdfLoadingRef, setPdfLoadingRef] = useState<string | null>(null);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfName, setPdfName] = useState("purchase-grn.pdf");
+  const pdfDocRef = useRef<any>(null);
+  const [submittingRef, setSubmittingRef] = useState<string | null>(null);
+
+  /* Block creating a new GRN until the current one has been submitted. */
+  const pendingEntry = useMemo(() => findPendingEntry(Array.isArray(items) ? items : []), [items]);
+  const isAddBlocked = pendingEntry !== null;
 
   /* The current page's link id (VMaster.TBL_LINKS_AND_PAGES); stored on each
      record so DMS/reporting can scope by page. Fallback is the Purchase GRN
@@ -670,6 +687,10 @@ export default function PurchaseGrnPage() {
   };
 
   const openAdd = () => {
+    if (isAddBlocked) {
+      toast({ title: SUBMIT_BEFORE_ADD_MESSAGE, variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
     setEditing(null);
     setForm(emptyForm());
     setDtls([]);
@@ -1065,6 +1086,121 @@ export default function PurchaseGrnPage() {
     }
   };
 
+  const handleSubmit = async (item: any) => {
+    const refNo = item?.grnNo ?? item?.PURCHASE_GRN_REF_NO;
+    if (!refNo) return;
+    setSubmittingRef(String(refNo));
+    try {
+      const res = await dispatch(submitPurchaseGrn(item as PurchaseGrnGridData)).unwrap();
+      toast({ title: res?.message ?? "Purchase GRN submitted successfully", duration: DEFAULT_TOAST_DURATION });
+      dispatch(fetchPurchaseGrns({}));
+    } catch (e: any) {
+      toast({ title: typeof e === "string" ? e : (e?.message || "Error submitting purchase GRN"), variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+    } finally {
+      setSubmittingRef(null);
+    }
+  };
+
+  /* Build a GRN PDF from the saved header + detail lines. The header/detail
+     procs return ids only, so display names are resolved from the masters
+     already loaded on this page; the grid row's joined names win when present. */
+  const buildGrnPdfForRow = async (row: any) => {
+    const refNo = row?.grnNo ?? row?.PURCHASE_GRN_REF_NO;
+    if (!refNo) throw new Error("Purchase GRN Ref No is required");
+
+    const [hdr, lines] = await Promise.all([
+      dispatch(fetchPurchaseGrnHdr({ refNo, linkPagesId })).unwrap(),
+      dispatch(fetchPurchaseGrnDtls(refNo)).unwrap(),
+    ]);
+
+    /* Company / supplier lists are resolved from the full masters (not the
+       session-filtered form dropdowns) so a stored value always finds a name. */
+    const companyList = opt(companies, "COMPANY_ID", "COMPANY_NAME");
+    const supplierList = opt(partners, "BP_ID", "BP_NAME");
+
+    const merged: any = { ...(hdr || {}), ...(row || {}) };
+    const header = {
+      ...merged,
+      PURCHASE_GRN_REF_NO: merged.PURCHASE_GRN_REF_NO ?? merged.grnNo ?? refNo,
+      PURCHASE_GRN_DATE: merged.PURCHASE_GRN_DATE ?? merged.grnDate,
+      COMPANY_NAME:
+        merged.companyName || merged.COMPANY_NAME || labelOf(companyList, merged.COMPANY_ID),
+      CAMP_NAME: merged.campName || merged.CAMP_NAME || labelOf(campOptions, merged.CAMP_ID),
+      STORE_NAME: merged.storeName || merged.STORE_NAME || labelOf(storeOptions, merged.STORE_ID),
+      LOCATION_NAME:
+        merged.locationName || merged.LOCATION_NAME || labelOf(locationOptions, merged.LOCATION_ID),
+      SUPPLIER_NAME:
+        merged.supplierName || merged.SUPPLIER_NAME || labelOf(supplierList, merged.SUPPLIER_BP_ID),
+      CURRENCY_NAME:
+        merged.currencyName || merged.CURRENCY_NAME || labelOf(currencyOptions, merged.CURRENCY_ID),
+      STATUS_NAME:
+        merged.statusName || merged.STATUS_NAME || labelOf(statusOptions, merged.STATUS_ID),
+    };
+
+    const enrichedLines = (Array.isArray(lines) ? lines : []).map((line: any) => ({
+      ...line,
+      PRODUCT_NAME: line.PRODUCT_NAME || productOf(line.PRODUCT_ID)?.PRODUCT_NAME || "",
+      UOM_NAME: line.UOM_NAME || labelOf(uomOptions, line.UOM_ID),
+      ALT_UOM_NAME: line.ALT_UOM_NAME || labelOf(uomOptions, line.ALT_UOM_ID),
+      RACK_NAME: line.RACK_NAME || labelOf(rackOptions, line.RACK_ID),
+    }));
+
+    const doc = await createPurchaseGrnPdf(header, enrichedLines);
+    return { doc, fileName: purchaseGrnPdfFileName(header) };
+  };
+
+  const closePdf = () => {
+    setPdfOpen(false);
+    setPdfUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+    pdfDocRef.current = null;
+  };
+
+  const handleViewPdf = async (row: any) => {
+    const refNo = row?.grnNo ?? row?.PURCHASE_GRN_REF_NO;
+    if (!refNo || pdfLoadingRef) return;
+    setPdfLoadingRef(refNo);
+    try {
+      const { doc, fileName } = await buildGrnPdfForRow(row);
+      const url = URL.createObjectURL(doc.output("blob") as Blob);
+      setPdfUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return url;
+      });
+      pdfDocRef.current = doc;
+      setPdfName(fileName);
+      setPdfOpen(true);
+    } catch (e: any) {
+      toast({
+        title: typeof e === "string" ? e : e?.message || "Failed to generate purchase GRN PDF",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+    } finally {
+      setPdfLoadingRef(null);
+    }
+  };
+
+  const handleDownloadPdf = async (row: any) => {
+    const refNo = row?.grnNo ?? row?.PURCHASE_GRN_REF_NO;
+    if (!refNo || pdfLoadingRef) return;
+    setPdfLoadingRef(refNo);
+    try {
+      const { doc, fileName } = await buildGrnPdfForRow(row);
+      doc.save(fileName);
+    } catch (e: any) {
+      toast({
+        title: typeof e === "string" ? e : e?.message || "Failed to generate purchase GRN PDF",
+        variant: "destructive",
+        duration: DEFAULT_TOAST_DURATION,
+      });
+    } finally {
+      setPdfLoadingRef(null);
+    }
+  };
+
   const updateForm = (key: string, value: any) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -1411,10 +1547,17 @@ export default function PurchaseGrnPage() {
           <h1 className="text-2xl font-bold text-foreground">Purchase GRN</h1>
           <p className="text-sm text-muted-foreground">Manage goods receipt notes raised against purchase orders</p>
         </div>
-        <Button onClick={openAdd} className="bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button
+          onClick={openAdd}
+          disabled={isAddBlocked}
+          title={isAddBlocked ? SUBMIT_BEFORE_ADD_MESSAGE : undefined}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="w-4 h-4 mr-2" /> Add Purchase GRN
         </Button>
       </div>
+
+      <SubmitGateBanner pendingEntry={pendingEntry} />
 
       <div className="bg-card rounded-xl border p-4 sm:p-6 shadow-sm overflow-hidden w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
@@ -1477,6 +1620,40 @@ export default function PurchaseGrnPage() {
                     <td className="p-3 flex gap-2">
                       <button onClick={() => openEdit(item)} className="p-1.5 rounded hover:bg-muted transition-colors"><Pencil className="w-4 h-4 text-muted-foreground" /></button>
                       {isAdmin && <button onClick={() => setDeleteId(refNo)} className="p-1.5 rounded hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4 text-destructive" /></button>}
+                      {!isEntrySubmitted(item) && (
+                        <button
+                          onClick={() => handleSubmit(item)}
+                          disabled={submittingRef === refNo}
+                          title="Submit purchase GRN"
+                          className="p-1.5 rounded hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {submittingRef === refNo ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                          ) : (
+                            <Send className="w-4 h-4 text-primary" />
+                          )}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleViewPdf(item)}
+                        disabled={pdfLoadingRef === refNo}
+                        title="View purchase GRN PDF"
+                        className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {pdfLoadingRef === refNo ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-info" />
+                        ) : (
+                          <Eye className="w-4 h-4 text-info" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleDownloadPdf(item)}
+                        disabled={pdfLoadingRef === refNo}
+                        title="Download purchase GRN PDF"
+                        className="p-1.5 rounded hover:bg-info/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Download className="w-4 h-4 text-info" />
+                      </button>
                     </td>
                     <td className="p-3 font-medium">{refNo || "-"}</td>
                     <td className="p-3">{formatDate(item.grnDate)}</td>
@@ -1649,7 +1826,7 @@ export default function PurchaseGrnPage() {
         <WizardSection
           stepKey={DTL_STEP}
           title="Detail Lines"
-          subtitle="Import lines from the purchase order, then record received / rejected quantity, batch and storage"
+          subtitle="Import lines from the purchase order, then record received / rejected quantity, batch and storage. All lines are shown together in one grid."
           errors={stepErrors[DTL_STEP]}
           actions={
             <div className="flex items-center gap-2">
@@ -1673,27 +1850,22 @@ export default function PurchaseGrnPage() {
               No detail lines yet. Select a Purchase Order to import its lines, or use Add Line to start one.
             </p>
           ) : (
-            <div className="space-y-3">
-              {dtls.map((row: any) => (
-                <DetailLineCard
-                  key={row.key}
-                  anchor={lineStepKey(row.key)}
-                  title={`Line ${row.LINE_NO ?? "?"}`}
-                  subtitle={
-                    (row.PRODUCT_NAME && String(row.PRODUCT_NAME)) ||
-                    labelOf(productOptionsFor(form.COMPANY_ID, row.MAIN_CATEGORY_ID), row.PRODUCT_ID) ||
-                    "Not filled in yet"
-                  }
-                  groups={lineGroups()}
-                  row={row}
-                  primaryField={productField}
-                  errors={lineErrors[row.key]}
-                  onChange={(field, value) => updateDtl(row.key, field, value)}
-                  onRemove={() => removeDtl(row.key)}
-                />
-              ))}
-            </div>
+            <DetailGrid
+              groups={lineGroups()}
+              rows={dtls}
+              primaryField={productField}
+              errorsFor={(row: any) => lineErrors[row.key]}
+              onChange={(rowKey: string, field: string, value: any) => updateDtl(rowKey, field, value)}
+              onRemove={removeDtl}
+              anchorFor={(row: any) => lineStepKey(row.key)}
+            />
           )}
+          <UnitConversionPanel
+            rows={dtls}
+            uoms={uoms}
+            products={products}
+            subtitle="Packing and alternate unit conversion carried by the GRN lines above."
+          />
           <p className="text-[11px] text-muted-foreground">
             Blank lines stay while you work and are dropped on save.
           </p>
@@ -1730,6 +1902,37 @@ export default function PurchaseGrnPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={pdfOpen} onOpenChange={(value) => { if (!value) closePdf(); }}>
+        <DialogContent className="max-w-5xl h-[92vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-muted-foreground" />
+              Purchase GRN PDF
+              <span className="text-xs font-normal text-muted-foreground">{pdfName}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 rounded-lg border bg-muted/20 overflow-hidden">
+            {pdfUrl ? (
+              <iframe src={pdfUrl} title={pdfName} className="w-full h-full" />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                Generating PDF...
+              </div>
+            )}
+          </div>
+          <DialogFooter className="shrink-0 pt-2 border-t">
+            <Button variant="outline" onClick={closePdf}>Close</Button>
+            <Button
+              className="bg-primary text-primary-foreground"
+              onClick={() => pdfDocRef.current?.save(pdfName)}
+              disabled={!pdfUrl}
+            >
+              <Download className="w-4 h-4 mr-2" /> Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   getPurchaseGrnDtl,
   savePurchaseGrn,
   updatePurchaseGrn,
+  submitPurchaseGrn,
   deletePurchaseGrnDtl,
   deletePurchaseGrnHdr
 } from "../controllers/purchaseGrnMaster.controller";
@@ -18,6 +19,7 @@ PurchaseGrnMasterRouter.get("/dtls/:refNo", getPurchaseGrnDtls);
 PurchaseGrnMasterRouter.get("/dtl/:id", getPurchaseGrnDtl);
 PurchaseGrnMasterRouter.post("/", savePurchaseGrn);
 PurchaseGrnMasterRouter.put("/:refNo", updatePurchaseGrn);
+PurchaseGrnMasterRouter.put("/:refNo/submit", submitPurchaseGrn);
 PurchaseGrnMasterRouter.delete("/dtl/:id", deletePurchaseGrnDtl);
 PurchaseGrnMasterRouter.delete("/:refNo", deletePurchaseGrnHdr);
 

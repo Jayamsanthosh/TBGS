@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Plus, Search, Pencil, Trash2, Download, FileSpreadsheet, FileText, X, Eye } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Download, FileSpreadsheet, FileText, X, Eye, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,12 @@ import * as XLSX from "xlsx";
 import { formatDate } from "@/lib/validation";
 import { DatePicker } from "@/components/ui/date-picker";
 import { asset } from "@/lib/config";
+import {
+  DEFAULT_ENTRY_STATUS_KEYS,
+  SUBMIT_BEFORE_ADD_MESSAGE,
+  findPendingEntry,
+  pendingEntryLabel,
+} from "@/lib/entrySubmit";
 
 const DATE_KEY_RE = /(DATE|_FROM|_TO|_UPTO|EXPIRY|BIRTH|JOINING|ISSUE|VALID|HOLIDAY|APPROVAL|AMENDMENT|PURCHASE)/i;
 const DATE_VALUE_RE = /^(\d{4})-(\d{2})-(\d{2})|^(\d{2})[-/](\d{2})[-/](\d{4})|^(\d{2})-[A-Za-z]{3}-\d{4}/;
@@ -101,6 +107,19 @@ interface MasterPageProps {
   lockedStatuses?: string[];
   hideLockedModifyActions?: boolean;
   rowActions?: (item: Record<string, any>) => React.ReactNode;
+  /**
+   * Entry screens only: keep the "Add" action disabled while a saved row on
+   * this screen is still waiting to be submitted. The row that blocks the
+   * action is also announced in an amber banner above the table.
+   */
+  submitBeforeAdd?:
+    | boolean
+    | {
+        /** Fields holding the entry lifecycle status. Defaults to STATUS_ENTRY / STATUS_MASTER. */
+        statusKeys?: readonly string[];
+        /** Overrides the default banner text. */
+        message?: string;
+      };
   enableDateRangeFilter?: boolean;
   onDateRangeFilterChange?: (from: string, to: string) => void;
 }
@@ -121,7 +140,7 @@ const PAGE_SIZES = [10, 25, 50, "ALL"] as const;
 
 import { useMasterData } from "@/hooks/useMasterData";
 
-export default function MasterCrudPage({ title, description, idPrefix, domain, fields, initialData, columns, customAddUrl, customEditUrl, customStoreOverrides, onPrint, onBeforeEdit, onViewData, highlightId, statusOptions, onStatusFilterChange, onSaveValidate, enableViewDetails, lockedStatuses = ["CL", "CA"], hideLockedModifyActions, rowActions, enableDateRangeFilter, onDateRangeFilterChange }: MasterPageProps) {
+export default function MasterCrudPage({ title, description, idPrefix, domain, fields, initialData, columns, customAddUrl, customEditUrl, customStoreOverrides, onPrint, onBeforeEdit, onViewData, highlightId, statusOptions, onStatusFilterChange, onSaveValidate, enableViewDetails, lockedStatuses = ["CL", "CA"], hideLockedModifyActions, rowActions, submitBeforeAdd, enableDateRangeFilter, onDateRangeFilterChange }: MasterPageProps) {
   const router = useRouter();
   const overrides = customStoreOverrides || {};
   const masterData = overrides.data
@@ -159,6 +178,17 @@ export default function MasterCrudPage({ title, description, idPrefix, domain, f
     const s = String(item.STATUS_MASTER || item.status || "").toUpperCase();
     return lockedStatuses.includes(s);
   };
+
+  /* Entry screens must be submitted before the next entry is created, so the
+     Add action stays disabled while any saved row is still pending. The check
+     runs on the unfiltered dataset so a status filter cannot hide the blocker. */
+  const submitGate = submitBeforeAdd && typeof submitBeforeAdd === "object" ? submitBeforeAdd : undefined;
+  const pendingEntry = submitBeforeAdd
+    ? findPendingEntry(Array.isArray(data) ? data : [], submitGate?.statusKeys ?? DEFAULT_ENTRY_STATUS_KEYS)
+    : null;
+  const isAddBlocked = pendingEntry !== null;
+  const submitBeforeAddMessage = submitGate?.message || SUBMIT_BEFORE_ADD_MESSAGE;
+  const pendingEntryRef = pendingEntry ? pendingEntryLabel(pendingEntry) : "";
 
   const role = useMemo(() => {
     if (typeof window !== 'undefined') {
@@ -365,7 +395,13 @@ export default function MasterCrudPage({ title, description, idPrefix, domain, f
     return f;
   };
 
-  const openAdd = () => { if (customAddUrl) router.push(customAddUrl); else { setEditing(null); setForm(emptyForm()); setDialogOpen(true); } };
+  const openAdd = () => {
+    if (isAddBlocked) {
+      toast({ title: submitBeforeAddMessage, variant: "destructive", duration: DEFAULT_TOAST_DURATION });
+      return;
+    }
+    if (customAddUrl) router.push(customAddUrl); else { setEditing(null); setForm(emptyForm()); setDialogOpen(true); }
+  };
   const openEdit = async (item: Record<string, any>) => {
     if (customEditUrl) {
       router.push(customEditUrl(item.id));
@@ -582,11 +618,29 @@ export default function MasterCrudPage({ title, description, idPrefix, domain, f
               <DropdownMenuItem onClick={exportCSV}><FileText className="w-4 h-4 mr-2" /> Export as CSV</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={openAdd} className="bg-primary text-primary-foreground hover:bg-primary/90">
+          <Button
+            onClick={openAdd}
+            disabled={isAddBlocked}
+            title={isAddBlocked ? submitBeforeAddMessage : undefined}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <Plus className="w-4 h-4 mr-2" /> Add {title.replace(/s$/, "")}
           </Button>
         </div>
       </div>
+
+      {isAddBlocked && (
+        <div
+          role="status"
+          className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            {submitBeforeAddMessage}
+            {pendingEntryRef ? ` Pending reference: ${pendingEntryRef}.` : ""}
+          </span>
+        </div>
+      )}
 
       <div className="bg-card rounded-xl border p-4 sm:p-6 shadow-sm overflow-hidden w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
