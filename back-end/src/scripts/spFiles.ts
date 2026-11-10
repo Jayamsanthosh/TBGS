@@ -3,6 +3,9 @@
    that read and write it, so the order is fixed here and shared by every
    runner (src/scripts/deployProcs.ts and src/apply_sps.ts). */
 export const SP_FILES: string[] = [
+  /* The dashboard counts in every proc below agree on one approval rollup, so
+     the shared status functions have to exist before any procedure is created. */
+  "request_status_rollup.sql",
   "purchase_request_submit.sql",
   /* The approval panel reads and writes the purchase request through its own
      procs; they live beside the submit proc because both operate on the same
@@ -37,4 +40,9 @@ export const SP_FILES: string[] = [
      LINK_ID column that the procs read and write. */
   "purchase_grn_migration.sql",
   "purchase_grn_fix.sql",
+  /* Dashboard + approval summary/list procs. They are last because they read
+     the request and purchase tables whose write procs are defined above. */
+  "GET_REQUEST_SUMMARY.sql",
+  "GET_REQUEST_LIST_BY_TYPE.sql",
+  "report_dashboard_insights.sql",
 ];

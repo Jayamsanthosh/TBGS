@@ -262,15 +262,18 @@ const mapRowToFrontend = (_requestType: string, r: any) => ({
  * VRequest.GET_PURCHASE_QUOTATION_SUMMARY. Keeping them separate means the
  * seven-type proc is never rewritten just to add one card.
  */
-export const getApprovalSummaryService = async (): Promise<any[]> => {
+export const getApprovalSummaryService = async (
+  includeUnsubmitted = false
+): Promise<any[]> => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
 
+  const include = includeUnsubmitted ? 1 : 0;
   const [requests, purchaseRequests, purchaseQuotations, purchaseOrders] = await Promise.all([
-    pool.request().execute("VRequest.GET_REQUEST_SUMMARY"),
-    pool.request().execute("VRequest.GET_PURCHASE_REQUEST_SUMMARY"),
-    pool.request().execute("VRequest.GET_PURCHASE_QUOTATION_SUMMARY"),
-    pool.request().execute("VRequest.GET_PURCHASE_ORDER_SUMMARY"),
+    pool.request().input("IncludeUnsubmitted", sql.Bit, include).execute("VRequest.GET_REQUEST_SUMMARY"),
+    pool.request().input("IncludeUnsubmitted", sql.Bit, include).execute("VRequest.GET_PURCHASE_REQUEST_SUMMARY"),
+    pool.request().input("IncludeUnsubmitted", sql.Bit, include).execute("VRequest.GET_PURCHASE_QUOTATION_SUMMARY"),
+    pool.request().input("IncludeUnsubmitted", sql.Bit, include).execute("VRequest.GET_PURCHASE_ORDER_SUMMARY"),
   ]);
 
   return [
@@ -284,10 +287,12 @@ export const getApprovalSummaryService = async (): Promise<any[]> => {
 /** List rows for one request type, optionally filtered by canonical status. */
 export const getRequestListService = async (
   requestType: string,
-  status = "ALL"
+  status = "ALL",
+  includeUnsubmitted = false
 ): Promise<any[]> => {
   const pool = getPool();
   if (!pool) throw new Error("Database not connected");
+  const include = includeUnsubmitted ? 1 : 0;
 
   if (isPurchaseRequest(requestType)) {
     // The PR list proc already joins every master (company / store / camp /
@@ -296,6 +301,7 @@ export const getRequestListService = async (
     const result = await pool
       .request()
       .input("Status", sql.VarChar(50), status || "ALL")
+      .input("IncludeUnsubmitted", sql.Bit, include)
       .execute("VPurchase.GET_APPROVAL_LIST_PURCHASE_REQUEST");
 
     return (result.recordset || []).map((r) => mapRowToFrontend(requestType, r));
@@ -307,6 +313,7 @@ export const getRequestListService = async (
     const result = await pool
       .request()
       .input("Status", sql.VarChar(50), status || "ALL")
+      .input("IncludeUnsubmitted", sql.Bit, include)
       .execute("VPurchase.GET_APPROVAL_LIST_PURCHASE_QUOTATION");
 
     return (result.recordset || []).map((r) => mapRowToFrontend(requestType, r));
@@ -318,6 +325,7 @@ export const getRequestListService = async (
     const result = await pool
       .request()
       .input("Status", sql.VarChar(50), status || "ALL")
+      .input("IncludeUnsubmitted", sql.Bit, include)
       .execute("VPurchase.GET_APPROVAL_LIST_PURCHASE_ORDER");
 
     return (result.recordset || []).map((r) => mapRowToFrontend(requestType, r));
@@ -326,6 +334,7 @@ export const getRequestListService = async (
   const result = await pool
     .request()
     .input("RequestType", sql.VarChar(100), requestType)
+    .input("IncludeUnsubmitted", sql.Bit, include)
     .input("Status", sql.VarChar(50), status || "ALL")
     .execute("VRequest.GET_REQUEST_LIST_BY_TYPE");
 
@@ -343,6 +352,8 @@ export interface RequestListPageFilter {
   search?: string | null;
   page?: number | null;
   pageSize?: number | null;
+  /* Dashboard detail must show every row the card counted, drafts included. */
+  includeUnsubmitted?: boolean;
 }
 
 /**
@@ -369,6 +380,7 @@ export const getRequestPageService = async (
   const request = pool
     .request()
     .input("Status", sql.VarChar(50), status || "ALL")
+    .input("IncludeUnsubmitted", sql.Bit, filter.includeUnsubmitted ? 1 : 0)
     .input("FromDate", sql.Date, filter.fromDate || null)
     .input("ToDate", sql.Date, filter.toDate || null)
     .input("CompanyId", sql.Int, toNullableInt(filter.companyId))

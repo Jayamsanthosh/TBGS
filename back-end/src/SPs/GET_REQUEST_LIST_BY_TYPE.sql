@@ -11,6 +11,8 @@
 CREATE OR ALTER PROCEDURE [VRequest].[GET_REQUEST_LIST_BY_TYPE]
 (
     @RequestType VARCHAR(100),
+    -- 1 = list every stored row (dashboard); 0 = submitted rows only (approval app).
+    @IncludeUnsubmitted BIT = 0,
     @Status VARCHAR(50) = 'ALL',
     @FromDate DATE = NULL,
     @ToDate DATE = NULL,
@@ -61,16 +63,12 @@ BEGIN
                 A.CREATED_DATE AS requestedDate,
                 A.CREATED_DATE AS createdDate,
                 A.STATUS_MASTER AS statusEntry,
-                CASE UPPER(LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,
-                        ISNULL(A.RESPONSE_2_STATUS, ISNULL(A.RESPONSE_1_STATUS,
-                        ISNULL(A.SECTION_HEAD_RESPONSE_STATUS, 'Pending')))))))
-                    WHEN 'APPROVAL' THEN 'APPROVED'
-                    WHEN 'APPROVED' THEN 'APPROVED'
-                    WHEN 'REJECT' THEN 'REJECTED'
-                    WHEN 'REJECTED' THEN 'REJECTED'
-                    WHEN 'HOLD' THEN 'HOLD'
-                    ELSE 'PENDING'
-                END AS finalResponseStatus,
+                VRequest.FN_APPROVAL_STATUS(
+                    A.SECTION_HEAD_RESPONSE_STATUS,
+                    A.RESPONSE_1_STATUS,
+                    A.RESPONSE_2_STATUS,
+                    A.FINAL_RESPONSE_STATUS
+                ) AS finalResponseStatus,
                 CASE UPPER(LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,''))))
                     WHEN 'APPROVAL' THEN 'APPROVED'
                     WHEN 'APPROVED' THEN 'APPROVED'
@@ -128,12 +126,13 @@ BEGIN
             LEFT JOIN VMaster.TBL_DESIGNATION_MASTER DS ON DS.DESIGNATION_ID = A.DESIGNATION_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER CP ON CP.CAMP_ID = A.CAMP_ID
             LEFT JOIN VMaster.TBL_ATTENDANCE_TYPE_MASTER AT ON AT.ATTENDANCE_TYPE_ID = A.ATTENDANCE_TYPE_ID
-            WHERE A.STATUS_MASTER IN ('AC', 'CL')
-              -- Show attendance requests in approval ONLY after their attendance
-              -- detail has been submitted (STATUS 'CL' in the payroll detail).
-              AND EXISTS (SELECT 1 FROM [VPayEntries].[ATTENDANCE_DETAILS] XD
-                          WHERE XD.ATT_REQUEST_REF_NO = A.ATT_REQUEST_REF_NO
-                            AND XD.STATUS_MASTER = 'CL')
+            WHERE (
+                    @IncludeUnsubmitted = 1
+                    OR (A.STATUS_MASTER IN ('AC', 'CL')
+                        AND EXISTS (SELECT 1 FROM [VPayEntries].[ATTENDANCE_DETAILS] XD
+                                    WHERE XD.ATT_REQUEST_REF_NO = A.ATT_REQUEST_REF_NO
+                                      AND XD.STATUS_MASTER = 'CL'))
+                  )
               AND (@FromDate IS NULL OR CONVERT(date, A.CREATED_DATE) >= @FromDate)
               AND (@ToDate IS NULL OR CONVERT(date, A.CREATED_DATE) <= @ToDate)
               AND (@CompanyId IS NULL OR A.COMPANY_ID = @CompanyId)
@@ -204,16 +203,12 @@ BEGIN
                 A.CREATED_DATE AS requestedDate,
                 A.CREATED_DATE AS createdDate,
                 A.STATUS_MASTER AS statusEntry,
-                CASE UPPER(LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,
-                        ISNULL(A.RESPONSE_2_STATUS, ISNULL(A.RESPONSE_1_STATUS,
-                        ISNULL(A.SECTION_HEAD_RESPONSE_STATUS, 'Pending')))))))
-                    WHEN 'APPROVAL' THEN 'APPROVED'
-                    WHEN 'APPROVED' THEN 'APPROVED'
-                    WHEN 'REJECT' THEN 'REJECTED'
-                    WHEN 'REJECTED' THEN 'REJECTED'
-                    WHEN 'HOLD' THEN 'HOLD'
-                    ELSE 'PENDING'
-                END AS finalResponseStatus,
+                VRequest.FN_APPROVAL_STATUS(
+                    A.SECTION_HEAD_RESPONSE_STATUS,
+                    A.RESPONSE_1_STATUS,
+                    A.RESPONSE_2_STATUS,
+                    A.FINAL_RESPONSE_STATUS
+                ) AS finalResponseStatus,
                 CASE UPPER(LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,''))))
                     WHEN 'APPROVAL' THEN 'APPROVED'
                     WHEN 'APPROVED' THEN 'APPROVED'
@@ -282,7 +277,7 @@ BEGIN
             LEFT JOIN VMaster.TBL_CAMP_MASTER CP ON CP.CAMP_ID = A.CAMP_ID
             LEFT JOIN VMaster.TBL_PAYMENT_MODE_MASTER PM ON PM.PAYMENT_MODE_ID = A.PAYMENT_MODE_ID
             LEFT JOIN VMaster.TBL_BANK_MASTER BK ON BK.BANK_ID = A.BANK_ID
-            WHERE A.STATUS_MASTER = 'CL'
+            WHERE (@IncludeUnsubmitted = 1 OR A.STATUS_MASTER = 'CL')
               AND (@FromDate IS NULL OR CONVERT(date, A.CREATED_DATE) >= @FromDate)
               AND (@ToDate IS NULL OR CONVERT(date, A.CREATED_DATE) <= @ToDate)
               AND (@CompanyId IS NULL OR A.COMPANY_ID = @CompanyId)
@@ -353,16 +348,12 @@ BEGIN
                 A.CREATED_DATE AS requestedDate,
                 A.CREATED_DATE AS createdDate,
                 A.STATUS_MASTER AS statusEntry,
-                CASE UPPER(LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,
-                        ISNULL(A.RESPONSE_2_STATUS, ISNULL(A.RESPONSE_1_STATUS,
-                        ISNULL(A.SECTION_HEAD_RESPONSE_STATUS, 'Pending')))))))
-                    WHEN 'APPROVAL' THEN 'APPROVED'
-                    WHEN 'APPROVED' THEN 'APPROVED'
-                    WHEN 'REJECT'   THEN 'REJECTED'
-                    WHEN 'REJECTED' THEN 'REJECTED'
-                    WHEN 'HOLD'     THEN 'HOLD'
-                    ELSE 'PENDING'
-                END AS finalResponseStatus,
+                VRequest.FN_APPROVAL_STATUS(
+                    A.SECTION_HEAD_RESPONSE_STATUS,
+                    A.RESPONSE_1_STATUS,
+                    A.RESPONSE_2_STATUS,
+                    A.FINAL_RESPONSE_STATUS
+                ) AS finalResponseStatus,
                 CASE UPPER(LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,''))))
                     WHEN 'APPROVAL' THEN 'APPROVED'
                     WHEN 'APPROVED' THEN 'APPROVED'
@@ -416,12 +407,13 @@ BEGIN
             LEFT JOIN VMaster.TBL_DESIGNATION_MASTER DS ON DS.DESIGNATION_ID = A.DESIGNATION_ID
             LEFT JOIN VMaster.TBL_CURRENCY_MASTER CUR ON CUR.CURRENCY_ID = A.CURRENCY_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER CP ON CP.CAMP_ID = A.CAMP_ID
-            WHERE A.STATUS_MASTER IN ('AC', 'CL')
-              -- Show arrear requests in approval ONLY after their arrear
-              -- entries have been submitted (STATUS 'CL' in the entries table).
-              AND EXISTS (SELECT 1 FROM [VPayEntries].[TBL_ARREAR_ENTRIES] XD
-                          WHERE XD.ARREAR_REQUEST_REF_NO = A.ARREAR_REQUEST_REF_NO
-                            AND XD.STATUS_MASTER = 'CL')
+            WHERE (
+                    @IncludeUnsubmitted = 1
+                    OR (A.STATUS_MASTER IN ('AC', 'CL')
+                        AND EXISTS (SELECT 1 FROM [VPayEntries].[TBL_ARREAR_ENTRIES] XD
+                                    WHERE XD.ARREAR_REQUEST_REF_NO = A.ARREAR_REQUEST_REF_NO
+                                      AND XD.STATUS_MASTER = 'CL'))
+                  )
               AND (@FromDate IS NULL OR CONVERT(date, A.CREATED_DATE) >= @FromDate)
               AND (@ToDate IS NULL OR CONVERT(date, A.CREATED_DATE) <= @ToDate)
               AND (@CompanyId IS NULL OR A.COMPANY_ID = @CompanyId)
@@ -492,16 +484,12 @@ BEGIN
                 A.CREATED_DATE AS requestedDate,
                 A.CREATED_DATE AS createdDate,
                 A.STATUS_MASTER AS statusEntry,
-                CASE UPPER(LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,
-                        ISNULL(A.RESPONSE_2_STATUS, ISNULL(A.RESPONSE_1_STATUS,
-                        ISNULL(A.SECTION_HEAD_RESPONSE_STATUS, 'Pending')))))))
-                    WHEN 'APPROVAL' THEN 'APPROVED'
-                    WHEN 'APPROVED' THEN 'APPROVED'
-                    WHEN 'REJECT'   THEN 'REJECTED'
-                    WHEN 'REJECTED' THEN 'REJECTED'
-                    WHEN 'HOLD'     THEN 'HOLD'
-                    ELSE 'PENDING'
-                END AS finalResponseStatus,
+                VRequest.FN_APPROVAL_STATUS(
+                    A.SECTION_HEAD_RESPONSE_STATUS,
+                    A.RESPONSE_1_STATUS,
+                    A.RESPONSE_2_STATUS,
+                    A.FINAL_RESPONSE_STATUS
+                ) AS finalResponseStatus,
                 CASE UPPER(LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,''))))
                     WHEN 'APPROVAL' THEN 'APPROVED'
                     WHEN 'APPROVED' THEN 'APPROVED'
@@ -567,12 +555,13 @@ BEGIN
             LEFT JOIN VMaster.TBL_CAMP_MASTER CP ON CP.CAMP_ID = A.CAMP_ID
             LEFT JOIN VMaster.TBL_PAYMENT_MODE_MASTER PM ON PM.PAYMENT_MODE_ID = A.PAYMENT_MODE_ID
             LEFT JOIN VMaster.TBL_BANK_MASTER BK ON BK.BANK_ID = A.BANK_ID
-            WHERE A.STATUS_MASTER IN ('AC', 'CL')
-              -- Show overtime requests in approval ONLY after their overtime
-              -- entries have been submitted (STATUS 'CL' in the entries table).
-              AND EXISTS (SELECT 1 FROM [VPayEntries].[TBL_OVERTIME_ENTRIES] XD
-                          WHERE XD.OT_REQUEST_REF_NO = A.OT_REQUEST_REF_NO
-                            AND XD.STATUS_MASTER = 'CL')
+            WHERE (
+                    @IncludeUnsubmitted = 1
+                    OR (A.STATUS_MASTER IN ('AC', 'CL')
+                        AND EXISTS (SELECT 1 FROM [VPayEntries].[TBL_OVERTIME_ENTRIES] XD
+                                    WHERE XD.OT_REQUEST_REF_NO = A.OT_REQUEST_REF_NO
+                                      AND XD.STATUS_MASTER = 'CL'))
+                  )
               AND (@FromDate IS NULL OR CONVERT(date, A.CREATED_DATE) >= @FromDate)
               AND (@ToDate IS NULL OR CONVERT(date, A.CREATED_DATE) <= @ToDate)
               AND (@CompanyId IS NULL OR A.COMPANY_ID = @CompanyId)
@@ -643,16 +632,12 @@ BEGIN
                 A.CREATED_DATE AS requestedDate,
                 A.CREATED_DATE AS createdDate,
                 A.STATUS_MASTER AS statusEntry,
-                CASE UPPER(LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,
-                        ISNULL(A.RESPONSE_2_STATUS, ISNULL(A.RESPONSE_1_STATUS,
-                        ISNULL(A.SECTION_HEAD_RESPONSE_STATUS, 'Pending')))))))
-                    WHEN 'APPROVAL' THEN 'APPROVED'
-                    WHEN 'APPROVED' THEN 'APPROVED'
-                    WHEN 'REJECT'   THEN 'REJECTED'
-                    WHEN 'REJECTED' THEN 'REJECTED'
-                    WHEN 'HOLD'     THEN 'HOLD'
-                    ELSE 'PENDING'
-                END AS finalResponseStatus,
+                VRequest.FN_APPROVAL_STATUS(
+                    A.SECTION_HEAD_RESPONSE_STATUS,
+                    A.RESPONSE_1_STATUS,
+                    A.RESPONSE_2_STATUS,
+                    A.FINAL_RESPONSE_STATUS
+                ) AS finalResponseStatus,
                 CASE UPPER(LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,''))))
                     WHEN 'APPROVAL' THEN 'APPROVED'
                     WHEN 'APPROVED' THEN 'APPROVED'
@@ -717,12 +702,13 @@ BEGIN
             LEFT JOIN VMaster.TBL_CAMP_MASTER CP ON CP.CAMP_ID = A.CAMP_ID
             LEFT JOIN VMaster.TBL_PAYMENT_MODE_MASTER PM ON PM.PAYMENT_MODE_ID = A.PAYMENT_MODE_ID
             LEFT JOIN VMaster.TBL_BANK_MASTER BK ON BK.BANK_ID = A.BANK_ID
-            WHERE A.STATUS_MASTER IN ('AC', 'CL')
-              -- Show bonus requests in approval ONLY after their bonus
-              -- entries have been submitted (STATUS 'CL' in the entries table).
-              AND EXISTS (SELECT 1 FROM [VPayEntries].[TBL_BONUS_ENTRIES] XD
-                          WHERE XD.BONUS_REQUEST_REF_NO = A.BONUS_REQUEST_REF_NO
-                            AND XD.STATUS_MASTER = 'CL')
+            WHERE (
+                    @IncludeUnsubmitted = 1
+                    OR (A.STATUS_MASTER IN ('AC', 'CL')
+                        AND EXISTS (SELECT 1 FROM [VPayEntries].[TBL_BONUS_ENTRIES] XD
+                                    WHERE XD.BONUS_REQUEST_REF_NO = A.BONUS_REQUEST_REF_NO
+                                      AND XD.STATUS_MASTER = 'CL'))
+                  )
               AND (@FromDate IS NULL OR CONVERT(date, A.CREATED_DATE) >= @FromDate)
               AND (@ToDate IS NULL OR CONVERT(date, A.CREATED_DATE) <= @ToDate)
               AND (@CompanyId IS NULL OR A.COMPANY_ID = @CompanyId)
@@ -793,16 +779,12 @@ BEGIN
                 A.CREATED_DATE AS requestedDate,
                 A.CREATED_DATE AS createdDate,
                 A.STATUS_MASTER AS statusEntry,
-                CASE UPPER(LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,
-                        ISNULL(A.RESPONSE_2_STATUS, ISNULL(A.RESPONSE_1_STATUS,
-                        ISNULL(A.SECTION_HEAD_RESPONSE_STATUS, 'Pending')))))))
-                    WHEN 'APPROVAL' THEN 'APPROVED'
-                    WHEN 'APPROVED' THEN 'APPROVED'
-                    WHEN 'REJECT'   THEN 'REJECTED'
-                    WHEN 'REJECTED' THEN 'REJECTED'
-                    WHEN 'HOLD'     THEN 'HOLD'
-                    ELSE 'PENDING'
-                END AS finalResponseStatus,
+                VRequest.FN_APPROVAL_STATUS(
+                    A.SECTION_HEAD_RESPONSE_STATUS,
+                    A.RESPONSE_1_STATUS,
+                    A.RESPONSE_2_STATUS,
+                    A.FINAL_RESPONSE_STATUS
+                ) AS finalResponseStatus,
                 CASE UPPER(LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,''))))
                     WHEN 'APPROVAL' THEN 'APPROVED'
                     WHEN 'APPROVED' THEN 'APPROVED'
@@ -858,12 +840,13 @@ BEGIN
             LEFT JOIN VMaster.TBL_DESIGNATION_MASTER DS ON DS.DESIGNATION_ID = A.DESIGNATION_ID
             LEFT JOIN VMaster.TBL_CURRENCY_MASTER CUR ON CUR.CURRENCY_ID = A.CURRENCY_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER CP ON CP.CAMP_ID = A.CAMP_ID
-            WHERE A.STATUS_MASTER IN ('AC', 'CL')
-              -- Show leave encashment requests in approval ONLY after their
-              -- leave encashment entries have been submitted (STATUS 'CL').
-              AND EXISTS (SELECT 1 FROM [VPayEntries].[TBL_LEAVE_ENCASHMENT_ENTRIES] XD
-                          WHERE XD.LEAVE_ENCASHMENT_REQUEST_REF_NO = A.LEAVE_ENCASHMENT_REQUEST_REF_NO
-                            AND XD.STATUS_MASTER = 'CL')
+            WHERE (
+                    @IncludeUnsubmitted = 1
+                    OR (A.STATUS_MASTER IN ('AC', 'CL')
+                        AND EXISTS (SELECT 1 FROM [VPayEntries].[TBL_LEAVE_ENCASHMENT_ENTRIES] XD
+                                    WHERE XD.LEAVE_ENCASHMENT_REQUEST_REF_NO = A.LEAVE_ENCASHMENT_REQUEST_REF_NO
+                                      AND XD.STATUS_MASTER = 'CL'))
+                  )
               AND (@FromDate IS NULL OR CONVERT(date, A.CREATED_DATE) >= @FromDate)
               AND (@ToDate IS NULL OR CONVERT(date, A.CREATED_DATE) <= @ToDate)
               AND (@CompanyId IS NULL OR A.COMPANY_ID = @CompanyId)
@@ -934,16 +917,12 @@ BEGIN
                 A.CREATED_DATE AS requestedDate,
                 A.CREATED_DATE AS createdDate,
                 A.STATUS_MASTER AS statusEntry,
-                CASE UPPER(LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,
-                        ISNULL(A.RESPONSE_2_STATUS, ISNULL(A.RESPONSE_1_STATUS,
-                        ISNULL(A.SECTION_HEAD_RESPONSE_STATUS, 'Pending')))))))
-                    WHEN 'APPROVAL' THEN 'APPROVED'
-                    WHEN 'APPROVED' THEN 'APPROVED'
-                    WHEN 'REJECT'   THEN 'REJECTED'
-                    WHEN 'REJECTED' THEN 'REJECTED'
-                    WHEN 'HOLD'     THEN 'HOLD'
-                    ELSE 'PENDING'
-                END AS finalResponseStatus,
+                VRequest.FN_APPROVAL_STATUS(
+                    A.SECTION_HEAD_RESPONSE_STATUS,
+                    A.RESPONSE_1_STATUS,
+                    A.RESPONSE_2_STATUS,
+                    A.FINAL_RESPONSE_STATUS
+                ) AS finalResponseStatus,
                 CASE UPPER(LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,''))))
                     WHEN 'APPROVAL' THEN 'APPROVED'
                     WHEN 'APPROVED' THEN 'APPROVED'
@@ -1015,12 +994,13 @@ BEGIN
             LEFT JOIN VMaster.TBL_CURRENCY_MASTER CUR ON CUR.CURRENCY_ID = A.CURRENCY_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER OCP ON OCP.CAMP_ID = A.OLD_CAMP_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER NCP ON NCP.CAMP_ID = A.NEW_CAMP_ID
-            WHERE A.STATUS_MASTER IN ('AC', 'CL')
-              -- Show PDT requests in approval ONLY after their entries have
-              -- been submitted (STATUS 'CL' in the entries table).
-              AND EXISTS (SELECT 1 FROM [VPayEntries].[TBL_PROMOTION_DEMOTION_TRANSFER_ENTRIES] XD
-                          WHERE XD.TRANSFER_REQUEST_REF_NO = A.TRANSFER_REQUEST_REF_NO
-                            AND XD.STATUS_MASTER = 'CL')
+            WHERE (
+                    @IncludeUnsubmitted = 1
+                    OR (A.STATUS_MASTER IN ('AC', 'CL')
+                        AND EXISTS (SELECT 1 FROM [VPayEntries].[TBL_PROMOTION_DEMOTION_TRANSFER_ENTRIES] XD
+                                    WHERE XD.TRANSFER_REQUEST_REF_NO = A.TRANSFER_REQUEST_REF_NO
+                                      AND XD.STATUS_MASTER = 'CL'))
+                  )
               AND (@FromDate IS NULL OR CONVERT(date, A.CREATED_DATE) >= @FromDate)
               AND (@ToDate IS NULL OR CONVERT(date, A.CREATED_DATE) <= @ToDate)
               AND (@CompanyId IS NULL OR A.OLD_COMPANY_ID = @CompanyId)

@@ -72,7 +72,9 @@ CREATE OR ALTER PROCEDURE [VPurchase].[GET_APPROVAL_LIST_PURCHASE_QUOTATION]
     @DepartmentId INT             = NULL,
     @Search       NVARCHAR(200)   = NULL,
     @Page         INT             = NULL,
-    @PageSize     INT             = NULL
+    @PageSize     INT             = NULL,
+    -- 1 = list every stored row (dashboard); 0 = submitted rows only (approval app).
+    @IncludeUnsubmitted BIT       = 0
 )
 AS
 BEGIN
@@ -109,22 +111,13 @@ BEGIN
             A.PURCHASE_QUOTATION_DATE AS requestedDate,
             A.CREATED_DATE AS createdDate,
             A.STATUS_ENTRY AS statusEntry,
-            CASE
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,'')))) IN ('REJECT','REJECTED')
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(A.RESPONSE_2_STATUS,'')))) IN ('REJECT','REJECTED')
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(A.RESPONSE_1_STATUS,'')))) IN ('REJECT','REJECTED')
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,'')))) IN ('REJECT','REJECTED')
-                    THEN 'REJECTED'
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,'')))) = 'HOLD'
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(A.RESPONSE_2_STATUS,'')))) = 'HOLD'
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(A.RESPONSE_1_STATUS,'')))) = 'HOLD'
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,'')))) = 'HOLD'
-                    THEN 'HOLD'
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(A.RESPONSE_2_STATUS,'')))) IN ('APPROVAL','APPROVED')
-                  OR UPPER(LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,'')))) IN ('APPROVAL','APPROVED')
-                    THEN 'APPROVED'
-                ELSE 'PENDING'
-            END AS finalResponseStatus,
+            -- Terminal-only rollup shared with GET_PURCHASE_QUOTATION_SUMMARY.
+            VRequest.FN_PURCHASE_APPROVAL_STATUS(
+                A.SECTION_HEAD_RESPONSE_STATUS,
+                A.RESPONSE_1_STATUS,
+                A.RESPONSE_2_STATUS,
+                A.FINAL_RESPONSE_STATUS
+            ) AS finalResponseStatus,
             -- How many of the three levels are approved (0..3), for the grid.
             (SELECT COUNT(*) FROM (SELECT 1 AS x
                 WHERE UPPER(LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,'')))) IN ('APPROVAL','APPROVED')
@@ -231,14 +224,17 @@ BEGIN
         -- has actually answered. A legacy row that an older submit proc flipped
         -- to 'CL' without touching QUOTATION_STATUS_ID stays on Draft and has no
         -- answers, so it fails both halves and is excluded.
-        WHERE UPPER(LTRIM(RTRIM(ISNULL(A.STATUS_ENTRY,'')))) = 'CL'
-          AND (
-                ISNULL(A.QUOTATION_STATUS_ID, 0) IN (3, 4, 5, 6, 7)
-             OR LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,''))) <> ''
-             OR LTRIM(RTRIM(ISNULL(A.RESPONSE_1_STATUS,'')))            <> ''
-             OR LTRIM(RTRIM(ISNULL(A.RESPONSE_2_STATUS,'')))            <> ''
-             OR LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,'')))        <> ''
-          )
+        WHERE (
+                @IncludeUnsubmitted = 1
+                OR (UPPER(LTRIM(RTRIM(ISNULL(A.STATUS_ENTRY,'')))) = 'CL'
+                    AND (
+                          ISNULL(A.QUOTATION_STATUS_ID, 0) IN (3, 4, 5, 6, 7)
+                       OR LTRIM(RTRIM(ISNULL(A.SECTION_HEAD_RESPONSE_STATUS,''))) <> ''
+                       OR LTRIM(RTRIM(ISNULL(A.RESPONSE_1_STATUS,'')))            <> ''
+                       OR LTRIM(RTRIM(ISNULL(A.RESPONSE_2_STATUS,'')))            <> ''
+                       OR LTRIM(RTRIM(ISNULL(A.FINAL_RESPONSE_STATUS,'')))        <> ''
+                    ))
+              )
           AND (@FromDate IS NULL OR CONVERT(date, A.PURCHASE_QUOTATION_DATE) >= @FromDate)
           AND (@ToDate IS NULL OR CONVERT(date, A.PURCHASE_QUOTATION_DATE) <= @ToDate)
           AND (@CompanyId IS NULL OR A.COMPANY_ID = @CompanyId)
@@ -472,6 +468,7 @@ GO
    just to add one card.
    ---------------------------------------------------------------------------- */
 CREATE OR ALTER PROCEDURE [VRequest].[GET_PURCHASE_QUOTATION_SUMMARY]
+    @IncludeUnsubmitted BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -479,33 +476,24 @@ BEGIN
     ;WITH STATE AS
     (
         SELECT
-            CASE
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(FINAL_RESPONSE_STATUS,'')))) IN ('REJECT','REJECTED')
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(RESPONSE_2_STATUS,'')))) IN ('REJECT','REJECTED')
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(RESPONSE_1_STATUS,'')))) IN ('REJECT','REJECTED')
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(SECTION_HEAD_RESPONSE_STATUS,'')))) IN ('REJECT','REJECTED')
-                    THEN 'REJECTED'
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(FINAL_RESPONSE_STATUS,'')))) = 'HOLD'
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(RESPONSE_2_STATUS,'')))) = 'HOLD'
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(RESPONSE_1_STATUS,'')))) = 'HOLD'
-                 OR  UPPER(LTRIM(RTRIM(ISNULL(SECTION_HEAD_RESPONSE_STATUS,'')))) = 'HOLD'
-                    THEN 'HOLD'
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(RESPONSE_2_STATUS,'')))) IN ('APPROVAL','APPROVED')
-                  OR UPPER(LTRIM(RTRIM(ISNULL(FINAL_RESPONSE_STATUS,'')))) IN ('APPROVAL','APPROVED')
-                    THEN 'APPROVED'
-                ELSE 'PENDING'
-            END AS finalResponseStatus
+            VRequest.FN_PURCHASE_APPROVAL_STATUS(
+                SECTION_HEAD_RESPONSE_STATUS,
+                RESPONSE_1_STATUS,
+                RESPONSE_2_STATUS,
+                FINAL_RESPONSE_STATUS
+            ) AS finalResponseStatus
         FROM [VPurchase].[TBL_PURCHASE_QUOTATION_HDR]
-        -- Same submitted gate as the list procedure: a row counts only once the
-        -- entry screen submitted it (live quotation status, or a level answered).
-        WHERE UPPER(LTRIM(RTRIM(ISNULL(STATUS_ENTRY,'')))) = 'CL'
-          AND (
-                ISNULL(QUOTATION_STATUS_ID, 0) IN (3, 4, 5, 6, 7)
-             OR LTRIM(RTRIM(ISNULL(SECTION_HEAD_RESPONSE_STATUS,''))) <> ''
-             OR LTRIM(RTRIM(ISNULL(RESPONSE_1_STATUS,'')))            <> ''
-             OR LTRIM(RTRIM(ISNULL(RESPONSE_2_STATUS,'')))            <> ''
-             OR LTRIM(RTRIM(ISNULL(FINAL_RESPONSE_STATUS,'')))        <> ''
-          )
+        -- @IncludeUnsubmitted = 1 counts every stored row (drafts included);
+        -- 0 keeps the approval app's submitted-only view.
+        WHERE @IncludeUnsubmitted = 1
+           OR (UPPER(LTRIM(RTRIM(ISNULL(STATUS_ENTRY,'')))) = 'CL'
+               AND (
+                     ISNULL(QUOTATION_STATUS_ID, 0) IN (3, 4, 5, 6, 7)
+                  OR LTRIM(RTRIM(ISNULL(SECTION_HEAD_RESPONSE_STATUS,''))) <> ''
+                  OR LTRIM(RTRIM(ISNULL(RESPONSE_1_STATUS,'')))            <> ''
+                  OR LTRIM(RTRIM(ISNULL(RESPONSE_2_STATUS,'')))            <> ''
+                  OR LTRIM(RTRIM(ISNULL(FINAL_RESPONSE_STATUS,'')))        <> ''
+               ))
     )
     SELECT
         'Purchase Quotation' AS CardName,
