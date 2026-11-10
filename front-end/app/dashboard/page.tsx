@@ -26,22 +26,139 @@ interface RequestRecord {
   [key: string]: unknown;
 }
 
-const REQUEST_TYPES: Record<string, string> = {
-  attendance: "Attendance Request",
-  "cash-advance": "Cash Advance Request",
-  arrears: "Arrears Request",
-  overtime: "Overtime Request",
-};
-
 const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
   PENDING: { bg: "bg-amber-100", text: "text-amber-700" },
   APPROVED: { bg: "bg-green-100", text: "text-green-700" },
   HOLD: { bg: "bg-blue-100", text: "text-blue-700" },
   REJECTED: { bg: "bg-red-100", text: "text-red-700" },
+  ACTIVE: { bg: "bg-green-100", text: "text-green-700" },
+  SUBMITTED: { bg: "bg-green-100", text: "text-green-700" },
+  CLOSED: { bg: "bg-slate-100", text: "text-slate-700" },
+  INACTIVE: { bg: "bg-slate-100", text: "text-slate-700" },
+  CANCELLED: { bg: "bg-red-100", text: "text-red-700" },
+  PAID: { bg: "bg-green-100", text: "text-green-700" },
+  UNPAID: { bg: "bg-red-100", text: "text-red-700" },
 };
 
+/* The list procedures return both approval statuses
+   (PENDING / APPROVED / HOLD / REJECTED) and entry statuses
+   (CF / AC / CL / CA). Both are shown as readable badges instead of raw
+   two-letter codes. */
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: "Pending",
+  APPROVED: "Approved",
+  HOLD: "Hold",
+  REJECTED: "Rejected",
+  AC: "Active",
+  CF: "Pending",
+  CL: "Submitted",
+  CA: "Cancelled",
+  ACTIVE: "Active",
+  SUBMITTED: "Submitted",
+  CLOSED: "Closed",
+  INACTIVE: "Inactive",
+  CANCELLED: "Cancelled",
+  CANCELED: "Cancelled",
+  PAID: "Paid",
+  UNPAID: "Unpaid",
+};
+
+/* The list procedures return a union of columns across every request type, so
+   one card's rows carry a lot of empty placeholders and aliases. These are
+   hidden from the summary table; the meaningful columns are kept. */
+const HIDDEN_COLUMNS = new Set([
+  /* Duplicate reference/name aliases — one canonical column is kept. */
+  "poRefNo",
+  "requestRefNo",
+  "department",
+  "designation",
+  "requestedByName",
+  "poDate",
+  "createdDate",
+  /* Placeholders the list procedures add for the purchase-shaped columns. */
+  "purchaseType",
+  "requestTypeName",
+  "totalFinalProductionHdrAmount",
+  "requestAmount",
+  "vatHdrAmount",
+  "grossAmount",
+  "cell",
+]);
+
+/* Per-level approval workflow fields are shown in the approval panel's detail
+   view; the dashboard summary only needs the rolled-up final status. */
+const HIDDEN_COLUMN_PREFIXES = [
+  /^sectionHead/,
+  /^response1/,
+  /^response2/,
+  /^finalResponse(?!Status$)/,
+];
+
+const MONEY_COLUMNS = new Set([
+  "amount",
+  "approvedAmount",
+  "requestAmount",
+  "vatHdrAmount",
+  "grossAmount",
+  "oldGrossAmount",
+  "newGrossAmount",
+  "grossPay",
+  "netPay",
+  "eligibleAmount",
+  "monthlyDeduction",
+]);
+
+/* Friendly headers for the technical column names returned by the SPs. */
+const COLUMN_LABELS: Record<string, string> = {
+  refNo: "Reference No",
+  statusEntry: "Entry Status",
+  finalResponseStatus: "Approval Status",
+  requestedBy: "Requested By",
+  requestedDate: "Requested Date",
+  paidStatus: "Payment Status",
+  paymentModeName: "Payment Mode",
+  approvedLevels: "Approved Levels",
+  lineCount: "Line Count",
+  currencyType: "Currency",
+  currencyName: "Currency",
+  requestStoreName: "Request Store",
+  deliveryLocationName: "Delivery Location",
+  branchName: "Branch",
+  priorityName: "Priority",
+  otFromDate: "OT From Date",
+  otToDate: "OT To Date",
+  otHours: "OT Hours",
+  noOfDays: "No. of Days",
+  noOfMonths: "No. of Months",
+  accountNo: "Account No",
+  purchaseQuotationNo: "Quotation No",
+  purchaseRequestNo: "Request No",
+  managerRecommendedYn: "Manager Recommended (Y/N)",
+};
+
+function isIsoDate(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value);
+}
+
+function formatCellValue(column: string, value: unknown): string {
+  if (value == null || value === "") return "-";
+  if (isIsoDate(value)) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    }
+  }
+  if (typeof value === "number" && MONEY_COLUMNS.has(column)) {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+  return String(value);
+}
+
 function formatKey(k: string): string {
-  return k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return k
+    .replace(/_/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function isStatusColumn(col: string): boolean {
@@ -50,7 +167,7 @@ function isStatusColumn(col: string): boolean {
 }
 
 function isRawIdColumn(col: string): boolean {
-  if (col.toLowerCase() === "sno") return true;
+  if (col.toLowerCase() === "sno" || col.toLowerCase() === "id") return true;
   if (/Id$/.test(col)) return true;
   if (/_ID$/.test(col)) return true;
   return false;
@@ -75,6 +192,8 @@ export default function DashboardPage() {
   const [toDate, setToDate] = useState("");
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  /* Guards against an older response overwriting a newer card/filter request. */
+  const requestSeqRef = useRef(0);
 
   const loadCards = useCallback(async () => {
     setLoading(true);
@@ -97,37 +216,60 @@ export default function DashboardPage() {
 
   const fetchRecords = useCallback(
     async (card: DashboardCard, st: string, q: string, fd: string, td: string, pg: number, ps: number) => {
+      const seq = requestSeqRef.current + 1;
+      requestSeqRef.current = seq;
       setDetailLoading(true);
       setDetailError(null);
       try {
-        const params = new URLSearchParams({ requestType: REQUEST_TYPES[card.routeSlug] });
+        /* Each card is served by the approval list procedure for its own
+           request type, so every card on the dashboard (not just the first
+           four) returns its real rows. */
+        const params = new URLSearchParams();
         params.set("page", String(pg));
         params.set("pageSize", String(ps));
         if (fd) params.set("fromDate", fd);
         if (td) params.set("toDate", td);
         if (st && st !== "ALL") params.set("status", st);
         if (q.trim()) params.set("search", q.trim());
-        const res = await fetch(`${API_URL}/report-dashboard/reports?${params.toString()}`, { credentials: "include" });
-        if (!res.ok) throw new Error("Failed to fetch records");
+        const res = await fetch(
+          `${API_URL}/dashboard/requests/${encodeURIComponent(card.routeSlug)}?${params.toString()}`,
+          { credentials: "include" }
+        );
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.message || "Failed to fetch records");
+        }
         const data = await res.json();
-        setRows(Array.isArray(data.data) ? data.data : []);
-        setColumns(Array.isArray(data.columns) ? data.columns : []);
+        if (seq !== requestSeqRef.current) return;
+        const nextRows = Array.isArray(data.data) ? data.data : [];
+        setRows(nextRows);
+        setColumns(
+          Array.isArray(data.columns) && data.columns.length > 0
+            ? data.columns
+            : nextRows.length > 0
+              ? Object.keys(nextRows[0])
+              : []
+        );
         setTotal(Number(data.total ?? 0));
         setPage(pg);
       } catch (err) {
+        if (seq !== requestSeqRef.current) return;
         const message = err instanceof Error ? err.message : "Failed to fetch records";
         setDetailError(message);
         setRows([]);
         setColumns([]);
         setTotal(0);
       } finally {
-        setDetailLoading(false);
+        if (seq === requestSeqRef.current) setDetailLoading(false);
       }
     },
     []
   );
 
   const openRecords = (card: DashboardCard) => {
+    /* Invalidate any in-flight request from the previously open card so a
+       late response cannot repopulate the table. */
+    requestSeqRef.current += 1;
     setSelectedCard(card);
     setStatus("ALL");
     setSearch("");
@@ -168,14 +310,30 @@ export default function DashboardPage() {
 
   const displayColumns = useMemo(() => {
     const source = columns.length > 0 ? columns : rows.length > 0 ? Object.keys(rows[0] ?? {}) : [];
-    return source.filter((c) => !isRawIdColumn(c));
+    const hasCurrencyName = source.includes("currencyName");
+    return source.filter((column) => {
+      if (isRawIdColumn(column)) return false;
+      if (HIDDEN_COLUMNS.has(column)) return false;
+      /* Purchase rows carry the currency id in `currencyType` and the label in
+         `currencyName`; the numeric id is not useful when the name exists. */
+      if (hasCurrencyName && column === "currencyType") return false;
+      if (HIDDEN_COLUMN_PREFIXES.some((prefix) => prefix.test(column))) return false;
+      /* Raw UPPERCASE aliases are duplicated by the camelCase columns. */
+      if (/^[A-Z0-9_]+$/.test(column)) return false;
+      /* Drop columns that are empty for every row of this result page. */
+      return rows.some((row) => {
+        const value = row[column];
+        return value !== null && value !== undefined && String(value).trim() !== "";
+      });
+    });
   }, [columns, rows]);
 
   const isNumericColumn = (col: string): boolean => {
     if (!rows.length) return false;
     return rows.every((r) => {
       const v = r[col];
-      return v == null || v === "" || typeof v === "number";
+      if (v == null || v === "") return true;
+      return typeof v === "number" || (!isIsoDate(v) && !Number.isNaN(Number(v)));
     });
   };
 
@@ -291,7 +449,19 @@ export default function DashboardPage() {
               </thead>
               <tbody>
                 {cards.map((c) => (
-                  <tr key={c.sno} className="border-b border-border last:border-0 hover:bg-muted/30">
+                  <tr
+                    key={c.sno}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openRecords(c)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openRecords(c);
+                      }
+                    }}
+                    className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/30 focus:bg-muted/30 focus:outline-none"
+                  >
                     <td className="px-5 py-3 font-medium text-foreground">{c.cardTitle}</td>
                     <td className="px-5 py-3">
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
@@ -406,7 +576,7 @@ export default function DashboardPage() {
                     <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                       {displayColumns.map((col) => (
                         <th key={col} className={`whitespace-nowrap px-4 py-3 font-semibold ${isNumericColumn(col) ? "text-right" : ""}`}>
-                          {formatKey(col)}
+                          {COLUMN_LABELS[col] || formatKey(col)}
                         </th>
                       ))}
                     </tr>
@@ -439,13 +609,13 @@ export default function DashboardPage() {
                                     <span className="text-muted-foreground">-</span>
                                   ) : (
                                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${style.bg} ${style.text}`}>
-                                      {st}
+                                      {STATUS_LABELS[st] || st}
                                     </span>
                                   )}
                                 </td>
                               );
                             }
-                            const text = val == null || val === "" ? "-" : String(val);
+                            const text = formatCellValue(col, val);
                             return (
                               <td
                                 key={col}

@@ -125,17 +125,11 @@ const approvalDef = (key?: string): CardDef => {
   };
 };
 
-const registryDef = (key: string): CardDef => {
-  const def: CardDef = {
-    primaryLabel: "Total",
-    primaryField: "TotalCount",
-    primaryColor: "text-foreground",
-    chips: [
-      { label: "Active", field: "PendingCount", color: "text-green-600" },
-      { label: "Inactive", field: "ExtraCount1", color: "text-zinc-500" },
-    ],
-  };
-  return def;
+const FALLBACK_DEF: CardDef = {
+  primaryLabel: "Total",
+  primaryField: "TotalCount",
+  primaryColor: "text-foreground",
+  chips: [],
 };
 
 const CARD_DEFS: Record<string, CardDef> = {
@@ -145,9 +139,9 @@ const CARD_DEFS: Record<string, CardDef> = {
     primaryColor: "text-red-600",
     chips: [
       { label: "Overdue Approvals", field: "PendingCount", color: "text-red-600" },
-      { label: "Expired Licences", field: "ApprovedCount", color: "text-orange-600" },
-      { label: "Low Stock", field: "HoldCount", color: "text-amber-600" },
-      { label: "Expiring Contracts", field: "RejectedCount", color: "text-amber-600" },
+      { label: "Expired Docs", field: "ApprovedCount", color: "text-orange-600" },
+      { label: "Low/Critical Stock", field: "HoldCount", color: "text-amber-600" },
+      { label: "Expiring ≤30d", field: "RejectedCount", color: "text-amber-600" },
     ],
   },
   "employees": {
@@ -162,23 +156,27 @@ const CARD_DEFS: Record<string, CardDef> = {
     ],
   },
   "attendance": {
-    primaryLabel: "Present Today",
-    primaryField: "TotalCount",
+    primaryLabel: "Present",
+    primaryField: "ExtraCount1",
     primaryColor: "text-green-600",
     chips: [
+      { label: "Total Records", field: "TotalCount", color: "text-foreground" },
       { label: "Absent", field: "PendingCount", color: "text-red-500" },
       { label: "Sick", field: "ApprovedCount", color: "text-blue-600" },
       { label: "Late", field: "HoldCount", color: "text-orange-600" },
+      { label: "Other", field: "ExtraCount2", color: "text-zinc-500" },
     ],
   },
   "leave": {
     primaryLabel: "On Leave Today",
-    primaryField: "TotalCount",
+    primaryField: "HoldCount",
     primaryColor: "text-purple-600",
     chips: [
-      { label: "Pending Approval", field: "PendingCount", color: "text-amber-600" },
-      { label: "Leave Types", field: "ApprovedCount", color: "text-green-600" },
-      { label: "Balance (days)", field: "HoldCount", color: "text-blue-600" },
+      { label: "Total", field: "TotalCount", color: "text-foreground" },
+      { label: "Pending", field: "PendingCount", color: "text-amber-600" },
+      { label: "Approved", field: "ApprovedCount", color: "text-green-600" },
+      { label: "Rejected", field: "RejectedCount", color: "text-red-500" },
+      { label: "Leave Types", field: "ExtraCount1", color: "text-blue-600" },
     ],
   },
   "drivers": {
@@ -230,6 +228,8 @@ const CARD_DEFS: Record<string, CardDef> = {
     chips: [
       { label: "Pending", field: "PendingCount", color: "text-amber-600" },
       { label: "Approved", field: "ApprovedCount", color: "text-green-600" },
+      { label: "Hold", field: "HoldCount", color: "text-blue-600" },
+      { label: "Rejected", field: "RejectedCount", color: "text-red-500" },
       { label: "OT Hours", field: "ExtraCount1", color: "text-blue-600" },
       { label: "OT Amount", field: "ExtraCount2", color: "text-green-600" },
     ],
@@ -272,7 +272,7 @@ const CARD_DEFS: Record<string, CardDef> = {
     primaryField: "TotalCount",
     primaryColor: "text-foreground",
     chips: [
-      { label: "Monthly Deduction", field: "ExtraCount1", color: "text-blue-600" },
+      { label: "Monthly Amount", field: "ExtraCount1", color: "text-blue-600" },
     ],
   },
   "employee-benefits": {
@@ -296,40 +296,143 @@ const CARD_DEFS: Record<string, CardDef> = {
       { label: "Rejected", field: "RejectedCount", color: "text-red-500" },
     ],
   },
-  "products": registryDef("products"),
-  "business-partners": registryDef("business-partners"),
+  "attendance-requests": {
+    primaryLabel: "Pending",
+    primaryField: "PendingCount",
+    primaryColor: "text-amber-600",
+    headerBadgeField: "TotalCount",
+    chips: [
+      { label: "Approved", field: "ApprovedCount", color: "text-green-600" },
+      { label: "Hold", field: "HoldCount", color: "text-blue-600" },
+      { label: "Rejected", field: "RejectedCount", color: "text-red-500" },
+    ],
+  },
+  "leave-encashment-requests": {
+    primaryLabel: "Pending",
+    primaryField: "PendingCount",
+    primaryColor: "text-amber-600",
+    headerBadgeField: "TotalCount",
+    chips: [
+      { label: "Approved", field: "ApprovedCount", color: "text-green-600" },
+      { label: "Hold", field: "HoldCount", color: "text-blue-600" },
+      { label: "Rejected", field: "RejectedCount", color: "text-red-500" },
+    ],
+  },
+  "purchase-requests": {
+    primaryLabel: "Pending",
+    primaryField: "PendingCount",
+    primaryColor: "text-amber-600",
+    headerBadgeField: "TotalCount",
+    chips: [
+      { label: "Approved", field: "ApprovedCount", color: "text-green-600" },
+      { label: "Hold", field: "HoldCount", color: "text-blue-600" },
+      { label: "Rejected", field: "RejectedCount", color: "text-red-500" },
+    ],
+  },
+  "purchase-quotation-requests": {
+    primaryLabel: "Pending",
+    primaryField: "PendingCount",
+    primaryColor: "text-amber-600",
+    headerBadgeField: "TotalCount",
+    chips: [
+      { label: "Approved", field: "ApprovedCount", color: "text-green-600" },
+      { label: "Hold", field: "HoldCount", color: "text-blue-600" },
+      { label: "Rejected", field: "RejectedCount", color: "text-red-500" },
+    ],
+  },
+  "purchase-order-requests": {
+    primaryLabel: "Pending",
+    primaryField: "PendingCount",
+    primaryColor: "text-amber-600",
+    headerBadgeField: "TotalCount",
+    chips: [
+      { label: "Approved", field: "ApprovedCount", color: "text-green-600" },
+      { label: "Hold", field: "HoldCount", color: "text-blue-600" },
+      { label: "Rejected", field: "RejectedCount", color: "text-red-500" },
+    ],
+  },
+  "products": {
+    primaryLabel: "Total",
+    primaryField: "TotalCount",
+    primaryColor: "text-foreground",
+    chips: [
+      { label: "Pending", field: "PendingCount", color: "text-amber-600" },
+      { label: "Active", field: "ApprovedCount", color: "text-green-600" },
+      { label: "Inactive", field: "HoldCount", color: "text-zinc-500" },
+      { label: "Rejected", field: "RejectedCount", color: "text-red-500" },
+    ],
+  },
+  "business-partners": {
+    primaryLabel: "Total",
+    primaryField: "TotalCount",
+    primaryColor: "text-foreground",
+    chips: [
+      { label: "Pending", field: "PendingCount", color: "text-amber-600" },
+      { label: "Active", field: "ApprovedCount", color: "text-green-600" },
+      { label: "Inactive", field: "HoldCount", color: "text-zinc-500" },
+      { label: "Rejected", field: "RejectedCount", color: "text-red-500" },
+    ],
+  },
   "fuel": {
     primaryLabel: "Fuel Stations",
     primaryField: "TotalCount",
     primaryColor: "text-foreground",
     chips: [
       { label: "Active", field: "PendingCount", color: "text-green-600" },
+      { label: "Inactive", field: "ExtraCount2", color: "text-zinc-500" },
       { label: "Fuel Types", field: "ExtraCount1", color: "text-blue-600" },
     ],
   },
-  "guns": registryDef("guns"),
-  "hotels-travel": {
-    primaryLabel: "Hotels",
+  "guns": {
+    primaryLabel: "Total",
     primaryField: "TotalCount",
     primaryColor: "text-foreground",
     chips: [
+      { label: "Active", field: "PendingCount", color: "text-green-600" },
+      { label: "Inactive", field: "ExtraCount1", color: "text-zinc-500" },
+    ],
+  },
+  "hotels-travel": {
+    primaryLabel: "Total Travel Records",
+    primaryField: "TotalCount",
+    primaryColor: "text-foreground",
+    chips: [
+      { label: "Hotels", field: "ExtraCount2", color: "text-rose-600" },
       { label: "Airlines", field: "PendingCount", color: "text-blue-600" },
       { label: "Room Types", field: "ApprovedCount", color: "text-purple-600" },
       { label: "Airports", field: "HoldCount", color: "text-amber-600" },
       { label: "Travel Pricing", field: "ExtraCount1", color: "text-green-600" },
     ],
   },
-  "animals": registryDef("animals"),
+  "animals": {
+    primaryLabel: "Total",
+    primaryField: "TotalCount",
+    primaryColor: "text-foreground",
+    chips: [
+      { label: "Active", field: "PendingCount", color: "text-green-600" },
+      { label: "Inactive", field: "ExtraCount2", color: "text-zinc-500" },
+      { label: "Most Visited/Priced", field: "ExtraCount1", color: "text-blue-600" },
+    ],
+  },
   "camps": {
     primaryLabel: "Camps",
     primaryField: "TotalCount",
     primaryColor: "text-foreground",
     chips: [
       { label: "Active", field: "PendingCount", color: "text-green-600" },
+      { label: "Inactive", field: "ExtraCount2", color: "text-zinc-500" },
       { label: "Gun Categories", field: "ExtraCount1", color: "text-blue-600" },
     ],
   },
-  "hotels": registryDef("hotels"),
+  "hotels": {
+    primaryLabel: "Total",
+    primaryField: "TotalCount",
+    primaryColor: "text-foreground",
+    chips: [
+      { label: "Active", field: "PendingCount", color: "text-green-600" },
+      { label: "Inactive", field: "ExtraCount1", color: "text-zinc-500" },
+    ],
+  },
 };
 
 const COLUMNS: Record<string, { key: keyof InsightRow; label: string }[]> = {
@@ -512,6 +615,11 @@ const RECORD_COLUMNS: Record<string, { key: keyof InsightRow; label: string }[]>
   "salary-deductions": COLUMNS.salaryDeductions,
   "employee-benefits": COLUMNS.employeeBenefits,
   "promotion-transfer-requests": COLUMNS.standardRequests,
+  "attendance-requests": COLUMNS.standardRequests,
+  "leave-encashment-requests": COLUMNS.standardRequests,
+  "purchase-requests": COLUMNS.standardRequests,
+  "purchase-quotation-requests": COLUMNS.standardRequests,
+  "purchase-order-requests": COLUMNS.standardRequests,
   "products": COLUMNS.registry,
   "business-partners": COLUMNS.registry,
   "fuel": COLUMNS.fuel,
@@ -533,6 +641,7 @@ const FALLBACK_COLUMNS: { key: keyof InsightRow; label: string }[] = [
 
 function labelForStatus(token: string): string {
   const map: Record<string, string> = {
+    ALL: "All Statuses",
     OVERDUE: "Overdue (>7d)",
     PENDING_ALL: "Pending (all)",
     PENDING: "Pending",
@@ -605,6 +714,8 @@ export default function InsightsTab() {
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  /* Guards against an older response overwriting a newer card/filter request. */
+  const requestSeqRef = useRef(0);
 
   const loadCards = useCallback(async () => {
     setLoading(true);
@@ -627,6 +738,8 @@ export default function InsightsTab() {
 
   const loadRecords = useCallback(
     async (card: InsightCard, st: string, q: string, fd: string, td: string, pg: number) => {
+      const seq = requestSeqRef.current + 1;
+      requestSeqRef.current = seq;
       setDialogLoading(true);
       setDialogError(null);
       try {
@@ -635,22 +748,30 @@ export default function InsightsTab() {
         if (fd) params.set("fromDate", fd);
         if (td) params.set("toDate", td);
         const res = await fetch(`${API_URL}/report-dashboard/records/${card.CardKey}?${params.toString()}`, { credentials: "include" });
-        if (!res.ok) throw new Error("Failed to load records");
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.message || "Failed to load records");
+        }
         const data = await res.json();
+        if (seq !== requestSeqRef.current) return;
         setRows(Array.isArray(data.data) ? data.data : []);
         setTotal(data.total || 0);
+        setPage(pg);
       } catch (err: any) {
+        if (seq !== requestSeqRef.current) return;
         setDialogError(err?.message || "Failed to load records");
         setRows([]);
         setTotal(0);
       } finally {
-        setDialogLoading(false);
+        if (seq === requestSeqRef.current) setDialogLoading(false);
       }
     },
     [pageSize]
   );
 
   const openCard = (card: InsightCard) => {
+    /* Invalidate any in-flight request from the previously open card. */
+    requestSeqRef.current += 1;
     setSelectedCard(card);
     setStatus("ALL");
     setSearch("");
@@ -750,7 +871,7 @@ export default function InsightsTab() {
           <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</h3>
           <div className="grid gap-3 sm:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr))]">
             {group.cards.map((card) => {
-              const def = CARD_DEFS[card.CardKey] || registryDef(card.CardKey);
+              const def = CARD_DEFS[card.CardKey] || FALLBACK_DEF;
               const Icon = (LucideIcons as any)[card.IconKey] || LucideIcons.LayoutGrid;
               const colorBg = COLOR_MAP[card.ColorKey] || COLOR_MAP.slate;
               const primary = card[def.primaryField] ?? 0;
@@ -852,7 +973,11 @@ export default function InsightsTab() {
                     className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     {statusOptions.map((s) => (
-                      <option key={s} value={s}>{labelForStatus(s)}</option>
+                      <option key={s} value={s}>
+                        {selectedCard.CardKey === "management-attention" && s === "ALL"
+                          ? "All Attention Items"
+                          : labelForStatus(s)}
+                      </option>
                     ))}
                   </select>
                   <button

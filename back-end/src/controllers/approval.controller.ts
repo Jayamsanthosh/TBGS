@@ -4,6 +4,7 @@ import {
   mapApprovalStatus,
   getApprovalSummaryService,
   getRequestListService,
+  getRequestPageService,
   getRequestDetailService,
   updateRequestStatusService,
   validateActionableRequests,
@@ -115,7 +116,7 @@ const getCurrentUser = (req: Request): string => {
 
 export const getDashboardCards = async (req: Request, res: Response): Promise<void> => {
   try {
-    const rows = await getApprovalSummaryService();
+    const rows = await getApprovalSummaryService(true);
     const cards = rows
       .filter((r: any) => CARD_DEFAULTS[r.CardName])
       .map((r: any) => ({
@@ -141,7 +142,7 @@ export const getDashboardCards = async (req: Request, res: Response): Promise<vo
 
 export const getDashboardCounts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const rows = await getApprovalSummaryService();
+    const rows = await getApprovalSummaryService(false);
     const counts: Record<string, number> = {};
     for (const r of rows) {
       const def = CARD_DEFAULTS[r.CardName];
@@ -329,4 +330,90 @@ export const updateStatusByType = async (req: Request, res: Response): Promise<v
 export const updateStatusByBody = async (req: Request, res: Response): Promise<void> => {
   const type = req.body?.type || req.body?.requestType;
   await runStatusUpdate(req, res, type);
+};
+
+/**
+ * Resolve a dashboard card identifier to the exact approval request type.
+ *
+ * The dashboard sends the card's `routeSlug` (e.g. "bonus"), but the same
+ * endpoint also accepts the display name ("Bonus Request") so it is not
+ * brittle if a caller has only the card title.
+ */
+const resolveDashboardRequestType = (value: string): string | null => {
+  const direct = resolveRequestType(value);
+  if (direct) return direct;
+  const norm = String(value ?? "").trim().toLowerCase();
+  if (!norm) return null;
+  const match = Object.values(CARD_DEFAULTS).find(
+    (card) =>
+      card.routeSlug.toLowerCase() === norm ||
+      card.approvalType.toLowerCase() === norm
+  );
+  return match?.approvalType ?? null;
+};
+
+/**
+ * Paged records for one dashboard card.
+ *
+ * This reads the same approval list procedures that power the approval panel,
+ * so every card on the dashboard works - not just the four HR types that the
+ * Report Master happens to seed. All ten cards (attendance through purchase
+ * order) are supported, with server-side status/search/date filters and paging.
+ */
+export const getDashboardRequests = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requestType = resolveDashboardRequestType(String(req.params.type));
+    if (!requestType) {
+      res.status(400).json({ success: false, message: "Unknown dashboard card type" });
+      return;
+    }
+
+    let page = 1;
+    if (typeof req.query.page === "string") {
+      const parsed = parseInt(req.query.page, 10);
+      page = isNaN(parsed) ? 1 : Math.max(1, parsed);
+    }
+
+    let pageSize = 10;
+    if (typeof req.query.pageSize === "string") {
+      const parsed = parseInt(req.query.pageSize, 10);
+      pageSize = isNaN(parsed) ? 10 : Math.min(100, Math.max(1, parsed));
+    }
+
+    const status =
+      typeof req.query.status === "string" && req.query.status.trim()
+        ? req.query.status.trim()
+        : "ALL";
+
+    const { total, rows } = await getRequestPageService(requestType, status, {
+      fromDate:
+        typeof req.query.fromDate === "string" && req.query.fromDate.trim()
+          ? req.query.fromDate.trim()
+          : undefined,
+      toDate:
+        typeof req.query.toDate === "string" && req.query.toDate.trim()
+          ? req.query.toDate.trim()
+          : undefined,
+      search:
+        typeof req.query.search === "string" && req.query.search.trim()
+          ? req.query.search.trim()
+          : undefined,
+      page,
+      pageSize,
+      includeUnsubmitted: true,
+    });
+
+    res.json({
+      data: rows,
+      total,
+      page,
+      pageSize,
+      columns: rows.length > 0 ? Object.keys(rows[0]) : [],
+    });
+  } catch (error: any) {
+    console.error("Dashboard request list error:", error);
+    res
+      .status(500)
+      .json({ success: false, message: error?.message || "Failed to load dashboard records" });
+  }
 };

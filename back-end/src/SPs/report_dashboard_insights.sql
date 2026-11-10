@@ -9,93 +9,48 @@ BEGIN
     SET NOCOUNT ON;
 
     ;WITH REQ AS (
+        /* Every stored row is counted, drafts included. The status rule is the
+           same canonical rollup the main dashboard and the request list use,
+           so all three screens always show identical numbers. */
         SELECT 'Attendance Request' AS Src,
-            CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)),''),'PENDING')))))
-                WHEN 'APPROVAL' THEN 'APPROVED' WHEN 'APPROVED' THEN 'APPROVED'
-                WHEN 'REJECT' THEN 'REJECTED' WHEN 'REJECTED' THEN 'REJECTED'
-                WHEN 'HOLD' THEN 'HOLD' ELSE 'PENDING' END AS St,
+            VRequest.FN_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS) AS St,
             CREATED_DATE AS Cd
-        FROM VRequest.TBL_ATTENDANCE_REQUEST WHERE STATUS_MASTER = 'AC'
+        FROM VRequest.TBL_ATTENDANCE_REQUEST
         UNION ALL
         SELECT 'Cash Advance Request',
-            CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)),''),'PENDING')))))
-                WHEN 'APPROVAL' THEN 'APPROVED' WHEN 'APPROVED' THEN 'APPROVED'
-                WHEN 'REJECT' THEN 'REJECTED' WHEN 'REJECTED' THEN 'REJECTED'
-                WHEN 'HOLD' THEN 'HOLD' ELSE 'PENDING' END,
+            VRequest.FN_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS),
             CREATED_DATE
-        FROM VRequest.TBL_CASH_ADVANCE_REQUEST WHERE STATUS_MASTER = 'AC'
+        FROM VRequest.TBL_CASH_ADVANCE_REQUEST
         UNION ALL
         SELECT 'Arrears Request',
-            CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)),''),'PENDING')))))
-                WHEN 'APPROVAL' THEN 'APPROVED' WHEN 'APPROVED' THEN 'APPROVED'
-                WHEN 'REJECT' THEN 'REJECTED' WHEN 'REJECTED' THEN 'REJECTED'
-                WHEN 'HOLD' THEN 'HOLD' ELSE 'PENDING' END,
+            VRequest.FN_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS),
             CREATED_DATE
-        FROM VREQUEST.TBL_ARREARS_REQUEST WHERE STATUS_MASTER = 'AC'
+        FROM VRequest.TBL_ARREARS_REQUEST
         UNION ALL
         SELECT 'Overtime Request',
-            CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)),''),'PENDING')))))
-                WHEN 'APPROVAL' THEN 'APPROVED' WHEN 'APPROVED' THEN 'APPROVED'
-                WHEN 'REJECT' THEN 'REJECTED' WHEN 'REJECTED' THEN 'REJECTED'
-                WHEN 'HOLD' THEN 'HOLD' ELSE 'PENDING' END,
+            VRequest.FN_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS),
             CREATED_DATE
-        FROM VREQUEST.TBL_OVERTIME_REQUEST WHERE STATUS_MASTER = 'AC'
+        FROM VRequest.TBL_OVERTIME_REQUEST
         UNION ALL
         SELECT 'Bonus Request',
-            CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)),''),'PENDING')))))
-                WHEN 'APPROVAL' THEN 'APPROVED' WHEN 'APPROVED' THEN 'APPROVED'
-                WHEN 'REJECT' THEN 'REJECTED' WHEN 'REJECTED' THEN 'REJECTED'
-                WHEN 'HOLD' THEN 'HOLD' ELSE 'PENDING' END,
+            VRequest.FN_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS),
             CREATED_DATE
-        FROM VRequest.TBL_BONUS_REQUEST WHERE STATUS_MASTER = 'AC'
+        FROM VRequest.TBL_BONUS_REQUEST
         UNION ALL
         SELECT 'Leave Encashment Request',
-            CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)),''),'PENDING')))))
-                WHEN 'APPROVAL' THEN 'APPROVED' WHEN 'APPROVED' THEN 'APPROVED'
-                WHEN 'REJECT' THEN 'REJECTED' WHEN 'REJECTED' THEN 'REJECTED'
-                WHEN 'HOLD' THEN 'HOLD' ELSE 'PENDING' END,
+            VRequest.FN_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS),
             CREATED_DATE
-        FROM VRequest.TBL_LEAVE_ENCASHMENT_REQUEST WHERE STATUS_MASTER = 'AC'
+        FROM VRequest.TBL_LEAVE_ENCASHMENT_REQUEST
         UNION ALL
         SELECT 'Promotion/Demotion/Transfer Request',
-            CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)),''),'PENDING')))))
-                WHEN 'APPROVAL' THEN 'APPROVED' WHEN 'APPROVED' THEN 'APPROVED'
-                WHEN 'REJECT' THEN 'REJECTED' WHEN 'REJECTED' THEN 'REJECTED'
-                WHEN 'HOLD' THEN 'HOLD' ELSE 'PENDING' END,
+            VRequest.FN_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS),
             CREATED_DATE
-        FROM VRequest.TBL_PROMOTION_DEMOTION_TRANSFER_REQUEST WHERE STATUS_MASTER = 'AC'
+        FROM VRequest.TBL_PROMOTION_DEMOTION_TRANSFER_REQUEST
         UNION ALL
         SELECT 'Man Power Change Request',
-            CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),
-                 ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)),''),'PENDING')))))
-                WHEN 'APPROVAL' THEN 'APPROVED' WHEN 'APPROVED' THEN 'APPROVED'
-                WHEN 'REJECT' THEN 'REJECTED' WHEN 'REJECTED' THEN 'REJECTED'
-                WHEN 'HOLD' THEN 'HOLD' ELSE 'PENDING' END,
+            VRequest.FN_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS),
             CREATED_DATE
-        FROM VMaster.TBL_MAN_POWER_CHANGE_REQUEST WHERE STATUS_MASTER = 'AC'
+        FROM VMaster.TBL_MAN_POWER_CHANGE_REQUEST
     ),
     REQ_AGG AS (
         SELECT u.Src,
@@ -127,6 +82,50 @@ BEGIN
             GROUP BY Src
         ) r ON r.Src = u.Src
     ),
+    /* The three purchase documents use their own terminal-only rollup. They are
+       counted from every stored header row so their cards match the main
+       dashboard, which counts the same headers. */
+    PUR AS (
+        SELECT 'Purchase Request' AS Src,
+            VRequest.FN_PURCHASE_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS) AS St,
+            CREATED_DATE AS Cd
+        FROM VPurchase.TBL_PURCHASE_REQUEST_HDR
+        UNION ALL
+        SELECT 'Purchase Quotation',
+            VRequest.FN_PURCHASE_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS),
+            CREATED_DATE
+        FROM VPurchase.TBL_PURCHASE_QUOTATION_HDR
+        UNION ALL
+        SELECT 'Purchase Order',
+            VRequest.FN_PURCHASE_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS),
+            CREATED_DATE
+        FROM VPurchase.TBL_PURCHASE_ORDER_HDR
+    ),
+    PUR_AGG AS (
+        SELECT u.Src,
+            ISNULL(r.Total, 0) AS Total,
+            ISNULL(r.Pend, 0) AS Pend,
+            ISNULL(r.Appr, 0) AS Appr,
+            ISNULL(r.Hold, 0) AS Hold,
+            ISNULL(r.Rej, 0) AS Rej,
+            ISNULL(r.Overdue, 0) AS Overdue
+        FROM (
+            SELECT 'Purchase Request' AS Src
+            UNION ALL SELECT 'Purchase Quotation'
+            UNION ALL SELECT 'Purchase Order'
+        ) u
+        LEFT JOIN (
+            SELECT Src,
+                COUNT(*) AS Total,
+                SUM(CASE WHEN St = 'PENDING' THEN 1 ELSE 0 END) AS Pend,
+                SUM(CASE WHEN St = 'APPROVED' THEN 1 ELSE 0 END) AS Appr,
+                SUM(CASE WHEN St = 'HOLD' THEN 1 ELSE 0 END) AS Hold,
+                SUM(CASE WHEN St = 'REJECTED' THEN 1 ELSE 0 END) AS Rej,
+                SUM(CASE WHEN St = 'PENDING' AND Cd < DATEADD(DAY, -@OverdueDays, GETDATE()) THEN 1 ELSE 0 END) AS Overdue
+            FROM PUR
+            GROUP BY Src
+        ) r ON r.Src = u.Src
+    ),
     ATT AS (
         SELECT ad.EMP_ID, ad.DATE_FROM, ad.DATE_TO, ad.BALANCE_LEAVE,
             LTRIM(RTRIM(ISNULL(atm.ATTENDANCE_TYPE_NAME,''))) AS TypeName,
@@ -146,6 +145,24 @@ BEGIN
         FROM ATT
         WHERE St = 'APPROVED'
           AND CAST(GETDATE() AS DATE) BETWEEN CAST(DATE_FROM AS DATE) AND CAST(DATE_TO AS DATE)
+    ),
+    /* Leave combines attendance leave rows with leave-encashment requests. The
+       statuses mirror GET_DASHBOARD_RECORDS ('leave') exactly so the card chips
+       always match the totals the detail dialog shows for the same filter. */
+    LV AS (
+        SELECT CASE
+                 WHEN St = 'APPROVED' AND CAST(GETDATE() AS DATE) BETWEEN CAST(DATE_FROM AS DATE) AND CAST(DATE_TO AS DATE) THEN 'ONLEAVE'
+                 WHEN St = 'APPROVED' THEN 'APPROVED'
+                 ELSE 'PENDING'
+               END AS St
+        FROM ATT
+        WHERE TypeName LIKE '%Leave%'
+        UNION ALL
+        SELECT CASE
+                 WHEN VRequest.FN_APPROVAL_STATUS(SECTION_HEAD_RESPONSE_STATUS, RESPONSE_1_STATUS, RESPONSE_2_STATUS, FINAL_RESPONSE_STATUS) = 'APPROVED' THEN 'APPROVED'
+                 ELSE 'PENDING'
+               END
+        FROM VRequest.TBL_LEAVE_ENCASHMENT_REQUEST
     ),
     LIC AS (
         SELECT 'Driving Licence' AS Doc, EMP_ID, FIRST_NAME, MIDDLE_NAME, LAST_NAME, COMPANY_ID, DEPARTMENT_ID, DRIVING_LICENSE_NO AS DocNo, DRIVING_LICENSE_EXPIRE_DATE AS ExpDate
@@ -195,6 +212,7 @@ BEGIN
         SELECT CONTRACT_ID, EMP_ID, FIRST_NAME, MIDDLE_NAME, LAST_NAME, CONTRACT_TYPE_ID, CONTRACT_STATUS, CONTRACT_VALID_FROM_DATE, CONTRACT_VALID_TO_DATE
         FROM VPayEntries.TBL_NEW_EMPLOYEE_CONTRACTS
         WHERE CONTRACT_VALID_TO_DATE IS NOT NULL
+          AND UPPER(ISNULL(LTRIM(RTRIM(STATUS_ENTRY)),'')) <> 'CL'
     ),
     DED AS (
         SELECT DED_REF_ID, EMP_ID, FIRST_NAME, MIDDLE_NAME, LAST_NAME, REQUEST_REF_NO, REQUEST_TYPE, DEDUCTION_AMOUNT, STATUS_ENTRY
@@ -205,6 +223,29 @@ BEGIN
         SELECT M_AUTO_REF_NO, EMP_ID, FIRST_NAME, MIDDLE_NAME, LAST_NAME, REQUEST_REF_NO, SALARY_DEDUCTION_TYPE, TOTAL_DEDUCTION_AMOUNT, MONTHLY_DEDUCTION, STATUS_ENTRY
         FROM VPayEntries.TBL_MONTHLY_AUTO_DEDUCTION
         WHERE UPPER(ISNULL(LTRIM(RTRIM(STATUS_ENTRY)),'')) <> 'CL'
+    ),
+    /* Product / business-partner approval status, normalised exactly like the
+       'products' and 'business-partners' detail branches. */
+    PRD AS (
+        SELECT STATUS_MASTER,
+            CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),
+                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),
+                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),'PENDING'))))
+                WHEN 'APPROVAL' THEN 'APPROVED' WHEN 'APPROVED' THEN 'APPROVED'
+                WHEN 'REJECT' THEN 'REJECTED' WHEN 'REJECTED' THEN 'REJECTED'
+                WHEN 'HOLD' THEN 'HOLD' ELSE 'PENDING' END AS St
+        FROM VMaster.TBL_PRODUCT_MASTER
+    ),
+    BPS AS (
+        SELECT STATUS_MASTER,
+            CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),
+                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),
+                 ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),
+                 ISNULL(NULLIF(LTRIM(RTRIM(SECTION_HEAD_RESPONSE_STATUS)),''),'PENDING')))))
+                WHEN 'APPROVAL' THEN 'APPROVED' WHEN 'APPROVED' THEN 'APPROVED'
+                WHEN 'REJECT' THEN 'REJECTED' WHEN 'REJECTED' THEN 'REJECTED'
+                WHEN 'HOLD' THEN 'HOLD' ELSE 'PENDING' END AS St
+        FROM VMaster.TBL_BUSINESS_PARTNER_MASTER
     ),
     BEN AS (
         SELECT EMP_BENEFIT_REF_NO, EMP_ID, FIRST_NAME, MIDDLE_NAME, LAST_NAME, TOTAL_GROSS_AMOUNT, PAID_STATUS
@@ -230,15 +271,22 @@ BEGIN
         'red' AS ColorKey,
         1 AS OrderSeq,
         'OVERDUE,EXPIRED,LOW,CRITICAL,SOON30,ALL' AS Filters,
-        (SELECT SUM(Overdue) FROM REQ_AGG) + (SELECT COUNT(*) FROM LIC WHERE ExpDate < GETDATE()) + (SELECT COUNT(*) FROM CVT WHERE CONTRACT_VALID_TO_DATE < GETDATE()) AS TotalCount,
+        (SELECT SUM(Overdue) FROM REQ_AGG)
+          + (SELECT COUNT(*) FROM LIC WHERE ExpDate < GETDATE())
+          + (SELECT COUNT(*) FROM CVT WHERE CONTRACT_VALID_TO_DATE < GETDATE())
+          + (SELECT COUNT(*) FROM LOW)
+          + (SELECT COUNT(*) FROM LIC WHERE ExpDate >= GETDATE() AND ExpDate <= DATEADD(DAY,30,GETDATE()))
+          + (SELECT COUNT(*) FROM CVT WHERE CONTRACT_VALID_TO_DATE >= GETDATE() AND CONTRACT_VALID_TO_DATE <= DATEADD(DAY,30,GETDATE())) AS TotalCount,
         (SELECT SUM(Overdue) FROM REQ_AGG) AS PendingCount,
-        (SELECT COUNT(*) FROM LIC WHERE ExpDate < GETDATE()) AS ApprovedCount,
+        (SELECT COUNT(*) FROM LIC WHERE ExpDate < GETDATE())
+          + (SELECT COUNT(*) FROM CVT WHERE CONTRACT_VALID_TO_DATE < GETDATE()) AS ApprovedCount,
         (SELECT COUNT(*) FROM LOW) AS HoldCount,
-        (SELECT COUNT(*) FROM CVT WHERE CONTRACT_VALID_TO_DATE >= GETDATE() AND CONTRACT_VALID_TO_DATE <= DATEADD(DAY,30,GETDATE())) AS RejectedCount,
+        (SELECT COUNT(*) FROM LIC WHERE ExpDate >= GETDATE() AND ExpDate <= DATEADD(DAY,30,GETDATE()))
+          + (SELECT COUNT(*) FROM CVT WHERE CONTRACT_VALID_TO_DATE >= GETDATE() AND CONTRACT_VALID_TO_DATE <= DATEADD(DAY,30,GETDATE())) AS RejectedCount,
         0 AS ExtraCount1, 0 AS ExtraCount2,
         'Overdue >' + CAST(@OverdueDays AS VARCHAR(3)) + 'd' AS ExtraLabel1,
         NULL AS ExtraLabel2,
-        'Critical issues = overdue approvals + expired licences/permits + expired contracts. Low/critical stock rows and contracts expiring in 30 days are shown alongside.' AS ApproxNote
+        'Attention items = overdue approvals + expiring/expired licences & permits + low/critical stock + expiring/expired contracts.' AS ApproxNote
     UNION ALL SELECT 'employees', 'Employee', 'workforce', 'Workforce', 'Users', 'sky', 2, 'ACTIVE,INACTIVE,PRESENT,ABSENT,ALL',
         (SELECT COUNT(*) FROM VPayEntries.NEW_EMPLOYEE_DATABASE),
         (SELECT COUNT(*) FROM TODAY WHERE TypeName LIKE '%Present%'),
@@ -253,28 +301,38 @@ UNION ALL SELECT 'attendance', 'Attendance', 'workforce', 'Workforce', 'Calendar
         (SELECT COUNT(*) FROM ATT WHERE TypeName LIKE '%Absent%'),
         (SELECT COUNT(*) FROM ATT WHERE TypeName LIKE '%Sick%'),
         (SELECT COUNT(*) FROM ATT WHERE TypeName LIKE '%Late%'),
-        0, 0, 0,
-        'Present today', NULL, 'Attendance is request/detail based; counts cover all approved records.'
+        0,
+        (SELECT COUNT(*) FROM ATT WHERE TypeName LIKE '%Present%'),
+        (SELECT COUNT(*) FROM ATT WHERE TypeName NOT LIKE '%Present%' AND TypeName NOT LIKE '%Absent%' AND TypeName NOT LIKE '%Sick%' AND TypeName NOT LIKE '%Late%'),
+        'Present', 'Other', 'Attendance is request/detail based; counts cover every attendance record in the selected period.'
     UNION ALL SELECT 'leave', 'Leave', 'workforce', 'Workforce', 'CalendarRange', 'violet', 4, 'ONLEAVE,PENDING,APPROVED,ALL',
-        (SELECT COUNT(*) FROM ATT WHERE TypeName LIKE '%Leave%') + ISNULL((SELECT COUNT(*) FROM VRequest.TBL_LEAVE_ENCASHMENT_REQUEST WHERE STATUS_MASTER = 'AC'),0),
-        (SELECT Pend FROM REQ_AGG WHERE Src = 'Attendance Request') + ISNULL((SELECT Pend FROM REQ_AGG WHERE Src = 'Leave Encashment Request'),0),
+        (SELECT COUNT(*) FROM LV),
+        (SELECT COUNT(*) FROM LV WHERE St = 'PENDING'),
+        (SELECT COUNT(*) FROM LV WHERE St = 'APPROVED'),
+        (SELECT COUNT(*) FROM LV WHERE St = 'ONLEAVE'),
+        (SELECT COUNT(*) FROM LV WHERE St IN ('HOLD','REJECTED')),
         (SELECT COUNT(*) FROM VMaster.TBL_ATTENDANCE_TYPE_MASTER WHERE STATUS_MASTER = 'AC' AND ATTENDANCE_TYPE_NAME LIKE '%Leave%'),
         (SELECT SUM(BALANCE_LEAVE) FROM ATT WHERE St = 'APPROVED'),
-        0, 0, 0,
-        'Leave balance (days)', NULL, 'Leave flows through attendance records and leave encashment requests; no separate leave master exists yet.'
+        'Leave types', 'Leave balance (days)', 'Leave flows through attendance records and leave encashment requests; no separate leave master exists yet.'
     UNION ALL SELECT 'drivers', 'Drivers', 'fleet', 'Fleet & Transport', 'UserRound', 'teal', 5, 'ACTIVE,INACTIVE,EXPIRED,SOON30,ALL',
         (SELECT COUNT(*) FROM VMaster.TBL_DRIVER_MASTER_HDR),
-        (SELECT COUNT(*) FROM VMaster.TBL_DRIVER_MASTER_HDR WHERE DRIVING_LICENSE_EXPIRY_DATE >= GETDATE() AND DRIVING_LICENSE_EXPIRY_DATE <= DATEADD(DAY,30,GETDATE())),
-        (SELECT COUNT(*) FROM VMaster.TBL_DRIVER_MASTER_HDR WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
+        (SELECT COUNT(*) FROM VMaster.TBL_DRIVER_MASTER_HDR WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND DRIVING_LICENSE_EXPIRY_DATE >= GETDATE() AND DRIVING_LICENSE_EXPIRY_DATE <= DATEADD(DAY,30,GETDATE())),
+        (SELECT COUNT(*) FROM VMaster.TBL_DRIVER_MASTER_HDR WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND (DRIVING_LICENSE_EXPIRY_DATE IS NULL OR DRIVING_LICENSE_EXPIRY_DATE > DATEADD(DAY,30,GETDATE()))),
         (SELECT COUNT(*) FROM VMaster.TBL_DRIVER_MASTER_HDR WHERE UPPER(ISNULL(STATUS_MASTER,'')) NOT IN ('AC','ACTIVE')),
-        (SELECT COUNT(*) FROM VMaster.TBL_DRIVER_MASTER_HDR WHERE DRIVING_LICENSE_EXPIRY_DATE < GETDATE()),
+        (SELECT COUNT(*) FROM VMaster.TBL_DRIVER_MASTER_HDR WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND DRIVING_LICENSE_EXPIRY_DATE < GETDATE()),
         0, 0,
         'Licences expiring 30d', NULL,
         'Licence expiry read from the driver master expiry date.'
     UNION ALL SELECT 'trucks', 'Trucks', 'fleet', 'Fleet & Transport', 'Truck', 'indigo', 6, 'ACTIVE,INACTIVE,EXPIRED,SOON30,MAINTENANCE,AVAILABLE,ALL',
         (SELECT COUNT(*) FROM VMaster.TBL_TRUCK_MASTER_hdr),
-        (SELECT COUNT(*) FROM VMaster.TBL_TRUCK_MASTER_hdr WHERE DRIVING_LICENSE_EXPIRY_DATE IS NOT NULL AND DRIVING_LICENSE_EXPIRY_DATE < DATEADD(DAY,30,GETDATE())),
-        (SELECT COUNT(*) FROM VMaster.TBL_TRUCK_MASTER_hdr WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
+        (SELECT COUNT(*) FROM VMaster.TBL_TRUCK_MASTER_hdr WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')
+            AND UPPER(ISNULL(TRUCK_STATUS,'')) NOT LIKE '%MAINTENANCE%' AND UPPER(ISNULL(TRUCK_STATUS,'')) NOT LIKE '%SERVICE%' AND UPPER(ISNULL(TRUCK_STATUS,'')) NOT LIKE '%REPAIR%'
+            AND UPPER(ISNULL(TRUCK_STATUS,'')) <> 'AVAILABLE'
+            AND DRIVING_LICENSE_EXPIRY_DATE < DATEADD(DAY,30,GETDATE())),
+        (SELECT COUNT(*) FROM VMaster.TBL_TRUCK_MASTER_hdr WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')
+            AND UPPER(ISNULL(TRUCK_STATUS,'')) NOT LIKE '%MAINTENANCE%' AND UPPER(ISNULL(TRUCK_STATUS,'')) NOT LIKE '%SERVICE%' AND UPPER(ISNULL(TRUCK_STATUS,'')) NOT LIKE '%REPAIR%'
+            AND UPPER(ISNULL(TRUCK_STATUS,'')) <> 'AVAILABLE'
+            AND (DRIVING_LICENSE_EXPIRY_DATE IS NULL OR DRIVING_LICENSE_EXPIRY_DATE > DATEADD(DAY,30,GETDATE()))),
         (SELECT COUNT(*) FROM VMaster.TBL_TRUCK_MASTER_hdr WHERE UPPER(ISNULL(STATUS_MASTER,'')) NOT IN ('AC','ACTIVE')),
         (SELECT COUNT(*) FROM VMaster.TBL_TRUCK_MASTER_hdr WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND (UPPER(ISNULL(TRUCK_STATUS,'')) LIKE '%MAINTENANCE%' OR UPPER(ISNULL(TRUCK_STATUS,'')) LIKE '%SERVICE%' OR UPPER(ISNULL(TRUCK_STATUS,'')) LIKE '%REPAIR%')),
         (SELECT COUNT(*) FROM VMaster.TBL_TRUCK_MASTER_hdr WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND UPPER(ISNULL(TRUCK_STATUS,'')) = 'AVAILABLE'),
@@ -294,9 +352,9 @@ UNION ALL SELECT 'attendance', 'Attendance', 'workforce', 'Workforce', 'Calendar
         (SELECT COUNT(*) FROM VMaster.TBL_EMPLOYEE_CONTRACT_TYPE_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) NOT IN ('AC','ACTIVE')),
         0, 0,
         'Active', NULL, 'Contract types from the employee contract type master; ACTIVE maps to AC status.'
-    UNION ALL SELECT 'overtime-requests', 'Overtime', 'hrpayroll', 'HR & Payroll', 'Timer', 'sky', 9, 'PENDING,APPROVED,ALL',
+    UNION ALL SELECT 'overtime-requests', 'Overtime', 'hrpayroll', 'HR & Payroll', 'Timer', 'sky', 9, 'PENDING,APPROVED,HOLD,REJECTED,ALL',
         (SELECT Total FROM REQ_AGG WHERE Src = 'Overtime Request'), (SELECT Pend FROM REQ_AGG WHERE Src = 'Overtime Request'),
-        (SELECT Appr FROM REQ_AGG WHERE Src = 'Overtime Request'), 0, 0,
+        (SELECT Appr FROM REQ_AGG WHERE Src = 'Overtime Request'), (SELECT Hold FROM REQ_AGG WHERE Src = 'Overtime Request'), (SELECT Rej FROM REQ_AGG WHERE Src = 'Overtime Request'),
         (SELECT ISNULL(SUM(OT_HOURS),0) FROM OTE), (SELECT ISNULL(SUM(OT_AMOUNT),0) FROM OTE),
         'OT hours', 'OT amount', 'Hours/amount from committed overtime entries; approval state from overtime requests.'
     UNION ALL SELECT 'cash-advance-requests', 'Cash Advance', 'hrpayroll', 'HR & Payroll', 'Wallet', 'emerald', 10, 'PENDING,APPROVED,HOLD,REJECTED,ALL',
@@ -312,9 +370,9 @@ UNION ALL SELECT 'attendance', 'Attendance', 'workforce', 'Workforce', 'Calendar
         (SELECT Appr FROM REQ_AGG WHERE Src = 'Arrears Request'), (SELECT Hold FROM REQ_AGG WHERE Src = 'Arrears Request'),
         (SELECT Rej FROM REQ_AGG WHERE Src = 'Arrears Request'), 0, 0, NULL, NULL, NULL
     UNION ALL SELECT 'salary-deductions', 'Salary Deduction', 'hrpayroll', 'HR & Payroll', 'Banknote', 'violet', 13, 'ALL',
-        (SELECT COUNT(*) FROM DED), 0, 0, 0, 0,
+        (SELECT COUNT(*) FROM DED) + (SELECT COUNT(*) FROM MAD), 0, 0, 0, 0,
         (SELECT ISNULL(SUM(MONTHLY_DEDUCTION),0) FROM MAD), 0,
-        'Monthly deduction', NULL, 'Deduction entries plus the monthly (per-instalment) amount from monthly auto deduction records.'
+        'Monthly amount', NULL, 'Deduction entries plus the monthly (per-instalment) amount from monthly auto deduction records.'
     UNION ALL SELECT 'employee-benefits', 'Employee Benefits', 'hrpayroll', 'HR & Payroll', 'HeartHandshake', 'teal', 14, 'PAID,UNPAID,ALL',
         (SELECT COUNT(*) FROM BEN),
         (SELECT COUNT(*) FROM BEN WHERE UPPER(ISNULL(LTRIM(RTRIM(PAID_STATUS)),'')) <> 'PAID'),
@@ -326,20 +384,45 @@ UNION ALL SELECT 'attendance', 'Attendance', 'workforce', 'Workforce', 'Calendar
         (SELECT Total FROM REQ_AGG WHERE Src = 'Promotion/Demotion/Transfer Request'), (SELECT Pend FROM REQ_AGG WHERE Src = 'Promotion/Demotion/Transfer Request'),
         (SELECT Appr FROM REQ_AGG WHERE Src = 'Promotion/Demotion/Transfer Request'), (SELECT Hold FROM REQ_AGG WHERE Src = 'Promotion/Demotion/Transfer Request'),
         (SELECT Rej FROM REQ_AGG WHERE Src = 'Promotion/Demotion/Transfer Request'), 0, 0, NULL, NULL, NULL
+    UNION ALL SELECT 'attendance-requests', 'Attendance Request', 'hrpayroll', 'HR & Payroll', 'CalendarCheck', 'indigo', 24, 'PENDING,APPROVED,HOLD,REJECTED,ALL',
+        (SELECT Total FROM REQ_AGG WHERE Src = 'Attendance Request'), (SELECT Pend FROM REQ_AGG WHERE Src = 'Attendance Request'),
+        (SELECT Appr FROM REQ_AGG WHERE Src = 'Attendance Request'), (SELECT Hold FROM REQ_AGG WHERE Src = 'Attendance Request'),
+        (SELECT Rej FROM REQ_AGG WHERE Src = 'Attendance Request'), 0, 0, NULL, NULL,
+        'Every stored attendance request row; drafts count as Pending. Matches the main dashboard card.'
+    UNION ALL SELECT 'leave-encashment-requests', 'Leave Encashment', 'hrpayroll', 'HR & Payroll', 'CalendarClock', 'teal', 25, 'PENDING,APPROVED,HOLD,REJECTED,ALL',
+        (SELECT Total FROM REQ_AGG WHERE Src = 'Leave Encashment Request'), (SELECT Pend FROM REQ_AGG WHERE Src = 'Leave Encashment Request'),
+        (SELECT Appr FROM REQ_AGG WHERE Src = 'Leave Encashment Request'), (SELECT Hold FROM REQ_AGG WHERE Src = 'Leave Encashment Request'),
+        (SELECT Rej FROM REQ_AGG WHERE Src = 'Leave Encashment Request'), 0, 0, NULL, NULL,
+        'Every stored leave encashment request row; drafts count as Pending. Matches the main dashboard card.'
+    UNION ALL SELECT 'purchase-requests', 'Purchase Request', 'hrpayroll', 'HR & Payroll', 'ShoppingCart', 'blue', 26, 'PENDING,APPROVED,HOLD,REJECTED,ALL',
+        (SELECT Total FROM PUR_AGG WHERE Src = 'Purchase Request'), (SELECT Pend FROM PUR_AGG WHERE Src = 'Purchase Request'),
+        (SELECT Appr FROM PUR_AGG WHERE Src = 'Purchase Request'), (SELECT Hold FROM PUR_AGG WHERE Src = 'Purchase Request'),
+        (SELECT Rej FROM PUR_AGG WHERE Src = 'Purchase Request'), 0, 0, NULL, NULL,
+        'Every stored purchase request header; drafts count as Pending. Matches the main dashboard card.'
+    UNION ALL SELECT 'purchase-quotation-requests', 'Purchase Quotation', 'hrpayroll', 'HR & Payroll', 'FileSpreadsheet', 'violet', 27, 'PENDING,APPROVED,HOLD,REJECTED,ALL',
+        (SELECT Total FROM PUR_AGG WHERE Src = 'Purchase Quotation'), (SELECT Pend FROM PUR_AGG WHERE Src = 'Purchase Quotation'),
+        (SELECT Appr FROM PUR_AGG WHERE Src = 'Purchase Quotation'), (SELECT Hold FROM PUR_AGG WHERE Src = 'Purchase Quotation'),
+        (SELECT Rej FROM PUR_AGG WHERE Src = 'Purchase Quotation'), 0, 0, NULL, NULL,
+        'Every stored purchase quotation header; drafts count as Pending. Matches the main dashboard card.'
+    UNION ALL SELECT 'purchase-order-requests', 'Purchase Order', 'hrpayroll', 'HR & Payroll', 'Package', 'orange', 28, 'PENDING,APPROVED,HOLD,REJECTED,ALL',
+        (SELECT Total FROM PUR_AGG WHERE Src = 'Purchase Order'), (SELECT Pend FROM PUR_AGG WHERE Src = 'Purchase Order'),
+        (SELECT Appr FROM PUR_AGG WHERE Src = 'Purchase Order'), (SELECT Hold FROM PUR_AGG WHERE Src = 'Purchase Order'),
+        (SELECT Rej FROM PUR_AGG WHERE Src = 'Purchase Order'), 0, 0, NULL, NULL,
+        'Every stored purchase order header; drafts count as Pending. Matches the main dashboard card.'
     UNION ALL SELECT 'products', 'Product', 'registry', 'Registries', 'Package', 'blue', 16, 'ACTIVE,INACTIVE,PENDING,REJECTED,ALL',
-        (SELECT COUNT(*) FROM VMaster.TBL_PRODUCT_MASTER),
-        (SELECT COUNT(*) FROM VMaster.TBL_PRODUCT_MASTER WHERE STATUS_MASTER = 'AC' AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),'PENDING')))) = 'PENDING'),
-        (SELECT COUNT(*) FROM VMaster.TBL_PRODUCT_MASTER WHERE STATUS_MASTER = 'AC' AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),'PENDING')))) NOT IN ('PENDING','REJECT')),
-        (SELECT COUNT(*) FROM VMaster.TBL_PRODUCT_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) NOT IN ('AC','ACTIVE')),
-        (SELECT COUNT(*) FROM VMaster.TBL_PRODUCT_MASTER WHERE STATUS_MASTER = 'AC' AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),'PENDING')))) = 'REJECT'),
+        (SELECT COUNT(*) FROM PRD),
+        (SELECT COUNT(*) FROM PRD WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND St = 'PENDING'),
+        (SELECT COUNT(*) FROM PRD WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND St NOT IN ('PENDING','REJECTED')),
+        (SELECT COUNT(*) FROM PRD WHERE UPPER(ISNULL(STATUS_MASTER,'')) NOT IN ('AC','ACTIVE')),
+        (SELECT COUNT(*) FROM PRD WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND St = 'REJECTED'),
         0, 0,
         'Active (approved)', 'Approval-driven', 'Product records carry an approval workflow on top of AC/IN status.'
     UNION ALL SELECT 'business-partners', 'Business Partners / Customers', 'registry', 'Registries', 'Handshake', 'violet', 17, 'ACTIVE,INACTIVE,PENDING,REJECTED,ALL',
-        (SELECT COUNT(*) FROM VMaster.TBL_BUSINESS_PARTNER_MASTER),
-        (SELECT COUNT(*) FROM VMaster.TBL_BUSINESS_PARTNER_MASTER WHERE STATUS_MASTER = 'AC' AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),'PENDING')))) = 'PENDING'),
-        (SELECT COUNT(*) FROM VMaster.TBL_BUSINESS_PARTNER_MASTER WHERE STATUS_MASTER = 'AC' AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),'PENDING')))) NOT IN ('PENDING','REJECT')),
-        (SELECT COUNT(*) FROM VMaster.TBL_BUSINESS_PARTNER_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) NOT IN ('AC','ACTIVE')),
-        (SELECT COUNT(*) FROM VMaster.TBL_BUSINESS_PARTNER_MASTER WHERE STATUS_MASTER = 'AC' AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(FINAL_RESPONSE_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_2_STATUS)),''),ISNULL(NULLIF(LTRIM(RTRIM(RESPONSE_1_STATUS)),''),'PENDING')))) = 'REJECT'),
+        (SELECT COUNT(*) FROM BPS),
+        (SELECT COUNT(*) FROM BPS WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND St = 'PENDING'),
+        (SELECT COUNT(*) FROM BPS WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND St NOT IN ('PENDING','REJECTED')),
+        (SELECT COUNT(*) FROM BPS WHERE UPPER(ISNULL(STATUS_MASTER,'')) NOT IN ('AC','ACTIVE')),
+        (SELECT COUNT(*) FROM BPS WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE') AND St = 'REJECTED'),
         0, 0,
         'Active (approved)', 'Approval-driven', 'Covers both supplier and customer partner records with their approval workflow.'
     UNION ALL SELECT 'fuel', 'Fuel', 'registry', 'Registries', 'Fuel', 'amber', 18, 'ACTIVE,INACTIVE,ALL',
@@ -347,8 +430,8 @@ UNION ALL SELECT 'attendance', 'Attendance', 'workforce', 'Workforce', 'Calendar
         (SELECT COUNT(*) FROM VMaster.TBL_FUEL_STATION_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
         0, 0, 0,
         (SELECT COUNT(*) FROM VMaster.TBL_FUEL_TYPE_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
-        0,
-        'Fuel types', NULL, 'Fuel stations with their active fuel-type master. No consumption/stock data is stored.'
+        (SELECT COUNT(*) FROM VMaster.TBL_FUEL_STATION_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) NOT IN ('AC','ACTIVE')),
+        'Fuel types', 'Inactive', 'Fuel stations with their active fuel-type master. No consumption/stock data is stored.'
     UNION ALL SELECT 'guns', 'Guns', 'registry', 'Registries', 'Crosshair', 'zinc', 19, 'ACTIVE,INACTIVE,ALL',
         (SELECT COUNT(*) FROM VMaster.TBL_GUN_MASTER),
         (SELECT COUNT(*) FROM VMaster.TBL_GUN_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
@@ -357,26 +440,32 @@ UNION ALL SELECT 'attendance', 'Attendance', 'workforce', 'Workforce', 'Calendar
         0,
         'Inactive', NULL, 'Firearm licence expiry dates are not stored, so licence expiry always shows 0.'
     UNION ALL SELECT 'hotels-travel', 'Hotels / Travel', 'travel', 'Hotels & Travel', 'Plane', 'sky', 20, 'ALL',
-        (SELECT COUNT(*) FROM VMaster.TBL_HOTEL_RESORT_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
+        (SELECT COUNT(*) FROM VMaster.TBL_HOTEL_RESORT_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE'))
+          + (SELECT COUNT(*) FROM VMaster.TBL_AIRLINES_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE'))
+          + (SELECT COUNT(*) FROM VMaster.TBL_HOTEL_ROOM_TYPE_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE'))
+          + (SELECT COUNT(*) FROM VMaster.TBL_AIRPORT_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE'))
+          + (SELECT COUNT(*) FROM VMaster.TBL_TRIP_TEMPLATE_PRICE_MAPPING WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
         (SELECT COUNT(*) FROM VMaster.TBL_AIRLINES_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
         (SELECT COUNT(*) FROM VMaster.TBL_HOTEL_ROOM_TYPE_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
         (SELECT COUNT(*) FROM VMaster.TBL_AIRPORT_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
         0,
         (SELECT COUNT(*) FROM VMaster.TBL_TRIP_TEMPLATE_PRICE_MAPPING WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
-        0, 'Travel pricing', NULL, 'Hotels, room types, airlines, airports and active trip-template prices for travel planning.'
+        (SELECT COUNT(*) FROM VMaster.TBL_HOTEL_RESORT_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
+        'Travel pricing', 'Hotels', 'Hotels, room types, airlines, airports and active trip-template prices for travel planning.'
     UNION ALL SELECT 'animals', 'Animals', 'registry', 'Registries', 'PawPrint', 'emerald', 21, 'ACTIVE,INACTIVE,ALL',
         (SELECT COUNT(*) FROM VMaster.TBL_ANIMAL_MASTER),
         (SELECT COUNT(*) FROM VMaster.TBL_ANIMAL_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
         0, 0, 0,
-        (SELECT COUNT(*) FROM HUNT), 0,
-        'Most visited (priced)', NULL, 'No visit log exists; "most visited" counts animals with active hunting-charge pricing as the visited set.'
+        (SELECT COUNT(*) FROM HUNT),
+        (SELECT COUNT(*) FROM VMaster.TBL_ANIMAL_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) NOT IN ('AC','ACTIVE')),
+        'Most visited (priced)', 'Inactive', 'No visit log exists; "most visited" counts animals with active hunting-charge pricing as the visited set.'
     UNION ALL SELECT 'camps', 'Camps', 'registry', 'Registries', 'Tent', 'orange', 22, 'ACTIVE,INACTIVE,ALL',
         (SELECT COUNT(*) FROM VMaster.TBL_CAMP_MASTER),
         (SELECT COUNT(*) FROM VMaster.TBL_CAMP_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
         0, 0, 0,
         (SELECT COUNT(*) FROM VMaster.TBL_GUN_CATEGORY_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
-        0,
-        'Gun categories', NULL, 'Total camps alongside the gun-category master count.'
+        (SELECT COUNT(*) FROM VMaster.TBL_CAMP_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) NOT IN ('AC','ACTIVE')),
+        'Gun categories', 'Inactive', 'Total camps alongside the gun-category master count.'
     UNION ALL SELECT 'hotels', 'Hotels', 'registry', 'Registries', 'Hotel', 'rose', 23, 'ACTIVE,INACTIVE,ALL',
         (SELECT COUNT(*) FROM VMaster.TBL_HOTEL_RESORT_MASTER),
         (SELECT COUNT(*) FROM VMaster.TBL_HOTEL_RESORT_MASTER WHERE UPPER(ISNULL(STATUS_MASTER,'')) IN ('AC','ACTIVE')),
@@ -413,7 +502,12 @@ BEGIN
     DECLARE @EmpExpr VARCHAR(MAX) = 'LTRIM(RTRIM(COALESCE(NULLIF(a.FIRST_NAME,'''')+'' '','''') + COALESCE(NULLIF(a.MIDDLE_NAME,'''')+'' '','''') + COALESCE(NULLIF(a.LAST_NAME,''''),'''')))';
     DECLARE @StExpr VARCHAR(MAX) = 'CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(a.FINAL_RESPONSE_STATUS)),''''),ISNULL(NULLIF(LTRIM(RTRIM(a.RESPONSE_2_STATUS)),''''),ISNULL(NULLIF(LTRIM(RTRIM(a.RESPONSE_1_STATUS)),''''),ISNULL(NULLIF(LTRIM(RTRIM(a.SECTION_HEAD_RESPONSE_STATUS)),''''),''PENDING''))))) WHEN ''APPROVAL'' THEN ''APPROVED'' WHEN ''APPROVED'' THEN ''APPROVED'' WHEN ''REJECT'' THEN ''REJECTED'' WHEN ''REJECTED'' THEN ''REJECTED'' WHEN ''HOLD'' THEN ''HOLD'' ELSE ''PENDING'' END';
     DECLARE @StExpr3 VARCHAR(MAX) = 'CASE UPPER(ISNULL(NULLIF(LTRIM(RTRIM(a.FINAL_RESPONSE_STATUS)),''''),ISNULL(NULLIF(LTRIM(RTRIM(a.RESPONSE_2_STATUS)),''''),ISNULL(NULLIF(LTRIM(RTRIM(a.RESPONSE_1_STATUS)),''''),''PENDING'')))) WHEN ''APPROVAL'' THEN ''APPROVED'' WHEN ''APPROVED'' THEN ''APPROVED'' WHEN ''REJECT'' THEN ''REJECTED'' WHEN ''REJECTED'' THEN ''REJECTED'' WHEN ''HOLD'' THEN ''HOLD'' ELSE ''PENDING'' END';
-    DECLARE @OverdueExpr VARCHAR(MAX) = 'CASE WHEN ' + @StExpr + ' = ''PENDING'' AND a.CREATED_DATE < DATEADD(DAY,-7,GETDATE()) THEN ''OVERDUE'' ELSE ' + @StExpr + ' END';
+    /* Request / purchase status rollups shared with the dashboard cards. They
+       must be the same functions the summary procs use, otherwise the chip
+       counts and the detail dialog disagree. */
+    DECLARE @ReqStExpr VARCHAR(MAX) = 'VRequest.FN_APPROVAL_STATUS(a.SECTION_HEAD_RESPONSE_STATUS, a.RESPONSE_1_STATUS, a.RESPONSE_2_STATUS, a.FINAL_RESPONSE_STATUS)';
+    DECLARE @PurStExpr VARCHAR(MAX) = 'VRequest.FN_PURCHASE_APPROVAL_STATUS(a.SECTION_HEAD_RESPONSE_STATUS, a.RESPONSE_1_STATUS, a.RESPONSE_2_STATUS, a.FINAL_RESPONSE_STATUS)';
+    DECLARE @OverdueExpr VARCHAR(MAX) = 'CASE WHEN ' + @ReqStExpr + ' = ''PENDING'' AND a.CREATED_DATE < DATEADD(DAY,-7,GETDATE()) THEN ''OVERDUE'' ELSE ' + @ReqStExpr + ' END';
     DECLARE @StOk NVARCHAR(200) = ' (x.st = @Status OR @Status = ''ALL'') ';
 
     DECLARE @searchCond NVARCHAR(500) = ' AND (@Search = '''' OR ISNULL(x.refNo,'''') LIKE ''%''+@Search+''%'' OR ISNULL(x.title,'''') LIKE ''%''+@Search+''%'' OR ISNULL(x.empName,'''') LIKE ''%''+@Search+''%'' OR ISNULL(x.subtitle,'''') LIKE ''%''+@Search+''%'')';
@@ -432,7 +526,6 @@ BEGIN
             LEFT JOIN VMaster.TBL_DEPARTMENT_MASTER dp ON dp.DEPARTMENT_ID = a.DEPARTMENT_ID
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
-            WHERE a.STATUS_MASTER = ''AC''
             UNION ALL
             SELECT ''Cash Advance Request'', a.SNO, a.CASH_ADV_REQUEST_REF_NO, ''Cash Advance Request'', a.ADVANCE_TYPE, ' + @EmpExpr + ', dp.DEPARTMENT_NAME, st.STORE_NAME, cp.CAMP_NAME, a.REQUEST_AMOUNT, cur.CURRENCY_NAME, a.DEDUCTION_FROM_DATE, a.DEDUCTION_TO_DATE, NULL, a.CREATED_DATE, ' + @OverdueExpr + ', NULL, a.REASON
             FROM VRequest.TBL_CASH_ADVANCE_REQUEST a
@@ -440,7 +533,6 @@ BEGIN
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
             LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''
             UNION ALL
             SELECT ''Arrears Request'', a.SNO, a.ARREAR_REQUEST_REF_NO, ''Arrears Request'', NULL, ' + @EmpExpr + ', dp.DEPARTMENT_NAME, st.STORE_NAME, cp.CAMP_NAME, a.REQUEST_AMOUNT, cur.CURRENCY_NAME, NULL, NULL, NULL, a.CREATED_DATE, ' + @OverdueExpr + ', NULL, a.REASON
             FROM VREQUEST.TBL_ARREARS_REQUEST a
@@ -448,7 +540,6 @@ BEGIN
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
             LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''
             UNION ALL
             SELECT ''Overtime Request'', a.SNO, a.OT_REQUEST_REF_NO, ''Overtime Request'', NULL, ' + @EmpExpr + ', dp.DEPARTMENT_NAME, st.STORE_NAME, cp.CAMP_NAME, a.REQUEST_AMOUNT, cur.CURRENCY_NAME, a.OT_FROM_DATE, a.OT_TO_DATE, NULL, a.CREATED_DATE, ' + @OverdueExpr + ', a.PAID_STATUS, a.REASON
             FROM VREQUEST.TBL_OVERTIME_REQUEST a
@@ -456,7 +547,6 @@ BEGIN
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
             LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''
             UNION ALL
             SELECT ''Bonus Request'', a.SNO, a.BONUS_REQUEST_REF_NO, ''Bonus Request'', a.BONUS_TYPE, ' + @EmpExpr + ', dp.DEPARTMENT_NAME, st.STORE_NAME, cp.CAMP_NAME, a.REQUEST_AMOUNT, cur.CURRENCY_NAME, NULL, NULL, NULL, a.CREATED_DATE, ' + @OverdueExpr + ', a.PAID_STATUS, a.REASON
             FROM VRequest.TBL_BONUS_REQUEST a
@@ -464,7 +554,6 @@ BEGIN
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
             LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''
             UNION ALL
             SELECT ''Leave Encashment Request'', a.SNO, a.LEAVE_ENCASHMENT_REQUEST_REF_NO, ''Leave Encashment Request'', NULL, ' + @EmpExpr + ', dp.DEPARTMENT_NAME, st.STORE_NAME, cp.CAMP_NAME, a.LEAVE_ENCASHMENT_GROSS_AMOUNT, cur.CURRENCY_NAME, NULL, NULL, NULL, a.CREATED_DATE, ' + @OverdueExpr + ', NULL, ''Days: '' + CAST(a.LEAVE_ENCASHMENT_DAYS AS VARCHAR(20))
             FROM VRequest.TBL_LEAVE_ENCASHMENT_REQUEST a
@@ -472,7 +561,6 @@ BEGIN
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
             LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''
             UNION ALL
             SELECT ''Promotion/Demotion/Transfer Request'', a.SNO, a.TRANSFER_REQUEST_REF_NO, ''Promotion/Demotion/Transfer Request'', a.TRANSFER_TYPE, ' + @EmpExpr + ', dp.DEPARTMENT_NAME, st.STORE_NAME, cp.CAMP_NAME, a.NEW_GROSS_AMOUNT, cur.CURRENCY_NAME, NULL, NULL, NULL, a.CREATED_DATE, ' + @OverdueExpr + ', NULL, a.REASON
             FROM VRequest.TBL_PROMOTION_DEMOTION_TRANSFER_REQUEST a
@@ -480,13 +568,11 @@ BEGIN
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.NEW_STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.NEW_CAMP_ID
             LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''
             UNION ALL
             SELECT ''Man Power Change Request'', a.MAN_POWER_REQUEST_ID, ''MP-'' + CAST(a.MAN_POWER_REQUEST_ID AS VARCHAR(20)), ''Man Power Change Request'', ds.DESIGNATION_NAME, NULL, dp.DEPARTMENT_NAME, NULL, NULL, CAST(a.NEW_APPROVED_MAN_POWER AS DECIMAL(18,2)), NULL, NULL, NULL, NULL, a.CREATED_DATE, ' + @OverdueExpr + ', NULL, ''Add/Remove: '' + CAST(a.ADD_REMOVE_MAN_POWER AS VARCHAR(20))
             FROM VMaster.TBL_MAN_POWER_CHANGE_REQUEST a
             LEFT JOIN VMaster.TBL_DEPARTMENT_MASTER dp ON dp.DEPARTMENT_ID = a.DEPARTMENT_ID
             LEFT JOIN VMaster.TBL_DESIGNATION_MASTER ds ON ds.DESIGNATION_ID = a.DESIGNATION_ID
-            WHERE a.STATUS_MASTER = ''AC''
             UNION ALL
             SELECT ''Driving Licence'', n.EMP_ID, ''Driving Licence'', ''Employee Checklist'', NULL, LTRIM(RTRIM(COALESCE(NULLIF(FIRST_NAME,'''')+'' '','''') + COALESCE(NULLIF(MIDDLE_NAME,'''')+'' '','''') + COALESCE(NULLIF(LAST_NAME,''''),''''))), dp.DEPARTMENT_NAME, NULL, NULL, NULL, NULL, NULL, NULL, DRIVING_LICENSE_EXPIRE_DATE, NULL,
                 CASE WHEN DRIVING_LICENSE_EXPIRE_DATE < GETDATE() THEN ''EXPIRED'' WHEN DRIVING_LICENSE_EXPIRE_DATE <= DATEADD(DAY,30,GETDATE()) THEN ''SOON30'' WHEN DRIVING_LICENSE_EXPIRE_DATE <= DATEADD(DAY,60,GETDATE()) THEN ''SOON60'' ELSE ''VALID'' END, NULL, DRIVING_LICENSE_NO
@@ -564,7 +650,7 @@ BEGIN
         ELSE IF @Status = 'SOON30'
             SET @statCond = ' x.st = ''SOON30'' ';
         ELSE
-            SET @statCond = ' 1=1 ';
+            SET @statCond = ' x.st IN (''OVERDUE'',''EXPIRED'',''LOW'',''CRITICAL'',''SOON30'') ';
     END
     ELSE IF @CardKey = 'employees'
     BEGIN
@@ -629,14 +715,13 @@ BEGIN
             UNION ALL
             SELECT a.SNO AS id, a.LEAVE_ENCASHMENT_REQUEST_REF_NO AS refNo, ''Leave Encashment Request'' AS title, NULL AS subtitle, ' + @EmpExpr + ' AS empName,
                 dp.DEPARTMENT_NAME AS dept, st.STORE_NAME AS store, cp.CAMP_NAME AS camp, a.LEAVE_ENCASHMENT_GROSS_AMOUNT AS amount, cur.CURRENCY_NAME AS currency,
-                NULL AS dateFrom, NULL AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @StExpr + ' AS st, NULL AS paid,
+                NULL AS dateFrom, NULL AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @ReqStExpr + ' AS st, NULL AS paid,
                 ''Days: '' + CAST(a.LEAVE_ENCASHMENT_DAYS AS VARCHAR(20)) AS extra
             FROM VRequest.TBL_LEAVE_ENCASHMENT_REQUEST a
             LEFT JOIN VMaster.TBL_DEPARTMENT_MASTER dp ON dp.DEPARTMENT_ID = a.DEPARTMENT_ID
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
-            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''';
+            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID';
         SET @statCond = @StOk;
     END
     ELSE IF @CardKey = 'drivers'
@@ -697,13 +782,12 @@ BEGIN
         SET @defaultSort = 'reqDate';
         SET @base = 'SELECT a.SNO AS id, a.OT_REQUEST_REF_NO AS refNo, ''Overtime Request'' AS title, NULL AS subtitle, ' + @EmpExpr + ' AS empName,
                 dp.DEPARTMENT_NAME AS dept, st.STORE_NAME AS store, cp.CAMP_NAME AS camp, a.REQUEST_AMOUNT AS amount, cur.CURRENCY_NAME AS currency,
-                a.OT_FROM_DATE AS dateFrom, a.OT_TO_DATE AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @StExpr + ' AS st, a.PAID_STATUS AS paid, a.REASON AS extra
+                a.OT_FROM_DATE AS dateFrom, a.OT_TO_DATE AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @ReqStExpr + ' AS st, a.PAID_STATUS AS paid, a.REASON AS extra
             FROM VREQUEST.TBL_OVERTIME_REQUEST a
             LEFT JOIN VMaster.TBL_DEPARTMENT_MASTER dp ON dp.DEPARTMENT_ID = a.DEPARTMENT_ID
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
-            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''';
+            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID';
         SET @statCond = @StOk;
     END
     ELSE IF @CardKey = 'cash-advance-requests'
@@ -711,13 +795,12 @@ BEGIN
         SET @defaultSort = 'reqDate';
         SET @base = 'SELECT a.SNO AS id, a.CASH_ADV_REQUEST_REF_NO AS refNo, ''Cash Advance Request'' AS title, a.ADVANCE_TYPE AS subtitle, ' + @EmpExpr + ' AS empName,
                 dp.DEPARTMENT_NAME AS dept, st.STORE_NAME AS store, cp.CAMP_NAME AS camp, a.REQUEST_AMOUNT AS amount, cur.CURRENCY_NAME AS currency,
-                a.DEDUCTION_FROM_DATE AS dateFrom, a.DEDUCTION_TO_DATE AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @StExpr + ' AS st, NULL AS paid, a.REASON AS extra
+                a.DEDUCTION_FROM_DATE AS dateFrom, a.DEDUCTION_TO_DATE AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @ReqStExpr + ' AS st, NULL AS paid, a.REASON AS extra
             FROM VRequest.TBL_CASH_ADVANCE_REQUEST a
             LEFT JOIN VMaster.TBL_DEPARTMENT_MASTER dp ON dp.DEPARTMENT_ID = a.DEPARTMENT_ID
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
-            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''';
+            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID';
         SET @statCond = @StOk;
     END
     ELSE IF @CardKey = 'arrears-requests'
@@ -725,13 +808,12 @@ BEGIN
         SET @defaultSort = 'reqDate';
         SET @base = 'SELECT a.SNO AS id, a.ARREAR_REQUEST_REF_NO AS refNo, ''Arrears Request'' AS title, NULL AS subtitle, ' + @EmpExpr + ' AS empName,
                 dp.DEPARTMENT_NAME AS dept, st.STORE_NAME AS store, cp.CAMP_NAME AS camp, a.REQUEST_AMOUNT AS amount, cur.CURRENCY_NAME AS currency,
-                NULL AS dateFrom, NULL AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @StExpr + ' AS st, NULL AS paid, a.REASON AS extra
+                NULL AS dateFrom, NULL AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @ReqStExpr + ' AS st, NULL AS paid, a.REASON AS extra
             FROM VREQUEST.TBL_ARREARS_REQUEST a
             LEFT JOIN VMaster.TBL_DEPARTMENT_MASTER dp ON dp.DEPARTMENT_ID = a.DEPARTMENT_ID
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
-            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''';
+            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID';
         SET @statCond = @StOk;
     END
     ELSE IF @CardKey = 'bonus-requests'
@@ -739,13 +821,12 @@ BEGIN
         SET @defaultSort = 'reqDate';
         SET @base = 'SELECT a.SNO AS id, a.BONUS_REQUEST_REF_NO AS refNo, ''Bonus Request'' AS title, a.BONUS_TYPE AS subtitle, ' + @EmpExpr + ' AS empName,
                 dp.DEPARTMENT_NAME AS dept, st.STORE_NAME AS store, cp.CAMP_NAME AS camp, a.REQUEST_AMOUNT AS amount, cur.CURRENCY_NAME AS currency,
-                NULL AS dateFrom, NULL AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @StExpr + ' AS st, a.PAID_STATUS AS paid, a.REASON AS extra
+                NULL AS dateFrom, NULL AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @ReqStExpr + ' AS st, a.PAID_STATUS AS paid, a.REASON AS extra
             FROM VRequest.TBL_BONUS_REQUEST a
             LEFT JOIN VMaster.TBL_DEPARTMENT_MASTER dp ON dp.DEPARTMENT_ID = a.DEPARTMENT_ID
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
-            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''';
+            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID';
         SET @statCond = @StOk;
     END
     ELSE IF @CardKey = 'promotion-transfer-requests'
@@ -753,13 +834,71 @@ BEGIN
         SET @defaultSort = 'reqDate';
         SET @base = 'SELECT a.SNO AS id, a.TRANSFER_REQUEST_REF_NO AS refNo, ''Promotion/Demotion/Transfer Request'' AS title, a.TRANSFER_TYPE AS subtitle, ' + @EmpExpr + ' AS empName,
                 dp.DEPARTMENT_NAME AS dept, st.STORE_NAME AS store, cp.CAMP_NAME AS camp, a.NEW_GROSS_AMOUNT AS amount, cur.CURRENCY_NAME AS currency,
-                NULL AS dateFrom, NULL AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @StExpr + ' AS st, NULL AS paid, a.REASON AS extra
+                NULL AS dateFrom, NULL AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @ReqStExpr + ' AS st, NULL AS paid, a.REASON AS extra
             FROM VRequest.TBL_PROMOTION_DEMOTION_TRANSFER_REQUEST a
             LEFT JOIN VMaster.TBL_DEPARTMENT_MASTER dp ON dp.DEPARTMENT_ID = a.NEW_DEPARTMENT_ID
             LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.NEW_STORE_ID
             LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.NEW_CAMP_ID
-            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID
-            WHERE a.STATUS_MASTER = ''AC''';
+            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID';
+        SET @statCond = @StOk;
+    END
+    ELSE IF @CardKey = 'attendance-requests'
+    BEGIN
+        SET @defaultSort = 'reqDate';
+        SET @base = 'SELECT a.SNO AS id, a.ATT_REQUEST_REF_NO AS refNo, ''Attendance Request'' AS title, NULL AS subtitle, ' + @EmpExpr + ' AS empName,
+                dp.DEPARTMENT_NAME AS dept, st.STORE_NAME AS store, cp.CAMP_NAME AS camp, NULL AS amount, NULL AS currency,
+                a.DATE_FROM AS dateFrom, a.DATE_TO AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @ReqStExpr + ' AS st, NULL AS paid, a.REASON AS extra
+            FROM VRequest.TBL_ATTENDANCE_REQUEST a
+            LEFT JOIN VMaster.TBL_DEPARTMENT_MASTER dp ON dp.DEPARTMENT_ID = a.DEPARTMENT_ID
+            LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
+            LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID';
+        SET @statCond = @StOk;
+    END
+    ELSE IF @CardKey = 'leave-encashment-requests'
+    BEGIN
+        SET @defaultSort = 'reqDate';
+        SET @base = 'SELECT a.SNO AS id, a.LEAVE_ENCASHMENT_REQUEST_REF_NO AS refNo, ''Leave Encashment Request'' AS title, NULL AS subtitle, ' + @EmpExpr + ' AS empName,
+                dp.DEPARTMENT_NAME AS dept, st.STORE_NAME AS store, cp.CAMP_NAME AS camp, a.LEAVE_ENCASHMENT_GROSS_AMOUNT AS amount, cur.CURRENCY_NAME AS currency,
+                NULL AS dateFrom, NULL AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @ReqStExpr + ' AS st, NULL AS paid,
+                ''Days: '' + CAST(a.LEAVE_ENCASHMENT_DAYS AS VARCHAR(20)) AS extra
+            FROM VRequest.TBL_LEAVE_ENCASHMENT_REQUEST a
+            LEFT JOIN VMaster.TBL_DEPARTMENT_MASTER dp ON dp.DEPARTMENT_ID = a.DEPARTMENT_ID
+            LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.STORE_ID
+            LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID
+            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID';
+        SET @statCond = @StOk;
+    END
+    ELSE IF @CardKey = 'purchase-requests'
+    BEGIN
+        SET @defaultSort = 'reqDate';
+        SET @base = 'SELECT a.SNO AS id, a.PURCHASE_REQUEST_NO AS refNo, ''Purchase Request'' AS title, a.REQUESTED_BY_NAME AS subtitle, a.REQUESTED_BY_NAME AS empName,
+                NULL AS dept, st.STORE_NAME AS store, cp.CAMP_NAME AS camp, NULL AS amount, NULL AS currency,
+                a.PURCHASE_REQUEST_DATE AS dateFrom, a.REQUIRED_DATE AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @PurStExpr + ' AS st, NULL AS paid, a.REASON AS extra
+            FROM VPurchase.TBL_PURCHASE_REQUEST_HDR a
+            LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.REQUEST_STORE_ID
+            LEFT JOIN VMaster.TBL_CAMP_MASTER cp ON cp.CAMP_ID = a.CAMP_ID';
+        SET @statCond = @StOk;
+    END
+    ELSE IF @CardKey = 'purchase-quotation-requests'
+    BEGIN
+        SET @defaultSort = 'reqDate';
+        SET @base = 'SELECT a.SNO AS id, a.PURCHASE_QUOTATION_NO AS refNo, ''Purchase Quotation'' AS title, a.SUPPLIER_QUOTATION_NO AS subtitle, NULL AS empName,
+                NULL AS dept, st.STORE_NAME AS store, NULL AS camp, a.FINAL_PRODUCT_HDR_AMOUNT_FC AS amount, cur.CURRENCY_NAME AS currency,
+                a.PURCHASE_QUOTATION_DATE AS dateFrom, a.VALID_TO_DATE AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @PurStExpr + ' AS st, NULL AS paid, a.REMARKS AS extra
+            FROM VPurchase.TBL_PURCHASE_QUOTATION_HDR a
+            LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.PO_STORE_ID
+            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID';
+        SET @statCond = @StOk;
+    END
+    ELSE IF @CardKey = 'purchase-order-requests'
+    BEGIN
+        SET @defaultSort = 'reqDate';
+        SET @base = 'SELECT a.SNO AS id, a.PURCHASE_ORDER_NO AS refNo, ''Purchase Order'' AS title, a.PURCHASE_QUOTATION_NO AS subtitle, NULL AS empName,
+                NULL AS dept, st.STORE_NAME AS store, NULL AS camp, a.FINAL_PRODUCT_HDR_AMOUNT_FC AS amount, cur.CURRENCY_NAME AS currency,
+                a.PURCHASE_ORDER_DATE AS dateFrom, a.DELIVERY_DATE AS dateTo, NULL AS expiryDate, a.CREATED_DATE AS reqDate, ' + @PurStExpr + ' AS st, NULL AS paid, a.REMARKS AS extra
+            FROM VPurchase.TBL_PURCHASE_ORDER_HDR a
+            LEFT JOIN VMaster.TBL_STORE_MASTER st ON st.STORE_ID = a.PO_STORE_ID
+            LEFT JOIN VMaster.TBL_CURRENCY_MASTER cur ON cur.CURRENCY_ID = a.CURRENCY_ID';
         SET @statCond = @StOk;
     END
     ELSE IF @CardKey = 'salary-deductions'
